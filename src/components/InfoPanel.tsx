@@ -1,0 +1,220 @@
+import { useEffect, useState, type ReactNode } from 'react';
+import type { DxfItem, OrthoItem, PhotoItem, Selection } from '../types';
+import type { Project } from '../state';
+import { crsName, CRS_LIST, formatProjected, fmt } from '../lib/crs';
+import { IconChevron, IconClose, IconPin, IconTrash } from './icons';
+
+interface Props {
+  project: Project;
+  selection: Selection;
+  onClose: () => void;
+  onOpenViewer: (id: string) => void;
+  onStartPlace: (id: string) => void;
+  onZoomTo: (id: string) => void;
+}
+
+function Section({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="info-section">
+      <button className="info-section-head" onClick={() => setOpen(!open)}>
+        <IconChevron size={14} style={{ transform: open ? 'rotate(90deg)' : undefined }} />
+        <span>{title}</span>
+      </button>
+      {open && <div className="info-section-body">{children}</div>}
+    </div>
+  );
+}
+
+const Row = ({ k, v }: { k: string; v: ReactNode }) => (
+  <div className="kv"><span>{k}</span><span>{v}</span></div>
+);
+
+const dateFmt = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'medium', timeStyle: 'short' });
+
+export default function InfoPanel({ project, selection, onClose, onOpenViewer, onStartPlace, onZoomTo }: Props) {
+  const [confirmDel, setConfirmDel] = useState(false);
+  useEffect(() => setConfirmDel(false), [selection]);
+  if (!selection || !project.settings) return null;
+  const crs = project.settings.projectCrs;
+
+  const coords = (lat: number, lng: number) => {
+    const p = formatProjected(crs, lat, lng);
+    return (
+      <>
+        <Row k={crs === 'EPSG:4326' ? 'Lengde' : 'Øst'} v={p.e} />
+        <Row k={crs === 'EPSG:4326' ? 'Bredde' : 'Nord'} v={p.n} />
+        <Row k="System" v={crsName(crs)} />
+      </>
+    );
+  };
+
+  const folderName = (id: string) => project.folders.find((f) => f.id === id)?.name ?? '–';
+
+  const deleteBtn = (id: string) => (
+    <button className={`btn danger${confirmDel ? ' solid' : ''}`} onClick={() => { if (!confirmDel) { setConfirmDel(true); return; } project.deleteItem(id); onClose(); }}>
+      <IconTrash size={15} /> {confirmDel ? 'Bekreft sletting' : 'Slett'}
+    </button>
+  );
+
+  let title = 'Objektinformasjon';
+  let subtitle = '';
+  let body: ReactNode = null;
+
+  if (selection.type === 'point') {
+    subtitle = 'Punkt på kartet';
+    body = <Section title="Koordinater">{coords(selection.lat, selection.lng)}
+      <Row k="WGS84" v={`${selection.lat.toFixed(6)}, ${selection.lng.toFixed(6)}`} /></Section>;
+  }
+
+  if (selection.type === 'dxf-feature') {
+    const item = project.items.find((i) => i.id === selection.itemId) as DxfItem | undefined;
+    const f = project.dxf[selection.itemId]?.data?.features[selection.index];
+    if (!item || !f) return null;
+    subtitle = f.text ? `Tekst: ${f.text.slice(0, 40)}` : `${f.type} på lag ${f.layer}`;
+    const zs = f.z.filter((z) => Number.isFinite(z) && z !== 0);
+    body = (
+      <>
+        <Section title="Prosjektert objekt">
+          <Row k="Lag" v={<><span className="swatch" style={{ background: f.color }} /> {f.layer}</>} />
+          <Row k="Type" v={f.type} />
+          {f.block && <Row k="Blokk" v={f.block} />}
+          {f.text && <Row k="Tekst" v={<span style={{ whiteSpace: 'pre-wrap' }}>{f.text}</span>} />}
+          {f.geom === 'line' && <Row k="Lengde (2D)" v={fmt.m(f.length)} />}
+          {f.geom === 'polygon' && <><Row k="Omkrets" v={fmt.m(f.length)} /><Row k="Areal" v={fmt.m2(f.area ?? 0)} /></>}
+          <Row k="Punkter" v={f.latlngs.length} />
+        </Section>
+        <Section title="Høyde">
+          {zs.length ? (
+            zs.length === 1 || Math.min(...zs) === Math.max(...zs)
+              ? <Row k="Høyde" v={fmt.m(zs[0])} />
+              : <><Row k="Laveste" v={fmt.m(Math.min(...zs))} /><Row k="Høyeste" v={fmt.m(Math.max(...zs))} />
+                {f.geom === 'line' && f.length > 0 && <Row k="Snittfall" v={`${fmt.num(((zs[zs.length - 1] - zs[0]) / f.length) * 100, 2)} %`} />}</>
+          ) : <span className="muted">Ingen høydeinformasjon (2D)</span>}
+        </Section>
+        <Section title="Fil">
+          <Row k="Fil" v={item.name} />
+          <Row k="System" v={crsName(item.crs)} />
+        </Section>
+      </>
+    );
+  }
+
+  if (selection.type === 'item') {
+    const it = project.items.find((i) => i.id === selection.id);
+    if (!it) return null;
+
+    if (it.kind === 'photo' || it.kind === 'pano') {
+      const p = it as PhotoItem;
+      title = p.kind === 'pano' ? '360-bilde' : 'Bilde';
+      subtitle = p.name;
+      body = (
+        <>
+          <button className="info-thumb" onClick={() => onOpenViewer(p.id)} title="Åpne">
+            <img src={p.thumb} alt={p.name} />
+            <span>{p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne bilde'}</span>
+          </button>
+          <Section title="Bilde">
+            <div className="field">
+              <label>Notat</label>
+              <textarea rows={2} defaultValue={p.note ?? ''} key={p.id} placeholder="Skriv et notat …"
+                onBlur={(e) => e.target.value !== (p.note ?? '') && project.saveItem({ ...p, note: e.target.value })} />
+            </div>
+            <Row k="Tatt" v={dateFmt.format(new Date(p.takenAt))} />
+            <Row k="Type" v={
+              <select value={p.kind} onChange={(e) => project.saveItem({ ...p, kind: e.target.value as 'photo' | 'pano' })}>
+                <option value="photo">Foto</option>
+                <option value="pano">360-bilde</option>
+              </select>} />
+            <Row k="Størrelse" v={`${p.width} × ${p.height} px`} />
+            <Row k="Mappe" v={
+              <select value={p.folderId} onChange={(e) => project.saveItem({ ...p, folderId: e.target.value })}>
+                {project.folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>} />
+          </Section>
+          <Section title="Posisjon">
+            {p.lat !== null && p.lng !== null ? (
+              <>
+                {coords(p.lat, p.lng)}
+                {p.altitude !== null && <Row k="Høyde (GPS)" v={fmt.m(p.altitude)} />}
+                {p.heading !== null && <Row k="Retning" v={`${fmt.num(p.heading, 0)}°`} />}
+              </>
+            ) : <p className="muted">Bildet har ingen GPS-posisjon.</p>}
+            <div className="btn-row">
+              <button className="btn" onClick={() => onStartPlace(p.id)}><IconPin size={15} /> {p.lat !== null ? 'Flytt' : 'Plasser på kart'}</button>
+              {p.lat !== null && <button className="btn" onClick={() => onZoomTo(p.id)}>Zoom til</button>}
+            </div>
+          </Section>
+        </>
+      );
+    }
+
+    if (it.kind === 'dxf') {
+      const d = it as DxfItem;
+      const st = project.dxf[d.id];
+      title = 'DXF – prosjekterte data';
+      subtitle = d.name;
+      body = (
+        <>
+          <Section title="Fil">
+            <Row k="Objekter" v={st?.data ? st.data.features.length : st?.loading ? 'leser …' : '–'} />
+            <Row k="Lag" v={st?.data ? `${st.data.layers.length - d.hiddenLayers.length} av ${st.data.layers.length} synlige` : '–'} />
+            <Row k="Mappe" v={folderName(d.folderId)} />
+            <div className="field">
+              <label>Koordinatsystem i tegningen</label>
+              <select value={d.crs} onChange={(e) => project.saveItem({ ...d, crs: e.target.value })}>
+                {CRS_LIST.map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
+              </select>
+            </div>
+            <div className="btn-row"><button className="btn" onClick={() => onZoomTo(d.id)}>Zoom til tegning</button></div>
+          </Section>
+          {st?.error && <Section title="Feil"><p className="error">{st.error}</p></Section>}
+          {!!st?.data?.warnings.length && (
+            <Section title="Merknader" defaultOpen={false}>
+              {st.data.warnings.map((w, i) => <p key={i} className="muted small">{w}</p>)}
+            </Section>
+          )}
+        </>
+      );
+    }
+
+    if (it.kind === 'ortho') {
+      const o = it as OrthoItem;
+      title = 'Droneortofoto';
+      subtitle = o.name;
+      body = (
+        <Section title="Ortofoto">
+          <Row k="Opprinnelig størrelse" v={`${o.sourceSize[0]} × ${o.sourceSize[1]} px`} />
+          {o.resolution && <Row k="Oppløsning" v={`${fmt.num(o.resolution * 100, 1)} cm/piksel`} />}
+          <Row k="System" v={crsName(o.crs)} />
+          <Row k="Mappe" v={folderName(o.folderId)} />
+          <div className="field">
+            <label>Gjennomsiktighet ({Math.round(o.opacity * 100)} %)</label>
+            <input type="range" min={0} max={1} step={0.05} value={o.opacity} onChange={(e) => project.saveItem({ ...o, opacity: +e.target.value })} />
+          </div>
+          <div className="btn-row"><button className="btn" onClick={() => onZoomTo(o.id)}>Zoom til ortofoto</button></div>
+        </Section>
+      );
+    }
+
+    body = (
+      <>
+        {body}
+        <div className="info-footer">{deleteBtn(it.id)}</div>
+      </>
+    );
+  }
+
+  return (
+    <aside className="info-panel">
+      <div className="info-head">
+        <div>
+          <div className="muted small">{title}</div>
+          <div className="info-title" title={subtitle}>{subtitle}</div>
+        </div>
+        <button className="icon-btn" onClick={onClose} aria-label="Lukk"><IconClose size={16} /></button>
+      </div>
+      <div className="info-body">{body}</div>
+    </aside>
+  );
+}
