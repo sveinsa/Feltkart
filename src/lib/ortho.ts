@@ -1,7 +1,8 @@
-// Leser georeferert ortofoto (GeoTIFF fra drone, f.eks. fra DJI Terra, Pix4D, Metashape)
+// Leser georeferert ortofoto (GeoTIFF eller JPEG 2000 fra drone, f.eks. fra DJI Terra, Pix4D, Metashape)
 // og reprojiserer det til Web Mercator slik at det ligger nøyaktig i kartet.
 import { fromBlob } from 'geotiff';
 import { ensureCrs, transform } from './crs';
+import { decodeJp2, inspectJp2, isJp2 } from './jp2';
 
 export interface OrthoResult {
   image: Blob;
@@ -24,22 +25,25 @@ function detectCrs(keys: any): string | null {
   return null;
 }
 
-/**
- * @param maxSize største side i pikselbildet som lagres i nettleseren.
- *  Store ortofoto (flere GB) bør i en produksjonsløsning tiles på serveren – se README.
- */
-export async function processOrtho(
-  file: File,
-  fallbackCrs: string,
-  onProgress?: (msg: string) => void,
-  maxSize = 4096,
-): Promise<OrthoResult> {
+interface Raster {
+  raw: ArrayLike<number>;
+  channels: number;
+  sw: number;
+  sh: number;
+  bbox: [number, number, number, number];
+  crs: string;
+  crsDetected: boolean;
+  noData: number | null | undefined;
+  sourceSize: [number, number];
+}
+
+async function readTiff(file: File, fallbackCrs: string, maxSize: number, onProgress?: (m: string) => void): Promise<Raster> {
   onProgress?.('Leser GeoTIFF …');
   const tiff = await fromBlob(file);
   const image = await tiff.getImage();
   const w = image.getWidth();
   const h = image.getHeight();
-  const bbox = image.getBoundingBox(); // [minX, minY, maxX, maxY] i kildesystemet
+  const bbox = image.getBoundingBox() as [number, number, number, number]; // [minX, minY, maxX, maxY] i kildesystemet
   const detected = detectCrs(image.getGeoKeys());
   const crs = detected ?? fallbackCrs;
   ensureCrs(crs);
@@ -63,7 +67,44 @@ export async function processOrtho(
   onProgress?.(`Laster piksler (${sw}×${sh}) …`);
   const raw: any = await src.readRGB({ width: sw, height: sh, interleave: true, enableAlpha: true } as any);
   const channels = Math.round(raw.length / (sw * sh));
-  const noData = image.getGDALNoData();
+  return { raw, channels, sw, sh, bbox, crs, crsDetected: !!detected, noData: image.getGDALNoData(), sourceSize: [w, h] };
+}
+
+async function readJp2(file: File, fallbackCrs: string, maxSize: number, sidecar: File | undefined, onProgress?: (m: string) => void): Promise<Raster> {
+  onProgress?.('Leser JPEG 2000 …');
+  const buf = await file.arrayBuffer();
+  const info = await inspectJp2(buf, sidecar ? await sidecar.text() : undefined);
+  if (!info.geo) {
+    throw new Error('JP2: fant ingen georeferanse i filen. Legg ved world file (.j2w, .jgw eller .wld) med samme filnavn, eller konverter til GeoTIFF.');
+  }
+  const crs = info.geo.crs ?? fallbackCrs;
+  ensureCrs(crs);
+  onProgress?.('Avkoder JPEG 2000 (første gang lastes avkoderen) …');
+  const px = await decodeJp2(buf, maxSize);
+  return {
+    raw: px.rgba, channels: px.channels, sw: px.width, sh: px.height,
+    bbox: info.geo.bbox, crs, crsDetected: !!info.geo.crs, noData: null, sourceSize: [info.width, info.height],
+  };
+}
+
+/**
+ * @param maxSize største side i pikselbildet som lagres i nettleseren.
+ *  Store ortofoto (flere GB) bør i en produksjonsløsning tiles på serveren – se README.
+ * @param sidecar world file (.j2w/.jgw/.wld) for JP2 uten innebygd georeferanse
+ */
+export async function processOrtho(
+  file: File,
+  fallbackCrs: string,
+  onProgress?: (msg: string) => void,
+  sidecar?: File,
+  maxSize = 4096,
+): Promise<OrthoResult> {
+  const r = isJp2(file)
+    ? await readJp2(file, fallbackCrs, maxSize, sidecar, onProgress)
+    : await readTiff(file, fallbackCrs, maxSize, onProgress);
+  const { raw, channels, sw, sh, bbox, crs, noData } = r;
+  const w = r.sourceSize[0];
+  const detected = r.crsDetected;
 
   // Utstrekning i Web Mercator: sample langs kantene
   onProgress?.('Reprojiserer …');
@@ -140,11 +181,16 @@ export async function processOrtho(
     bounds: [[south, west], [north, east]],
     crs,
     resolution: projected ? (x1 - x0) / w : null,
-    sourceSize: [w, h],
-    crsDetected: !!detected,
+    sourceSize: r.sourceSize,
+    crsDetected: detected,
   };
 }
 
 export function isTiff(f: File) {
   return /\.(tif|tiff)$/i.test(f.name) || /tiff/i.test(f.type);
+}
+
+/** GeoTIFF eller JPEG 2000 */
+export function isOrthoFile(f: File) {
+  return isTiff(f) || isJp2(f);
 }

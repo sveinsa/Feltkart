@@ -76,7 +76,7 @@ På GitHub Pages leses ikke `.env`, siden bygges uten den. Legg verdiene inn und
 | Foto | JPG, PNG, WebP | Posisjon, høyde, retning og dato leses fra EXIF. HEIC (iPhone) må gjøres om til JPG først. |
 | 360-bilde | JPG (ekvirektangulært) | Kjennes igjen på 2:1-format eller panorama-metadata (GPano). Typen kan endres i objektinformasjonen. |
 | DXF | `.dxf` (ASCII) | Linjer, polylinjer med buer, 3D-polylinjer, sirkler, buer, ellipser, splines, 3DFACE, punkter, tekst og blokker. Tegningen må være georeferert (ikke lokale koordinater). |
-| Ortofoto | GeoTIFF (`.tif`) | Koordinatsystemet leses fra filen. Store filer bør ha innebygde oversiktsbilder (COG), ellers kan det gå tregt. |
+| Ortofoto | GeoTIFF (`.tif`) eller JPEG 2000 (`.jp2`) | GeoTIFF: koordinatsystemet leses fra filen, og store filer bør ha innebygde oversiktsbilder (COG). JP2: georeferanse leses fra filen (GeoJP2 eller GMLJP2), ellers legger du ved en world file (`.j2w`, `.jgw` eller `.wld`) med samme filnavn. Avkoderen (OpenJPEG) lastes fra internett første gang. |
 
 Bilder uten GPS kan plasseres manuelt: velg bildet og trykk **Plasser på kart**.
 
@@ -110,6 +110,7 @@ Teknologi: React + TypeScript + Vite, Leaflet, proj4, dxf-parser, geotiff.js, ex
 ## Viktig å vite om denne versjonen
 
 - **Alt lagres lokalt i nettleseren.** Data deles ikke mellom brukere eller maskiner. Hvis du tømmer nettleserdata, forsvinner prosjektet.
+- **JP2** avkodes i nettleseren og kan bli for tung for veldig store filer. Da må du konvertere til GeoTIFF/COG, for eksempel med QGIS eller `gdal_translate -of COG`.
 - **Store droneortofoto** (flere GB) blir for tunge for nettleseren. Bildet lagres med inntil 4096 piksler på lengste side.
 - **Bakgrunnskart:** Sjekk vilkårene før offentlig bruk med mye trafikk. OpenStreetMap sine fliser er ikke for produksjon med stor trafikk. Norge i bilder og Kartverket har egne vilkår.
 

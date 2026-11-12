@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { db, uid } from './lib/db';
 import { readPhoto, isImageFile } from './lib/photos';
-import { processOrtho, isTiff } from './lib/ortho';
+import { processOrtho, isOrthoFile } from './lib/ortho';
+import { isWorldFile } from './lib/jp2';
 import { parseDxf, type ParsedDxf } from './lib/dxf';
 import type { DxfItem, Folder, Item, ItemKind, OrthoItem, PhotoItem, Settings } from './types';
 
@@ -188,8 +189,12 @@ export function useProject() {
       const folderFor = (kind: ItemKind) => (target === 'auto' ? st.defaultFolders[kind] ?? folders[0]?.id : target);
       let noGps = 0;
 
+      const baseName = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase();
+      const sidecars = new Map(files.filter(isWorldFile).map((f) => [baseName(f.name), f] as const));
+
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
+        if (isWorldFile(f)) continue; // brukes sammen med JP2-filen med samme navn
         const prefix = `(${i + 1}/${files.length}) ${f.name}: `;
         try {
           if (/\.dxf$/i.test(f.name)) {
@@ -206,8 +211,8 @@ export function useProject() {
             grow(parsed.bounds);
             res.messages.push(`${f.name}: ${parsed.features.length} objekter på ${parsed.layers.length} lag.`);
             parsed.warnings.forEach((w) => res.messages.push(`${f.name}: ${w}`));
-          } else if (isTiff(f)) {
-            const o = await processOrtho(f, crs, (m) => onProgress(prefix + m));
+          } else if (isOrthoFile(f)) {
+            const o = await processOrtho(f, crs, (m) => onProgress(prefix + m), sidecars.get(baseName(f.name)));
             const item: OrthoItem = {
               id: uid(), kind: 'ortho', name: f.name, folderId: folderFor('ortho'), createdAt: Date.now(),
               crs: o.crs, image: o.image, bounds: o.bounds, opacity: 1, resolution: o.resolution, sourceSize: o.sourceSize,
@@ -229,7 +234,7 @@ export function useProject() {
           }
         } catch (e: any) {
           console.error(e);
-          const reason = /createImageBitmap|decode|source image/i.test(String(e?.message ?? e))
+          const reason = /^JP2/.test(String(e?.message ?? e)) ? String(e.message) : /createImageBitmap|decode|source image/i.test(String(e?.message ?? e))
             ? 'Bildeformatet kan ikke vises i nettleseren (f.eks. HEIC). Konverter til JPG.'
             : String(e?.message ?? e);
           res.failed.push({ name: f.name, reason });

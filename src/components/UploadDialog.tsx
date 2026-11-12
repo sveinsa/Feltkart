@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import type { Project, UploadResult } from '../state';
 import { CRS_LIST } from '../lib/crs';
 import { IconClose, IconUpload, KIND_ICON } from './icons';
-import { isTiff } from '../lib/ortho';
+import { isOrthoFile } from '../lib/ortho';
+import { isWorldFile } from '../lib/jp2';
 
 interface Props {
   project: Project;
@@ -11,9 +12,10 @@ interface Props {
   onDone: (r: UploadResult) => void;
 }
 
-function kindOf(f: File): 'dxf' | 'ortho' | 'photo' | null {
+function kindOf(f: File): 'dxf' | 'ortho' | 'photo' | 'world' | null {
+  if (isWorldFile(f)) return 'world';
   if (/\.dxf$/i.test(f.name)) return 'dxf';
-  if (isTiff(f)) return 'ortho';
+  if (isOrthoFile(f)) return 'ortho';
   if (f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name)) return 'photo';
   return null;
 }
@@ -32,6 +34,7 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
 
   const add = (list: FileList | File[]) => setFiles((f) => [...f, ...Array.from(list)]);
   const hasGeo = files.some((f) => kindOf(f) === 'dxf' || kindOf(f) === 'ortho');
+  const startable = files.filter((f) => { const k = kindOf(f); return k && k !== 'world'; }).length;
 
   async function start() {
     setBusy(true);
@@ -67,20 +70,20 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
             >
               <IconUpload size={28} />
               <strong>Dra filer hit eller klikk for å velge</strong>
-              <span>Bilder (JPG/PNG), 360-bilder, DXF med prosjekterte data og ortofoto fra drone (GeoTIFF)</span>
-              <input ref={input} type="file" multiple hidden accept="image/*,.dxf,.tif,.tiff" onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ''; }} />
+              <span>Bilder (JPG/PNG), 360-bilder, DXF med prosjekterte data og ortofoto fra drone (GeoTIFF eller JP2)</span>
+              <input ref={input} type="file" multiple hidden accept="image/*,.dxf,.tif,.tiff,.jp2,.j2k,.j2w,.jgw,.wld" onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ''; }} />
             </div>
 
             {files.length > 0 && (
               <ul className="file-list">
                 {files.map((f, i) => {
                   const k = kindOf(f);
-                  const Icon = k ? KIND_ICON[k] : IconClose;
+                  const Icon = k && k !== 'world' ? KIND_ICON[k] : k === 'world' ? KIND_ICON.ortho : IconClose;
                   return (
                     <li key={i} className={k ? '' : 'unsupported'}>
                       <Icon size={16} className={`kind kind-${k ?? 'none'}`} />
                       <span className="label">{f.name}</span>
-                      <span className="muted small">{k ? sizeFmt(f.size) : 'støttes ikke'}</span>
+                      <span className="muted small">{k === 'world' ? 'georeferanse' : k ? sizeFmt(f.size) : 'støttes ikke'}</span>
                       {!busy && <button className="icon-btn" onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label="Fjern"><IconClose size={14} /></button>}
                     </li>
                   );
@@ -110,8 +113,8 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
             <div className="modal-foot">
               <span className="muted small progress">{busy ? progress : ''}</span>
               <button className="btn" onClick={onClose} disabled={busy}>Avbryt</button>
-              <button className="btn primary" onClick={start} disabled={busy || !files.some((f) => kindOf(f))}>
-                {busy ? 'Laster opp …' : `Last opp ${files.filter((f) => kindOf(f)).length || ''} fil(er)`}
+              <button className="btn primary" onClick={start} disabled={busy || startable === 0}>
+                {busy ? 'Laster opp …' : `Last opp ${startable || ''} fil(er)`}
               </button>
             </div>
           </div>
