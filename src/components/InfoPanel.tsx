@@ -35,6 +35,14 @@ const dateFmt = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'medium', timeStyl
 export default function InfoPanel({ project, selection, onClose, onOpenViewer, onStartPlace, onZoomTo }: Props) {
   const [confirmDel, setConfirmDel] = useState(false);
   useEffect(() => setConfirmDel(false), [selection]);
+  // Endringer samles i et utkast til du trykker Lagre
+  const [draft, setDraft] = useState<Record<string, any>>({});
+  const selKey = selection?.type === 'item' ? selection.id : selection?.type ?? '';
+  useEffect(() => setDraft({}), [selKey]);
+  const val = (k: string, orig: any) => (k in draft ? draft[k] : orig);
+  const setVal = (k: string, v: any, orig: any) =>
+    setDraft((d) => { const n = { ...d }; if (v === orig) delete n[k]; else n[k] = v; return n; });
+  const dirty = Object.keys(draft).length > 0;
   if (!selection || !project.settings) return null;
   const crs = project.settings.projectCrs;
 
@@ -117,18 +125,18 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
           <Section title="Bilde">
             <div className="field">
               <label>Notat</label>
-              <textarea rows={2} defaultValue={p.note ?? ''} key={p.id} placeholder="Skriv et notat …"
-                onBlur={(e) => e.target.value !== (p.note ?? '') && project.saveItem({ ...p, note: e.target.value })} />
+              <textarea rows={2} value={val('note', p.note ?? '')} placeholder="Skriv et notat …"
+                onChange={(e) => setVal('note', e.target.value, p.note ?? '')} />
             </div>
             <Row k="Tatt" v={dateFmt.format(new Date(p.takenAt))} />
             <Row k="Type" v={
-              <select value={p.kind} onChange={(e) => project.saveItem({ ...p, kind: e.target.value as 'photo' | 'pano' })}>
+              <select value={val('kind', p.kind)} onChange={(e) => setVal('kind', e.target.value, p.kind)}>
                 <option value="photo">Foto</option>
                 <option value="pano">360-bilde</option>
               </select>} />
             <Row k="Størrelse" v={`${p.width} × ${p.height} px`} />
             <Row k="Mappe" v={
-              <select value={p.folderId} onChange={(e) => project.saveItem({ ...p, folderId: e.target.value })}>
+              <select value={val('folderId', p.folderId)} onChange={(e) => setVal('folderId', e.target.value, p.folderId)}>
                 {project.folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>} />
           </Section>
@@ -162,7 +170,7 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
             <Row k="Mappe" v={folderName(d.folderId)} />
             <div className="field">
               <label>Koordinatsystem i tegningen</label>
-              <select value={d.crs} onChange={(e) => project.saveItem({ ...d, crs: e.target.value })}>
+              <select value={val('crs', d.crs)} onChange={(e) => setVal('crs', e.target.value, d.crs)}>
                 {CRS_LIST.map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
               </select>
             </div>
@@ -200,7 +208,15 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
     body = (
       <>
         {body}
-        <div className="info-footer">{deleteBtn(it.id)}</div>
+        <div className="info-footer">
+          {deleteBtn(it.id)}
+          {it.kind !== 'ortho' && (
+            <div className="info-save">
+              <button className="btn" onClick={() => setDraft({})} disabled={!dirty}>Avbryt</button>
+              <button className="btn primary" onClick={() => { project.saveItem({ ...(it as any), ...draft }); setDraft({}); }} disabled={!dirty}>Lagre</button>
+            </div>
+          )}
+        </div>
       </>
     );
   }

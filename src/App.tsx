@@ -9,7 +9,9 @@ import UploadDialog from './components/UploadDialog';
 import MediaViewer from './components/MediaViewer';
 import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
-import DriveDialog from './components/DriveDialog';
+import DriveDialog, { googleConfig } from './components/DriveDialog';
+import SyncDialog from './components/SyncDialog';
+import { fetchDriveBlob } from './lib/google';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
 import {
@@ -32,6 +34,7 @@ export default function App() {
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ files: File[] } | null>(null);
   const [driveOpen, setDriveOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [coord, setCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -178,7 +181,7 @@ export default function App() {
           <button className="project-pill" onClick={() => setView('settings')} title="Prosjektinnstillinger">
             <IconEdit size={14} /> {settings.projectName}
           </button>
-          <button className="btn" onClick={() => setDriveOpen(true)} title="Opprett mappestruktur på Google Disk"><IconFolder size={16} /> Google Disk</button>
+          <button className="btn" onClick={() => setSyncOpen(true)} title="Hent fra og last opp til Google Disk-mappen"><IconFolder size={16} /> Google Disk</button>
           <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp</button>
         </div>
       </header>
@@ -191,7 +194,7 @@ export default function App() {
             onClick={() => { setView('map'); setPanel(panel === 'basemap' && view === 'map' ? null : 'basemap'); }}><IconMap size={20} /></button>
           <button className={view === 'gallery' ? 'on' : ''} title="Bilder" onClick={() => setView('gallery')}><IconGrid size={20} /></button>
           <button title="Last opp" onClick={() => setUpload({ files: [] })}><IconUpload size={20} /></button>
-          <button title="Prosjektmapper på Google Disk" onClick={() => setDriveOpen(true)}><IconFolder size={20} /></button>
+          <button title="Google Disk-mappe" onClick={() => setSyncOpen(true)}><IconFolder size={20} /></button>
           <div className="rail-spacer" />
           <button className={view === 'settings' ? 'on' : ''} title="Innstillinger" onClick={() => setView('settings')}><IconSettings size={20} /></button>
         </nav>
@@ -290,12 +293,23 @@ export default function App() {
         />
       )}
 
+      {syncOpen && (
+        <SyncDialog
+          project={project}
+          onClose={() => setSyncOpen(false)}
+          onOpenSettings={() => { setSyncOpen(false); setView('settings'); }}
+          onOpenTemplates={() => { setSyncOpen(false); setDriveOpen(true); }}
+          onImported={(n, b) => { if (n) { showToast(`${n} element(er) lagt til i kartet`); if (b) fitTo(b, 19); } }}
+        />
+      )}
+
       {driveOpen && (
         <DriveDialog project={project} onClose={() => setDriveOpen(false)} onOpenSettings={() => { setDriveOpen(false); setView('settings'); }} />
       )}
 
       {viewerId && (
-        <MediaViewer photos={photos} id={viewerId} onChange={setViewerId} onClose={() => setViewerId(null)} />
+        <MediaViewer photos={photos} id={viewerId} onChange={setViewerId} onClose={() => setViewerId(null)}
+          loadOriginal={(p) => fetchDriveBlob(googleConfig(project), p.driveId!, p.name)} />
       )}
 
       {globalDrag && !upload && <div className="global-drop">Slipp filene for å laste opp</div>}

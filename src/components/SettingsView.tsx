@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { Project } from '../state';
 import { CRS_LIST } from '../lib/crs';
 
@@ -11,18 +12,42 @@ export default function SettingsView({ project }: { project: Project }) {
     ortho: project.items.filter((i) => i.kind === 'ortho').length,
   };
 
+  const initial = () => ({
+    name: s.projectName,
+    crs: s.projectCrs,
+    clientId: s.google?.clientId ?? '',
+    apiKey: s.google?.apiKey ?? '',
+    appId: s.google?.appId ?? '',
+  });
+  const [f, setF] = useState(initial);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setF(initial()); }, [s.projectName, s.projectCrs, s.google?.clientId, s.google?.apiKey, s.google?.appId]);
+
+  const orig = initial();
+  const dirty = (Object.keys(orig) as (keyof typeof orig)[]).some((k) => orig[k] !== f[k]);
+  const set = (k: keyof typeof orig, v: string) => { setSaved(false); setF((x) => ({ ...x, [k]: v })); };
+
+  const save = () => {
+    const name = f.name.trim();
+    if (name && name !== s.projectName && root) project.renameFolder(root.id, name);
+    project.updateSettings({
+      projectCrs: f.crs,
+      google: { clientId: f.clientId.trim(), apiKey: f.apiKey.trim(), appId: f.appId.trim() },
+    });
+    setSaved(true);
+  };
+
   return (
     <div className="settings">
       <h2>Prosjektinnstillinger</h2>
       <div className="card">
         <div className="field">
           <label>Prosjektnavn</label>
-          <input defaultValue={s.projectName} key={s.projectName}
-            onBlur={(e) => { const v = e.target.value.trim(); if (v && root) project.renameFolder(root.id, v); }} />
+          <input value={f.name} onChange={(e) => set('name', e.target.value)} />
         </div>
         <div className="field">
           <label>Prosjektets koordinatsystem</label>
-          <select value={s.projectCrs} onChange={(e) => project.updateSettings({ projectCrs: e.target.value })}>
+          <select value={f.crs} onChange={(e) => set('crs', e.target.value)}>
             {CRS_LIST.map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
           </select>
           <p className="muted small">Brukes for koordinatvisning, måling og som standard ved opplasting av DXF.</p>
@@ -41,21 +66,24 @@ export default function SettingsView({ project }: { project: Project }) {
       <div className="card">
         <div className="field">
           <label>Client ID (OAuth, nettapplikasjon)</label>
-          <input defaultValue={s.google?.clientId ?? ''} placeholder="123456-abc.apps.googleusercontent.com"
-            onBlur={(e) => project.updateSettings({ google: { clientId: e.target.value, apiKey: s.google?.apiKey ?? '', appId: s.google?.appId ?? '' } })} />
+          <input value={f.clientId} onChange={(e) => set('clientId', e.target.value)} placeholder="123456-abc.apps.googleusercontent.com" />
         </div>
         <div className="field">
-          <label>API-nøkkel (valgfri – trengs for mappevelgeren)</label>
-          <input defaultValue={s.google?.apiKey ?? ''}
-            onBlur={(e) => project.updateSettings({ google: { clientId: s.google?.clientId ?? '', apiKey: e.target.value, appId: s.google?.appId ?? '' } })} />
+          <label>API-nøkkel (trengs for mappe- og filvelgeren)</label>
+          <input value={f.apiKey} onChange={(e) => set('apiKey', e.target.value)} />
         </div>
         <div className="field">
-          <label>Prosjektnummer i Google Cloud (valgfri – trengs for mappevelgeren)</label>
-          <input defaultValue={s.google?.appId ?? ''}
-            onBlur={(e) => project.updateSettings({ google: { clientId: s.google?.clientId ?? '', apiKey: s.google?.apiKey ?? '', appId: e.target.value } })} />
+          <label>Prosjektnummer i Google Cloud (trengs for mappe- og filvelgeren)</label>
+          <input value={f.appId} onChange={(e) => set('appId', e.target.value)} />
         </div>
         <p className="muted small">Verdiene lagres bare i nettleseren din. Slik får du dem: se «Google Disk» i README.</p>
         {s.drive && <p className="small">Sist opprettet: <a href={s.drive.url} target="_blank" rel="noreferrer">{s.drive.name}</a></p>}
+      </div>
+
+      <div className="form-actions">
+        <button className="btn" onClick={() => { setF(initial()); setSaved(false); }} disabled={!dirty}>Avbryt</button>
+        <button className="btn primary" onClick={save} disabled={!dirty}>Lagre</button>
+        {saved && !dirty && <span className="muted small">Lagret</span>}
       </div>
 
       {project.storageError && <p className="error">{project.storageError}</p>}

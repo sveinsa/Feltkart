@@ -196,23 +196,37 @@ export async function decodeJp2(buf: ArrayBuffer, target: number): Promise<Jp2Pi
     const enc: Uint8Array = dec.getEncodedBuffer(buf.byteLength);
     enc.set(new Uint8Array(buf));
 
-    let decoded = false;
-    if (typeof dec.readHeader === 'function' && typeof dec.decodeSubResolution === 'function' && typeof dec.calculateSizeAtDecompositionLevel === 'function') {
-      try {
-        dec.readHeader();
-        const levels: number = dec.getNumDecompositions?.() ?? 0;
-        let pick = 0;
-        for (let l = levels; l > 0; l--) {
-          const sz = dec.calculateSizeAtDecompositionLevel(l);
-          if (Math.max(sz.width, sz.height) >= target) { pick = l; break; }
-        }
-        dec.decodeSubResolution(pick, 0);
-        decoded = true;
-      } catch {
-        decoded = false;
+    // Maks antall piksler vi tør å avkode i nettleseren (RGBA ≈ 4 byte/piksel, pluss kopier i WASM-minnet)
+    const MAX_PIXELS = 48e6;
+    const canSub = typeof dec.readHeader === 'function' && typeof dec.decodeSubResolution === 'function' && typeof dec.calculateSizeAtDecompositionLevel === 'function';
+    if (canSub) {
+      dec.readHeader();
+      const levels: number = Math.max(0, dec.getNumDecompositions?.() ?? 0);
+      // Kandidater fra mest reduserte (minst) til minst reduserte. Start ved det grovest nivået
+      // som fortsatt gir minst «target» piksler langs lengste side.
+      const sizeAt = (l: number) => dec.calculateSizeAtDecompositionLevel(l) as { width: number; height: number };
+      let start = levels;
+      for (let l = levels; l >= 0; l--) {
+        const sz = sizeAt(l);
+        if (Math.max(sz.width, sz.height) >= target) { start = l; break; }
+        start = l;
       }
+      let ok = false;
+      let lastErr: unknown = null;
+      // Prøv først valgt nivå, deretter grovere nivåer hvis det feiler (aldri finere enn valgt)
+      for (let l = start; l <= levels; l++) {
+        const sz = sizeAt(l);
+        if (sz.width * sz.height > MAX_PIXELS) continue;
+        try { dec.decodeSubResolution(l, 0); ok = true; break; } catch (e) { lastErr = e; }
+      }
+      if (!ok) {
+        throw new Error(`JP2: filen kunne ikke avkodes i redusert oppløsning${lastErr ? ` (${String((lastErr as any)?.message ?? lastErr)})` : ''}. Konverter til GeoTIFF/COG med QGIS eller GDAL.`);
+      }
+    } else {
+      // Gammel kodek uten delvis avkoding: kun forsvarlig for små filer
+      if (buf.byteLength > 40e6) throw new Error('JP2: filen er for stor for denne nettleserkodeken. Konverter til GeoTIFF/COG med QGIS eller GDAL.');
+      dec.decode();
     }
-    if (!decoded) dec.decode();
 
     const info = dec.getFrameInfo();
     const out: Uint8Array = dec.getDecodedBuffer();

@@ -1,11 +1,18 @@
 // Prosjekttilstand: mapper, elementer, innstillinger og opplasting.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { db, uid } from './lib/db';
-import { readPhoto, isImageFile } from './lib/photos';
+import { readPhoto, isImageFile, makePreview } from './lib/photos';
 import { processOrtho, isOrthoFile } from './lib/ortho';
 import { isWorldFile } from './lib/jp2';
 import { parseDxf, type ParsedDxf } from './lib/dxf';
 import type { DxfItem, Folder, Item, ItemKind, OrthoItem, PhotoItem, Settings } from './types';
+
+/** Ekstra info per fil ved import fra Google Disk */
+export interface UploadOptions {
+  meta?: Map<File, { driveId?: string; folderId?: string }>;
+  /** Strøm bilder: lagre bare forhåndsvisning her, originalen hentes fra Google Disk ved behov */
+  stream?: boolean;
+}
 
 export type DxfState = { key: string; data?: ParsedDxf; error?: string; loading?: boolean };
 
@@ -37,6 +44,8 @@ export function useProject() {
   const [storageError, setStorageError] = useState<string | null>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  const foldersRef = useRef<Folder[]>([]);
+  foldersRef.current = folders;
 
   // Last inn (og opprett startmapper første gang)
   const loadStarted = useRef(false);
@@ -128,10 +137,22 @@ export function useProject() {
   // ---------- Mapper ----------
   const addFolder = useCallback((name: string, parentId: string | null) => {
     const f: Folder = { id: uid(), name, parentId, createdAt: Date.now() };
+    foldersRef.current = [...foldersRef.current, f]; // slik at flere kall på rad ser hverandre
     setFolders((fs) => [...fs, f]);
     safe(() => db.putFolder(f));
     return f;
   }, []);
+
+  /** Finner eller oppretter mappestien under kartets rotmappe og returnerer ID-en til innerste mappe. */
+  const ensureFolderPath = useCallback((names: string[]): string => {
+    let cur = foldersRef.current.find((f) => f.parentId === null);
+    if (!cur) return '';
+    for (const n of names) {
+      const parent: Folder = cur;
+      cur = foldersRef.current.find((f) => f.parentId === parent.id && f.name.toLowerCase() === n.toLowerCase()) ?? addFolder(n, parent.id);
+    }
+    return cur.id;
+  }, [addFolder]);
 
   const renameFolder = useCallback((id: string, name: string) => {
     setFolders((fs) => fs.map((f) => {
@@ -176,7 +197,7 @@ export function useProject() {
 
   // ---------- Opplasting ----------
   const upload = useCallback(
-    async (files: File[], target: string, crs: string, onProgress: (msg: string) => void): Promise<UploadResult> => {
+    async (files: File[], target: string, crs: string, onProgress: (msg: string) => void, opts: UploadOptions = {}): Promise<UploadResult> => {
       const res: UploadResult = { added: [], failed: [], messages: [], bounds: null };
       const grow = (b: [[number, number], [number, number]] | null) => {
         if (!b) return;
@@ -186,7 +207,8 @@ export function useProject() {
         r[1][0] = Math.max(r[1][0], b[1][0]); r[1][1] = Math.max(r[1][1], b[1][1]);
       };
       const st = settings!;
-      const folderFor = (kind: ItemKind) => (target === 'auto' ? st.defaultFolders[kind] ?? folders[0]?.id : target);
+      const folderFor = (kind: ItemKind, f?: File) => (f && opts.meta?.get(f)?.folderId) || (target === 'auto' ? st.defaultFolders[kind] ?? foldersRef.current[0]?.id : target);
+      const driveIdOf = (f: File) => opts.meta?.get(f)?.driveId;
       let noGps = 0;
 
       const baseName = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase();
@@ -202,7 +224,7 @@ export function useProject() {
             const text = await f.text();
             const parsed = parseDxf(text, crs); // valider før lagring
             const item: DxfItem = {
-              id: uid(), kind: 'dxf', name: f.name, folderId: folderFor('dxf'), createdAt: Date.now(),
+              id: uid(), kind: 'dxf', name: f.name, folderId: folderFor('dxf', f), createdAt: Date.now(), driveId: driveIdOf(f),
               crs, blob: new Blob([text], { type: 'application/dxf' }), hiddenLayers: [],
             };
             setDxf((d) => ({ ...d, [item.id]: { key: `${item.id}|${crs}`, data: parsed } }));
@@ -214,7 +236,7 @@ export function useProject() {
           } else if (isOrthoFile(f)) {
             const o = await processOrtho(f, crs, (m) => onProgress(prefix + m), sidecars.get(baseName(f.name)));
             const item: OrthoItem = {
-              id: uid(), kind: 'ortho', name: f.name, folderId: folderFor('ortho'), createdAt: Date.now(),
+              id: uid(), kind: 'ortho', name: f.name, folderId: folderFor('ortho', f), createdAt: Date.now(), driveId: driveIdOf(f),
               crs: o.crs, image: o.image, bounds: o.bounds, opacity: 1, resolution: o.resolution, sourceSize: o.sourceSize,
             };
             saveItem(item);
@@ -224,7 +246,10 @@ export function useProject() {
           } else if (isImageFile(f)) {
             onProgress(prefix + 'leser bilde …');
             const p = await readPhoto(f);
-            const item: PhotoItem = { ...p, id: uid(), name: f.name, folderId: folderFor(p.kind), createdAt: Date.now() };
+            const driveId = driveIdOf(f);
+            const streamed = !!(opts.stream && driveId);
+            if (streamed) { onProgress(prefix + 'lager forhåndsvisning …'); p.blob = await makePreview(f, p.kind === 'pano' ? 4096 : 1600); }
+            const item: PhotoItem = { ...p, id: uid(), name: f.name, folderId: folderFor(p.kind, f), createdAt: Date.now(), driveId, previewOnly: streamed || undefined };
             saveItem(item);
             res.added.push(item);
             if (item.lat === null) noGps++;
@@ -243,13 +268,13 @@ export function useProject() {
       if (noGps) res.messages.push(`${noGps} bilde(r) mangler GPS-posisjon. Velg bildet og bruk «Plasser på kart».`);
       return res;
     },
-    [settings, folders, saveItem],
+    [settings, saveItem],
   );
 
   return {
     ready, folders, items, settings, dxf, storageError,
     saveItem, saveItems, deleteItem, updateSettings,
-    addFolder, renameFolder, deleteFolder,
+    addFolder, ensureFolderPath, renameFolder, deleteFolder,
     setVisible, setFolderVisible, toggleDxfLayer, upload,
   };
 }

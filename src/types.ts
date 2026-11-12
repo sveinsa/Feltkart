@@ -14,6 +14,10 @@ interface BaseItem {
   folderId: string;
   createdAt: number;
   hidden?: boolean;
+  /** Fil-ID på Google Disk hvis elementet kommer fra eller er lastet opp til Disk */
+  driveId?: string;
+  /** Bare forhåndsvisning er lagret i nettleseren. Originalen hentes fra Google Disk ved behov. */
+  previewOnly?: boolean;
 }
 
 export interface PhotoItem extends BaseItem {
@@ -61,6 +65,10 @@ export interface Settings {
   /** Sist opprettede prosjektmappe på Google Disk */
   drive?: { id: string; url: string; name: string; createdAt: string };
   projectNumber?: string;
+  /** Mappen på Google Disk som er koblet til prosjektet (hente fra / laste opp til) */
+  driveFolder?: { id: string; name: string; url: string };
+  /** 'file' = bare filer appen oppretter/velges (drive.file). 'full' = kan lese og skrive i hele mapper (drive). */
+  driveAccess?: 'file' | 'full';
 }
 
 /** Hva som er valgt i kartet og vises i objektinformasjon */

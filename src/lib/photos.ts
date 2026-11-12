@@ -16,6 +16,18 @@ export async function makeThumb(source: Blob, size = 360): Promise<{ thumb: stri
   return result;
 }
 
+/** Lager en JPEG-forhåndsvisning (brukes når originalen strømmes fra Google Disk). */
+export async function makePreview(source: Blob, maxSide: number): Promise<Blob> {
+  const bmp = await createImageBitmap(source);
+  const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bmp.width * scale));
+  canvas.height = Math.max(1, Math.round(bmp.height * scale));
+  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close?.();
+  return new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('Kunne ikke lage forhåndsvisning'))), 'image/jpeg', 0.85));
+}
+
 export async function readPhoto(file: File): Promise<PhotoData> {
   let meta: any = {};
   try {

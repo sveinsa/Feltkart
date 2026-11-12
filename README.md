@@ -54,6 +54,22 @@ Knappen **Google Disk** øverst åpner en dialog der du:
 
 Du kan også hente malen fra mappene i kartets innhold, og opprette samme struktur i kartet.
 
+### Google Disk-mappe: hente fra og laste opp til en felles mappe
+
+Knappen **Google Disk** åpner nå dialogen **Google Disk-mappe**. Der kobler du prosjektet til én mappe på Disk og kan:
+
+- **Hente fra mappen:** velg filer (begrenset tilgang) eller **skann hele mappen** inkludert undermapper (full tilgang). Filene hentes inn i kartet, og undermapper på Disk kan speiles som mapper i kartet. Med **Strøm bilder fra Disk** lagres bare en forhåndsvisning i nettleseren. Originalen hentes fra Disk når du åpner bildet.
+- **Laste opp til mappen:** send filer fra maskinen og/eller bilder og DXF-filer som ligger i kartet men ikke på Disk. De havner i undermapper som speiler kartets mapper. Store filer lastes opp med fremdrift.
+- **Opprette prosjektmapper fra mal:** lenken i dialogen åpner malverktøyet. Mappen som opprettes kobles automatisk til prosjektet.
+
+**Tilgangsnivå.** *Begrenset* (`drive.file`) lar Feltkart bare se filer du velger og filer Feltkart selv har lagt inn. *Full* (`drive`) lar Feltkart skanne og skrive i mappen. For Full må du i Google Cloud gå til **Google Auth Platform → Datatilgang → Legg til eller fjern omfang** og legge til `https://www.googleapis.com/auth/drive`, og deretter logge inn på nytt. Google merker slike apper «ikke verifisert» så lenge de er i testmodus. Det er greit for deg og testbrukerne dine. En offentlig tjeneste med Full tilgang krever godkjenning fra Google.
+
+### Hente filer fra Google Disk inn i kartet
+
+I **Last opp**-dialogen finner du **Velg filer fra Google Disk**. Du blar i mappene dine i Googles filvelger, merker flere filer (bilder, 360-bilder, DXF, ortofoto og eventuelle world files), og de hentes inn i kartet som om du hadde lastet dem opp fra maskinen. Det krever API-nøkkel og prosjektnummer (se oppsettet under).
+
+Appen har bare tilgang til filene du velger. Det er derfor ikke mulig å velge en hel mappe og hente alt i den med én gang. Merk filene i mappen i stedet. Å hente hele mapper automatisk krever en bredere Google-tilgang som må godkjennes av Google, og det kan legges til senere.
+
 ### Oppsett (én gang)
 
 Appen trenger en egen innlogging mot Google. Det er gratis.
@@ -110,7 +126,7 @@ Teknologi: React + TypeScript + Vite, Leaflet, proj4, dxf-parser, geotiff.js, ex
 ## Viktig å vite om denne versjonen
 
 - **Alt lagres lokalt i nettleseren.** Data deles ikke mellom brukere eller maskiner. Hvis du tømmer nettleserdata, forsvinner prosjektet.
-- **JP2** avkodes i nettleseren og kan bli for tung for veldig store filer. Da må du konvertere til GeoTIFF/COG, for eksempel med QGIS eller `gdal_translate -of COG`.
+- **JP2** avkodes i nettleseren i redusert oppløsning (maks ca. 48 megapiksler, begrenset av hvor mange oppløsningsnivåer filen har). Veldig store filer (flere hundre MB) kan fortsatt bli for tunge. Da må du konvertere til GeoTIFF/COG, for eksempel med QGIS eller `gdal_translate -of COG`.
 - **Store droneortofoto** (flere GB) blir for tunge for nettleseren. Bildet lagres med inntil 4096 piksler på lengste side.
 - **Bakgrunnskart:** Sjekk vilkårene før offentlig bruk med mye trafikk. OpenStreetMap sine fliser er ikke for produksjon med stor trafikk. Norge i bilder og Kartverket har egne vilkår.
 

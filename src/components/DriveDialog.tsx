@@ -10,6 +10,7 @@ import {
   type GoogleConfig, type PickedFolder,
 } from '../lib/google';
 import { uid } from '../lib/db';
+import { usePickerOpen } from '../lib/usePickerOpen';
 import { IconClose, IconFolder, IconFolderOpen, IconPlus, IconTrash } from './icons';
 
 interface Props {
@@ -25,6 +26,7 @@ export function googleConfig(project: Project): GoogleConfig {
     clientId: s?.clientId?.trim() || env.clientId,
     apiKey: s?.apiKey?.trim() || env.apiKey,
     appId: s?.appId?.trim() || env.appId,
+    access: project.settings?.driveAccess ?? 'file',
   };
 }
 
@@ -64,6 +66,7 @@ export default function DriveDialog({ project, onClose, onOpenSettings }: Props)
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ url: string; created: number; reused: number } | null>(null);
   const [signedIn, setSignedIn] = useState(isSignedIn());
+  const pickerOpen = usePickerOpen();
 
   useEffect(() => { if (cfg.clientId) preloadGoogle(); }, [cfg.clientId]);
   useEffect(() => { setDraftName(current.name); setDraft(current.text); }, [tplId]);
@@ -120,6 +123,7 @@ export default function DriveDialog({ project, onClose, onOpenSettings }: Props)
       project.updateSettings({
         projectNumber: nr,
         drive: { id: r.rootId, url: r.rootUrl, name: resolved[0]?.name ?? '', createdAt: new Date().toISOString() },
+        driveFolder: { id: r.rootId, url: r.rootUrl, name: resolved[0]?.name ?? '' },
       });
       if (mirror) mirrorToMap();
     } finally {
@@ -144,7 +148,7 @@ export default function DriveDialog({ project, onClose, onOpenSettings }: Props)
   };
 
   return (
-    <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <div className="modal-back" style={pickerOpen ? { display: 'none' } : undefined} onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="modal drive">
         <div className="modal-head">
           <h2>Opprett prosjektmapper på Google Disk</h2>
@@ -242,7 +246,7 @@ export default function DriveDialog({ project, onClose, onOpenSettings }: Props)
               ? <>Logget inn hos Google · <button className="link-btn" onClick={() => { signOut(); setSignedIn(false); }}>Logg ut</button></>
               : <button className="link-btn" onClick={() => run(async () => { await getAccessToken(cfg); })}>Logg inn med Google</button>)}
           </span>
-          <button className="btn" onClick={onClose} disabled={busy}>Lukk</button>
+          <button className="btn" onClick={onClose} disabled={busy}>{result ? 'Lukk' : 'Avbryt'}</button>
           <button className="btn primary" onClick={create} disabled={busy || !cfg.clientId || !total}>
             {busy ? 'Oppretter …' : `Opprett ${total} mapper på Google Disk`}
           </button>
