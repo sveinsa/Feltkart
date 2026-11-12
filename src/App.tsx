@@ -11,6 +11,7 @@ import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
 import SyncDialog from './components/SyncDialog';
+import { VERSION_LABEL } from './version';
 import { fetchDriveBlob } from './lib/google';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
@@ -170,7 +171,10 @@ export default function App() {
           <span className="logo" aria-hidden="true">
             <svg viewBox="0 0 32 32" width="26" height="26"><rect width="32" height="32" rx="7" fill="#8dc63f" /><path d="M8 23l5.5-13 4.5 8.5 2.2-4L24 23z" fill="#0f5a3c" /></svg>
           </span>
-          <span className="brand-name">Feltkart</span>
+          <span className="brand-text">
+            <span className="brand-name">Feltkart</span>
+            <span className="brand-version">{VERSION_LABEL}</span>
+          </span>
         </div>
         <nav className="topnav">
           <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')}>Kart</button>

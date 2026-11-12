@@ -352,3 +352,6 @@ body.picking .modal-back { visibility: hidden; }
 .seg button { border: 0; background: #fff; padding: 6px 12px; font-size: 13px; cursor: pointer; }
 .seg button.on { background: var(--brand); color: #fff; }
 .viewer-chip { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(0, 0, 0, 0.65); color: #fff; padding: 6px 12px; border-radius: 16px; font-size: 12.5px; z-index: 3; }
+
+.brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.brand-version { font-size: 10.5px; font-weight: 500; letter-spacing: 0; color: rgba(255, 255, 255, 0.72); margin-top: 1px; }
