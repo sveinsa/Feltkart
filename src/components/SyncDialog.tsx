@@ -8,6 +8,7 @@ import {
 import { isOrthoFile } from '../lib/ortho';
 import { isWorldFile } from '../lib/jp2';
 import { isImageFile } from '../lib/photos';
+import { isVectorFile } from '../lib/vector';
 import { usePickerOpen } from '../lib/usePickerOpen';
 import { googleConfig } from './DriveDialog';
 import { IconClose, IconFolder } from './icons';
@@ -22,7 +23,7 @@ interface Props {
 
 const sizeFmt = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b ? `${Math.max(1, Math.round(b / 1024))} kB` : '');
 const supported = (name: string, mime = '') =>
-  /\.dxf$/i.test(name) || isOrthoFile({ name, type: mime } as File) || isWorldFile({ name } as File) || isImageFile({ name, type: mime } as File);
+  isVectorFile({ name }) || isOrthoFile({ name, type: mime } as File) || isWorldFile({ name } as File) || isImageFile({ name, type: mime } as File);
 
 type Tab = 'hent' | 'last';
 

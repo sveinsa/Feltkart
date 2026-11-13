@@ -50,7 +50,7 @@ export default function SettingsView({ project }: { project: Project }) {
           <select value={f.crs} onChange={(e) => set('crs', e.target.value)}>
             {CRS_LIST.map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
           </select>
-          <p className="muted small">Brukes for koordinatvisning, måling og som standard ved opplasting av DXF.</p>
+          <p className="muted small">Brukes for koordinatvisning, måling og som standard ved opplasting av DXF, KOF, SOSI, LandXML og IFC.</p>
         </div>
       </div>
 
@@ -58,7 +58,7 @@ export default function SettingsView({ project }: { project: Project }) {
       <div className="card stats">
         <div><strong>{counts.photo}</strong><span>bilder</span></div>
         <div><strong>{counts.pano}</strong><span>360-bilder</span></div>
-        <div><strong>{counts.dxf}</strong><span>DXF-filer</span></div>
+        <div><strong>{counts.dxf}</strong><span>prosjekterte data</span></div>
         <div><strong>{counts.ortho}</strong><span>ortofoto</span></div>
       </div>
 

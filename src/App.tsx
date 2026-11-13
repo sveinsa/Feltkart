@@ -273,7 +273,7 @@ export default function App() {
             {items.length === 0 && (
               <div className="map-empty">
                 <strong>Kom i gang</strong>
-                <span>Last opp bilder, 360-bilder, DXF med prosjekterte data eller ortofoto fra drone.</span>
+                <span>Last opp bilder, 360-bilder, ortofoto fra drone eller prosjekterte data og innmåling (DXF, KOF, SOSI, LandXML, IFC).</span>
                 <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp filer</button>
               </div>
             )}

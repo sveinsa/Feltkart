@@ -35,10 +35,14 @@ export interface PhotoItem extends BaseItem {
 }
 
 export interface DxfItem extends BaseItem {
-  kind: 'dxf';
+  kind: 'dxf'; // «prosjekterte data»: DXF, KOF, SOSI, LandXML eller IFC
   crs: string;
   blob: Blob;
   hiddenLayers: string[];
+  /** Filformat. Mangler på eldre elementer og betyr da DXF. */
+  format?: 'dxf' | 'kof' | 'sosi' | 'landxml' | 'ifc';
+  /** IFC uten georeferanse: modellens origo i prosjektets koordinatsystem */
+  placement?: { e: number; n: number; rot: number };
 }
 
 export interface OrthoItem extends BaseItem {

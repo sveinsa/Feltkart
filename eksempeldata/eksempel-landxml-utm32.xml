@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" version="1.2">
+<Units><Metric linearUnit="meter"/></Units>
+<CoordinateSystem epsgCode="25832"/>
+<CgPoints><CgPoint name="1" code="KUM">6940000.0 535000.0 600.5</CgPoint><CgPoint name="2">6940010 535010 601</CgPoint></CgPoints>
+<Alignments><Alignment name="Veg1" length="100"><CoordGeom>
+<Line><Start>6940000 535000</Start><End>6940050 535000</End></Line>
+<Curve rot="cw"><Start>6940050 535000</Start><Center>6940050 535050</Center><End>6940100 535050</End></Curve>
+</CoordGeom></Alignment></Alignments>
+<Surfaces><Surface name="Terreng"><Definition surfType="TIN"><Pnts><P id="1">6940000 535000 600</P><P id="2">6940000 535100 601</P><P id="3">6940100 535000 602</P><P id="4">6940100 535100 603</P></Pnts><Faces><F>1 2 3</F><F>2 3 4</F></Faces></Definition></Surface></Surfaces>
+</LandXML>

@@ -15,6 +15,8 @@ export interface DxfFeature {
   textHeight?: number;
   rotation?: number;
   block?: string;
+  /** Egenskaper fra kildefilen (SOSI-attributter, IFC-navn, kode osv.) */
+  attrs?: Record<string, string>;
 }
 
 export interface DxfLayer {
@@ -29,6 +31,8 @@ export interface ParsedDxf {
   bounds: [[number, number], [number, number]] | null;
   warnings: string[];
   skipped: Record<string, number>;
+  /** Koordinatsystemet filen faktisk ble lest i (kan avvike fra det brukeren valgte hvis filen oppgir sitt eget) */
+  crs?: string;
 }
 
 type P3 = [number, number, number];

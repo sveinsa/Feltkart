@@ -11,6 +11,10 @@ const TOWGS = '+ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs';
 proj4.defs('EPSG:25832', `+proj=utm +zone=32 ${TOWGS}`);
 proj4.defs('EPSG:25833', `+proj=utm +zone=33 ${TOWGS}`);
 proj4.defs('EPSG:25835', `+proj=utm +zone=35 ${TOWGS}`);
+// Sonene under brukes bare når en fil oppgir dem selv (SOSI, LandXML, IFC)
+proj4.defs('EPSG:25831', `+proj=utm +zone=31 ${TOWGS}`);
+proj4.defs('EPSG:25834', `+proj=utm +zone=34 ${TOWGS}`);
+proj4.defs('EPSG:25836', `+proj=utm +zone=36 ${TOWGS}`);
 
 export const CRS_LIST: CrsInfo[] = [
   { code: 'EPSG:25832', name: 'EUREF89 UTM sone 32' },

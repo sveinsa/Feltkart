@@ -4,7 +4,8 @@ import { db, uid } from './lib/db';
 import { readPhoto, isImageFile, makePreview } from './lib/photos';
 import { processOrtho, isOrthoFile } from './lib/ortho';
 import { isWorldFile } from './lib/jp2';
-import { parseDxf, type ParsedDxf } from './lib/dxf';
+import type { ParsedDxf } from './lib/dxf';
+import { parseVector, vectorFormatOf, FORMAT_LABEL, type Placement } from './lib/vector';
 import type { DxfItem, Folder, Item, ItemKind, OrthoItem, PhotoItem, Settings } from './types';
 
 /** Ekstra info per fil ved import fra Google Disk */
@@ -12,6 +13,8 @@ export interface UploadOptions {
   meta?: Map<File, { driveId?: string; folderId?: string }>;
   /** Strøm bilder: lagre bare forhåndsvisning her, originalen hentes fra Google Disk ved behov */
   stream?: boolean;
+  /** IFC uten georeferanse: modellens origo */
+  placement?: Placement;
 }
 
 export type DxfState = { key: string; data?: ParsedDxf; error?: string; loading?: boolean };
@@ -59,7 +62,7 @@ export function useProject() {
           const now = Date.now();
           const root: Folder = { id: uid(), name: DEFAULT_SETTINGS.projectName, parentId: null, createdAt: now };
           const mk = (name: string, i: number): Folder => ({ id: uid(), name, parentId: root.id, createdAt: now + i });
-          const photos = mk('Bilder', 1), panos = mk('360-bilder', 2), dxfF = mk('Prosjektert (DXF)', 3), ortho = mk('Ortofoto (drone)', 4);
+          const photos = mk('Bilder', 1), panos = mk('360-bilder', 2), dxfF = mk('Prosjektert og innmålt', 3), ortho = mk('Ortofoto (drone)', 4);
           fs = [root, photos, panos, dxfF, ortho];
           for (const f of fs) await db.putFolder(f);
           st = { ...DEFAULT_SETTINGS, defaultFolders: { photo: photos.id, pano: panos.id, dxf: dxfF.id, ortho: ortho.id } };
@@ -86,12 +89,9 @@ export function useProject() {
       const key = `${it.id}|${it.crs}`;
       if (dxf[it.id]?.key === key) continue;
       setDxf((d) => ({ ...d, [it.id]: { key, loading: true } }));
-      it.blob
-        .text()
-        .then((text) => {
-          // Gi nettleseren et øyeblikk til å tegne "laster" før tung parsing
-          return new Promise<ParsedDxf>((res, rej) => setTimeout(() => { try { res(parseDxf(text, it.crs)); } catch (e) { rej(e); } }, 30));
-        })
+      // Gi nettleseren et øyeblikk til å tegne "laster" før tung parsing
+      new Promise<void>((res) => setTimeout(res, 30))
+        .then(() => parseVector(it.blob, it.format ?? 'dxf', it.crs, { detect: false, placement: it.placement }))
         .then((data) => setDxf((d) => ({ ...d, [it.id]: { key, data } })))
         .catch((e) => setDxf((d) => ({ ...d, [it.id]: { key, error: String(e?.message ?? e) } })));
     }
@@ -219,19 +219,22 @@ export function useProject() {
         if (isWorldFile(f)) continue; // brukes sammen med JP2-filen med samme navn
         const prefix = `(${i + 1}/${files.length}) ${f.name}: `;
         try {
-          if (/\.dxf$/i.test(f.name)) {
-            onProgress(prefix + 'leser DXF …');
-            const text = await f.text();
-            const parsed = parseDxf(text, crs); // valider før lagring
+          const vf = vectorFormatOf(f.name);
+          if (vf) {
+            onProgress(prefix + `leser ${FORMAT_LABEL[vf]} …`);
+            const parsed = await parseVector(f, vf, crs, { detect: true, placement: opts.placement, onProgress: (m) => onProgress(prefix + m) }); // valider før lagring
+            const useCrs = parsed.crs ?? crs;
             const item: DxfItem = {
               id: uid(), kind: 'dxf', name: f.name, folderId: folderFor('dxf', f), createdAt: Date.now(), driveId: driveIdOf(f),
-              crs, blob: new Blob([text], { type: 'application/dxf' }), hiddenLayers: [],
+              crs: useCrs, blob: f, hiddenLayers: [], format: vf,
+              placement: vf === 'ifc' && opts.placement ? opts.placement : undefined,
             };
-            setDxf((d) => ({ ...d, [item.id]: { key: `${item.id}|${crs}`, data: parsed } }));
+            setDxf((d) => ({ ...d, [item.id]: { key: `${item.id}|${useCrs}`, data: parsed } }));
             saveItem(item);
             res.added.push(item);
             grow(parsed.bounds);
             res.messages.push(`${f.name}: ${parsed.features.length} objekter på ${parsed.layers.length} lag.`);
+            if (useCrs !== crs) res.messages.push(`${f.name}: leste koordinatsystemet fra filen (${useCrs}).`);
             parsed.warnings.forEach((w) => res.messages.push(`${f.name}: ${w}`));
           } else if (isOrthoFile(f)) {
             const o = await processOrtho(f, crs, (m) => onProgress(prefix + m), sidecars.get(baseName(f.name)));

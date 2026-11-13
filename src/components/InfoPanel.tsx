@@ -3,6 +3,7 @@ import type { DxfItem, OrthoItem, PhotoItem, Selection } from '../types';
 import type { Project } from '../state';
 import { crsName, CRS_LIST, formatProjected, fmt } from '../lib/crs';
 import { IconChevron, IconClose, IconPin, IconTrash } from './icons';
+import { FORMAT_LABEL } from '../lib/vector';
 import { useMemo } from 'react';
 
 interface Props {
@@ -134,6 +135,7 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
           <Row k="Lag" v={<><span className="swatch" style={{ background: f.color }} /> {f.layer}</>} />
           <Row k="Type" v={f.type} />
           {f.block && <Row k="Blokk" v={f.block} />}
+          {f.attrs && Object.entries(f.attrs).map(([k, v]) => <Row key={k} k={k} v={v} />)}
           {f.text && <Row k="Tekst" v={<span style={{ whiteSpace: 'pre-wrap' }}>{f.text}</span>} />}
           {f.geom === 'line' && <Row k="Lengde (2D)" v={fmt.m(f.length)} />}
           {f.geom === 'polygon' && <><Row k="Omkrets" v={fmt.m(f.length)} /><Row k="Areal" v={fmt.m2(f.area ?? 0)} /></>}
@@ -207,7 +209,7 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
     if (it.kind === 'dxf') {
       const d = it as DxfItem;
       const st = project.dxf[d.id];
-      title = 'DXF – prosjekterte data';
+      title = `${FORMAT_LABEL[d.format ?? 'dxf']} – prosjekterte data`;
       subtitle = d.name;
       body = (
         <>
@@ -216,7 +218,7 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
             <Row k="Lag" v={st?.data ? `${st.data.layers.length - d.hiddenLayers.length} av ${st.data.layers.length} synlige` : '–'} />
             <Row k="Mappe" v={folderName(d.folderId)} />
             <div className="field">
-              <label>Koordinatsystem i tegningen</label>
+              <label>Koordinatsystem i filen</label>
               <select value={val('crs', d.crs)} onChange={(e) => setVal('crs', e.target.value, d.crs)}>
                 {CRS_LIST.map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
               </select>

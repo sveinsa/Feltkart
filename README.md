@@ -3,7 +3,7 @@
 Kartløsning for anleggsprosjekter. Du kan samle alt fra byggeplassen i ett kart:
 
 - **Bilder og 360-bilder.** De plasseres automatisk ut fra GPS-en i bildet og vises med hvert sitt ikon: grønn firkant for foto og mørkegrønn «360»-sirkel for 360-bilder.
-- **DXF med prosjekterte data.** Du kan slå hvert lag av og på, klikke på et objekt for å se lag, lengde, areal og høyder, og se tekst når du zoomer helt inn.
+- **Innmåling og prosjekterte data: DXF, KOF, SOSI, LandXML og IFC.** Du kan slå hvert lag av og på, klikke på et objekt for å se lag, lengde, areal og høyder, og se tekst når du zoomer helt inn.
 - **Ortofoto fra drone** (GeoTIFF). Det reprojiseres slik at det ligger riktig i kartet, og du kan gjøre det mer eller mindre gjennomsiktig.
 - **Bakgrunnskart.** Du kan velge mellom kart (Kartverket topo/gråtone, OpenStreetMap) og ortofoto (Norge i bilder, Esri), og legge eget droneortofoto oppå.
 - **Prosjektmapper på Google Disk.** Du lager en mappemal (innrykket tekst), ser en forhåndsvisning og oppretter hele strukturen på Google Disk med ett klikk.
@@ -22,7 +22,7 @@ npm run dev
 
 > Det fungerer **ikke** å åpne `index.html` direkte fra mappen (adressen starter med `file://`). Siden må kjøres via `npm run dev`, eller via `npm run build` og `npm run preview`.
 
-For å prøve DXF-visningen kan du laste opp `eksempeldata/eksempel-veg-utm32.dxf` med koordinatsystem **EUREF89 UTM sone 32**. Den ligger i Trondheim.
+For å prøve DXF-visningen kan du laste opp `eksempeldata/eksempel-veg-utm32.dxf` med koordinatsystem **EUREF89 UTM sone 32**. Den ligger i Trondheim. Eksempelfilene `eksempel-innmaaling-utm32.kof`, `.sos` og `eksempel-landxml-utm32.xml` ligger i Oppdal-området.
 
 ## Legge prosjektet på GitHub
 
@@ -92,6 +92,10 @@ På GitHub Pages leses ikke `.env`, siden bygges uten den. Legg verdiene inn und
 | Foto | JPG, PNG, WebP | Posisjon, høyde, retning og dato leses fra EXIF. HEIC (iPhone) må gjøres om til JPG først. |
 | 360-bilde | JPG (ekvirektangulært) | Kjennes igjen på 2:1-format eller panorama-metadata (GPano). Typen kan endres i objektinformasjonen. |
 | DXF | `.dxf` (ASCII) | Linjer, polylinjer med buer, 3D-polylinjer, sirkler, buer, ellipser, splines, 3DFACE, punkter, tekst og blokker. Tegningen må være georeferert (ikke lokale koordinater). |
+| KOF | `.kof` | Innmålte punkter (post 05: punktnavn, kode, X nord, Y øst, H). Laget heter «Kode …», og punktnavn og høyde vises som tekst når du zoomer inn. Koordinatsystemet velger du ved opplasting, siden KOF ikke oppgir det. |
+| SOSI | `.sos`, `.sosi` | Punkt, sverm, kurve, bue (BUEP), flate (via REF) og tekst. Lag følger OBJTYPE, og egenskaper vises i objektinformasjonen. Koordinatsystemet leses fra hodet for EUREF89 UTM (kode 21–26), ellers brukes valgt system. Tegnsett (ISO 8859 eller UTF-8) kjennes igjen. Hull i flater og klotoider tegnes forenklet eller utelates. |
+| LandXML | `.xml` | Punkter (CgPoints), trasé og plangeometri (linjer, sirkelbuer, overgangskurver), eiendommer og terrengmodeller (TIN, vises som kant og trekanter). EPSG-kode leses fra filen når den finnes. |
+| IFC | `.ifc` | Vises som grunnriss (omriss) av hvert objekt, med lag etter IFC-klasse. Plasseres med IfcMapConversion, ellers prosjekterte koordinater eller IfcSite-posisjon. Mangler alt dette, oppgir du modellens origo (Øst/Nord) ved opplasting. IFC-leseren (web-ifc) lastes fra internett første gang. 3D-visning er ikke med. |
 | Ortofoto | GeoTIFF (`.tif`) eller JPEG 2000 (`.jp2`) | GeoTIFF: koordinatsystemet leses fra filen, og store filer bør ha innebygde oversiktsbilder (COG). JP2: georeferanse leses fra filen (GeoJP2 eller GMLJP2), ellers legger du ved en world file (`.j2w`, `.jgw` eller `.wld`) med samme filnavn. Avkoderen (OpenJPEG) lastes fra internett første gang. |
 
 Bilder uten GPS kan plasseres manuelt: velg bildet og trykk **Plasser på kart**.
@@ -136,7 +140,7 @@ Teknologi: React + TypeScript + Vite, Leaflet, proj4, dxf-parser, geotiff.js, ex
 2. **Fillagring.** Bruk S3, Cloudflare R2 eller Azure Blob, med opplasting direkte fra nettleseren via forhåndssignerte lenker.
 3. **Bakgrunnsjobber:**
    - **Ortofoto:** GDAL gjør om til Cloud Optimized GeoTIFF, som serveres som fliser via TiTiler. Da vises full oppløsning uansett filstørrelse.
-   - **DXF:** konverteres til GeoJSON eller vektorfliser (ogr2ogr/tippecanoe) for store tegninger. LandXML-støtte kan legges til.
+   - **DXF:** konverteres til GeoJSON eller vektorfliser (ogr2ogr/tippecanoe) for store tegninger. Større IFC-modeller og terrengmodeller bør konverteres til vektorfliser/GeoJSON.
    - **Bilder:** miniatyrer lages og HEIC gjøres om.
 4. **Brukere og tilgang.** Innlogging (Auth.js, Clerk eller Entra ID), prosjekter med medlemmer og roller (les/skriv/admin), og deling av mapper.
 5. **Personvern.** Bilder kan vise personer og bilskilt. Tenk på tilgangsstyring, og fjern EXIF-posisjon ved deling utenfor prosjektet.

@@ -7,6 +7,7 @@ import { downloadDriveFile, pickFiles } from '../lib/google';
 import { isOrthoFile } from '../lib/ortho';
 import { isWorldFile } from '../lib/jp2';
 import { usePickerOpen } from '../lib/usePickerOpen';
+import { isVectorFile, vectorFormatOf, VECTOR_ACCEPT } from '../lib/vector';
 
 interface Props {
   project: Project;
@@ -17,7 +18,7 @@ interface Props {
 
 function kindOf(f: File): 'dxf' | 'ortho' | 'photo' | 'world' | null {
   if (isWorldFile(f)) return 'world';
-  if (/\.dxf$/i.test(f.name)) return 'dxf';
+  if (isVectorFile(f)) return 'dxf';
   if (isOrthoFile(f)) return 'ortho';
   if (f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name)) return 'photo';
   return null;
@@ -41,6 +42,10 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
   const [driveErr, setDriveErr] = useState<string | null>(null);
 
   const add = (list: FileList | File[]) => setFiles((f) => [...f, ...Array.from(list)]);
+  const hasIfc = files.some((f) => vectorFormatOf(f.name) === 'ifc');
+  const [pe, setPe] = useState('');
+  const [pn, setPn] = useState('');
+  const [pr, setPr] = useState('0');
   const hasGeo = files.some((f) => kindOf(f) === 'dxf' || kindOf(f) === 'ortho');
   const startable = files.filter((f) => { const k = kindOf(f); return k && k !== 'world'; }).length;
 
@@ -67,7 +72,9 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
 
   async function start() {
     setBusy(true);
-    const r = await project.upload(files, target, crs, setProgress);
+    const e = parseFloat(pe.replace(',', '.')), n = parseFloat(pn.replace(',', '.')), rot = parseFloat(pr.replace(',', '.')) || 0;
+    const placement = hasIfc && Number.isFinite(e) && Number.isFinite(n) ? { e, n, rot } : undefined;
+    const r = await project.upload(files, target, crs, setProgress, { placement });
     setBusy(false);
     setResult(r);
     onDone(r);
@@ -99,8 +106,8 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
             >
               <IconUpload size={28} />
               <strong>Dra filer hit eller klikk for å velge</strong>
-              <span>Bilder (JPG/PNG), 360-bilder, DXF med prosjekterte data og ortofoto fra drone (GeoTIFF eller JP2)</span>
-              <input ref={input} type="file" multiple hidden accept="image/*,.dxf,.tif,.tiff,.jp2,.j2k,.j2w,.jgw,.wld" onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ''; }} />
+              <span>Bilder (JPG/PNG), 360-bilder, ortofoto fra drone (GeoTIFF/JP2) og prosjekterte data og innmåling: DXF, KOF, SOSI, LandXML og IFC</span>
+              <input ref={input} type="file" multiple hidden accept={`image/*,${VECTOR_ACCEPT},.tif,.tiff,.jp2,.j2k,.j2w,.jgw,.wld`} onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ''; }} />
             </div>
 
             <div className="drive-pick">
@@ -139,13 +146,24 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
               </div>
               {hasGeo && (
                 <div className="field">
-                  <label>Koordinatsystem (DXF / ortofoto uten georeferanse)</label>
+                  <label>Koordinatsystem (brukes hvis filen ikke oppgir eget)</label>
                   <select value={crs} onChange={(e) => setCrs(e.target.value)} disabled={busy}>
                     {CRS_LIST.map((c) => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
                   </select>
                 </div>
               )}
             </div>
+            {hasIfc && (
+              <div className="field">
+                <label>IFC uten georeferanse: modellens origo (valgfritt)</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input placeholder="Øst" value={pe} onChange={(e) => setPe(e.target.value)} disabled={busy} inputMode="decimal" />
+                  <input placeholder="Nord" value={pn} onChange={(e) => setPn(e.target.value)} disabled={busy} inputMode="decimal" />
+                  <input placeholder="Rotasjon °" value={pr} onChange={(e) => setPr(e.target.value)} disabled={busy} inputMode="decimal" style={{ maxWidth: 110 }} />
+                </div>
+                <p className="muted small">Brukes bare hvis IFC-filen verken har kartkonvertering, prosjekterte koordinater eller stedsposisjon.</p>
+              </div>
+            )}
             <p className="muted small">360-bilder kjennes igjen automatisk (2:1-format eller panorama-metadata). Posisjon og dato leses fra bildene.</p>
 
             <div className="modal-foot">
