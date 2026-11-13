@@ -257,6 +257,8 @@ export default function App() {
               onOpenViewer={setViewerId}
               onStartPlace={(id) => { setPlacingId(id); setTool('place'); }}
               onZoomTo={zoomToItem}
+              photos={photos}
+              onSelectItem={(id) => setSelection({ type: 'item', id })}
             />
 
             <div className="coord-bar">

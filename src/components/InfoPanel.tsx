@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DxfItem, OrthoItem, PhotoItem, Selection } from '../types';
 import type { Project } from '../state';
 import { crsName, CRS_LIST, formatProjected, fmt } from '../lib/crs';
 import { IconChevron, IconClose, IconPin, IconTrash } from './icons';
+import { useMemo } from 'react';
 
 interface Props {
   project: Project;
@@ -11,6 +12,9 @@ interface Props {
   onOpenViewer: (id: string) => void;
   onStartPlace: (id: string) => void;
   onZoomTo: (id: string) => void;
+  /** Alle bilder i visningsrekkefølge, brukes til å bla i forhåndsvisningen */
+  photos: PhotoItem[];
+  onSelectItem: (id: string) => void;
 }
 
 function Section({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
@@ -32,7 +36,26 @@ const Row = ({ k, v }: { k: string; v: ReactNode }) => (
 
 const dateFmt = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'medium', timeStyle: 'short' });
 
-export default function InfoPanel({ project, selection, onClose, onOpenViewer, onStartPlace, onZoomTo }: Props) {
+/** Stor forhåndsvisning med bla-knapper. Bruker bildefilen (ikke miniatyren) slik at den blir skarp. */
+function PhotoPreview({ p, index, total, onPrev, onNext, onOpen }: {
+  p: PhotoItem; index: number; total: number; onPrev?: () => void; onNext?: () => void; onOpen: () => void;
+}) {
+  const url = useMemo(() => URL.createObjectURL(p.blob), [p.id, p.blob]);
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  return (
+    <div className="info-preview">
+      <button className="info-preview-img" onClick={onOpen} title={p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne i fullskjerm'}>
+        <img src={url} alt={p.name} style={{ backgroundImage: `url(${p.thumb})` }} />
+        <span className="info-open">{p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne i fullskjerm'}</span>
+      </button>
+      {onPrev && <button className="info-nav prev" onClick={onPrev} aria-label="Forrige bilde" title="Forrige (←)"><IconChevron size={22} style={{ transform: 'rotate(180deg)' }} /></button>}
+      {onNext && <button className="info-nav next" onClick={onNext} aria-label="Neste bilde" title="Neste (→)"><IconChevron size={22} /></button>}
+      <span className="info-count">{index + 1} / {total}</span>
+    </div>
+  );
+}
+
+export default function InfoPanel({ project, selection, onClose, onOpenViewer, onStartPlace, onZoomTo, photos, onSelectItem }: Props) {
   const [confirmDel, setConfirmDel] = useState(false);
   useEffect(() => setConfirmDel(false), [selection]);
   // Endringer samles i et utkast til du trykker Lagre
@@ -43,6 +66,30 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
   const setVal = (k: string, v: any, orig: any) =>
     setDraft((d) => { const n = { ...d }; if (v === orig) delete n[k]; else n[k] = v; return n; });
   const dirty = Object.keys(draft).length > 0;
+
+  // Bla i bildene (piltaster og knapper). Ulagrede endringer må bekreftes forkastet.
+  const selId = selection?.type === 'item' ? selection.id : null;
+  const photoIdx = selId ? photos.findIndex((x) => x.id === selId) : -1;
+  const go = (delta: number) => {
+    const next = photos[photoIdx + delta];
+    if (!next) return;
+    if (dirty && !window.confirm('Forkast ulagrede endringer på dette bildet?')) return;
+    onSelectItem(next.id);
+  };
+  const goRef = useRef(go);
+  goRef.current = go;
+  useEffect(() => {
+    if (photoIdx < 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goRef.current(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); goRef.current(1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [photoIdx < 0]);
+
   if (!selection || !project.settings) return null;
   const crs = project.settings.projectCrs;
 
@@ -118,10 +165,10 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
       subtitle = p.name;
       body = (
         <>
-          <button className="info-thumb" onClick={() => onOpenViewer(p.id)} title="Åpne">
-            <img src={p.thumb} alt={p.name} />
-            <span>{p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne bilde'}</span>
-          </button>
+          <PhotoPreview p={p} index={photoIdx} total={photos.length}
+            onPrev={photoIdx > 0 ? () => go(-1) : undefined}
+            onNext={photoIdx >= 0 && photoIdx < photos.length - 1 ? () => go(1) : undefined}
+            onOpen={() => onOpenViewer(p.id)} />
           <Section title="Bilde">
             <div className="field">
               <label>Notat</label>
@@ -222,7 +269,7 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
   }
 
   return (
-    <aside className="info-panel">
+    <aside className={`info-panel${photoIdx >= 0 ? ' wide' : ''}`}>
       <div className="info-head">
         <div>
           <div className="muted small">{title}</div>
