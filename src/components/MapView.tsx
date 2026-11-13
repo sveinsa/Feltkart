@@ -28,6 +28,13 @@ interface Props {
 
 type DxfLayers = { key: string; groups: Map<string, L.LayerGroup>; added: Set<string> };
 
+/** Trenger vi det store bildet? Ja når ortofotoet vises bredere enn forhåndsbildet (2048 px). */
+function needsHiRes(map: L.Map, b: L.LatLngBounds): boolean {
+  const sw = map.latLngToContainerPoint(b.getSouthWest());
+  const ne = map.latLngToContainerPoint(b.getNorthEast());
+  return Math.abs(ne.x - sw.x) > 1900;
+}
+
 export default function MapView(props: Props) {
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -36,7 +43,7 @@ export default function MapView(props: Props) {
 
   const baseRef = useRef<L.TileLayer | null>(null);
   const photoGroup = useRef<L.LayerGroup | null>(null);
-  const orthoLayers = useRef(new Map<string, { layer: L.ImageOverlay; url: string; blob: Blob }>());
+  const orthoLayers = useRef(new Map<string, { layer: L.ImageOverlay; url: string; lo?: string; blob: Blob; bounds: L.LatLngBounds }>());
   const dxfLayers = useRef(new Map<string, DxfLayers>());
   const dxfRenderer = useRef<L.Canvas | null>(null);
   const highlight = useRef<L.LayerGroup | null>(null);
@@ -125,6 +132,7 @@ export default function MapView(props: Props) {
       if (!it || it.image !== entry.blob) {
         entry.layer.remove();
         URL.revokeObjectURL(entry.url);
+        if (entry.lo) URL.revokeObjectURL(entry.lo);
         orthoLayers.current.delete(id);
       }
     }
@@ -132,10 +140,27 @@ export default function MapView(props: Props) {
       const existing = orthoLayers.current.get(id);
       if (existing) { existing.layer.setOpacity(it.opacity); continue; }
       const url = URL.createObjectURL(it.image);
-      const layer = L.imageOverlay(url, it.bounds, { pane: 'orthoPane', opacity: it.opacity, interactive: false }).addTo(map);
-      orthoLayers.current.set(id, { layer, url, blob: it.image });
+      const lo = it.preview ? URL.createObjectURL(it.preview) : undefined;
+      const bounds = L.latLngBounds(it.bounds);
+      const layer = L.imageOverlay(lo && !needsHiRes(map, bounds) ? lo : url, bounds, { pane: 'orthoPane', opacity: it.opacity, interactive: false }).addTo(map);
+      orthoLayers.current.set(id, { layer, url, lo, blob: it.image, bounds });
     }
   }, [props.items]);
+
+  // Lite forhåndsbilde når kartet er zoomet ut, fullt bilde når man zoomer inn (gir raskere panorering)
+  useEffect(() => {
+    const map = mapRef.current!;
+    const swap = () => {
+      for (const e of orthoLayers.current.values()) {
+        if (!e.lo) continue;
+        const want = needsHiRes(map, e.bounds) ? e.url : e.lo;
+        const img = e.layer.getElement();
+        if (img && img.src !== want) e.layer.setUrl(want);
+      }
+    };
+    map.on('zoomend', swap);
+    return () => { map.off('zoomend', swap); };
+  }, []);
 
   // ---------- Bilder og 360-bilder ----------
   useEffect(() => {

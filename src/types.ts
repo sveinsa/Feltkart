@@ -49,6 +49,8 @@ export interface OrthoItem extends BaseItem {
   kind: 'ortho';
   crs: string;
   image: Blob; // ferdig reprojisert til Web Mercator
+  /** Lite bilde for utzoomet visning (valgfritt, eldre ortofoto har det ikke) */
+  preview?: Blob;
   bounds: [[number, number], [number, number]]; // [[sør, vest], [nord, øst]]
   opacity: number;
   resolution: number | null; // meter per piksel i originalen

@@ -173,6 +173,6 @@ Feltkart leser kun **modellrommet** (Model space) i DXF-filer. Alt i papirrom/la
 
 Standardmappene er Bilder, 360-bilder, Prosjektert (DXF/IFC), Innmålinger og Ortofoto (drone). Data fra Google Disk (inkl. demodata) legges direkte i disse. Eldre prosjekter som har fått egne speilede mapper (Foto, Innmåling, Ortofoto, Prosjektert) ryddes automatisk første gang appen åpnes: innholdet flyttes til standardmappene og de tomme duplikatene fjernes. Mapper som inneholder egne, opplastede filer røres ikke.
 
-## Skarphet på ortofoto
+## Skarphet og hastighet på ortofoto
 
-Ortofoto lagres i nettleseren med opptil 8192 piksler på lengste side (4096 på enheter med lite minne), og tegnes om med bilineær interpolasjon. JPEG 2000-filer avkodes opp til 64 millioner piksler. Er ortofotoet større enn dette, nedskaleres det, og i en produksjonsløsning bør det i stedet leveres som flisbelagt kart (tiles) fra serveren. Ortofoto som allerede er lastet inn, beholder oppløsningen fra da det ble lastet inn og må lastes inn på nytt for å bli skarpere.
+Ortofoto lagres i nettleseren med opptil 6144 piksler på lengste side (4096 på enheter med lite minne). Det lages også et lite forhåndsbilde (maks 2048 px) som vises når kartet er zoomet langt ut, og det store bildet tas i bruk når du zoomer inn. Det gjør panorering rask selv med skarpt bilde. JPEG 2000-filer avkodes opp til 64 millioner piksler. Er ortofotoet større enn dette, nedskaleres det, og i en produksjonsløsning bør det leveres som flisbelagt kart (tiles) fra serveren. Ortofoto som allerede er lastet inn beholder oppløsningen fra da det ble lastet inn, og må lastes inn på nytt for å bli skarpere eller få forhåndsbilde.

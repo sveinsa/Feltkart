@@ -11,6 +11,8 @@ export interface OrthoResult {
   resolution: number | null;
   sourceSize: [number, number];
   crsDetected: boolean;
+  /** Lite bilde (maks 2048 px) som vises når kartet er zoomet langt ut – mye raskere å panorere */
+  preview?: Blob;
 }
 
 function detectCrs(keys: any): string | null {
@@ -87,10 +89,10 @@ async function readJp2(file: File, fallbackCrs: string, maxSize: number, sidecar
   };
 }
 
-/** Største side (piksler) på ortofotoet som lagres. 8192 gir god skarphet; små enheter med lite minne får 4096. */
+/** Største side (piksler) på ortofotoet som lagres. 6144 gir god skarphet uten at kartet blir tregt; små enheter med lite minne får 4096. */
 function defaultMaxSize(): number {
   const mem = (navigator as any).deviceMemory as number | undefined; // GB, bare oppgitt i Chromium
-  return mem !== undefined && mem < 4 ? 4096 : 8192;
+  return mem !== undefined && mem < 4 ? 4096 : 6144;
 }
 
 /**
@@ -151,6 +153,7 @@ export async function processOrtho(
   const o = out.data;
 
   for (let y = 0; y < outH; y++) {
+    if (y % 256 === 0 && y > 0) { onProgress?.(`Reprojiserer … ${Math.round((y / outH) * 100)} %`); await new Promise((res) => setTimeout(res, 0)); }
     const fy = (y / (outH - 1 || 1)) * G;
     const j = Math.min(G - 1, Math.floor(fy));
     const ty = fy - j;
@@ -164,24 +167,29 @@ export async function processOrtho(
       const sxp = px | 0, syp = py | 0;
       const oi = (y * outW + x) * 4;
       if (px < 0 || py < 0 || sxp >= sw || syp >= sh) { o[oi + 3] = 0; continue; }
-      // Bilineær interpolasjon mellom de fire nærmeste pikslene (jevnere enn nærmeste nabo)
-      const bx = px - 0.5, by = py - 0.5;
-      const xa = Math.max(0, Math.min(sw - 1, Math.floor(bx))), ya = Math.max(0, Math.min(sh - 1, Math.floor(by)));
-      const xb = Math.min(sw - 1, xa + 1), yb = Math.min(sh - 1, ya + 1);
-      const wx = Math.max(0, Math.min(1, bx - xa)), wy = Math.max(0, Math.min(1, by - ya));
-      const w11 = wx * wy, w10 = wx * (1 - wy), w01 = (1 - wx) * wy, w00 = (1 - wx) * (1 - wy);
-      const i00 = (ya * sw + xa) * channels, i10 = (ya * sw + xb) * channels, i01 = (yb * sw + xa) * channels, i11 = (yb * sw + xb) * channels;
+      // Utbildet har omtrent samme piksler som originalen, så nærmeste nabo gir full skarphet og er raskest
       const si = (syp * sw + sxp) * channels;
-      const r0 = raw[si], g0 = raw[si + 1] ?? r0, b0 = raw[si + 2] ?? r0;
-      let alpha = channels >= 4 ? raw[i00 + 3] * w00 + raw[i10 + 3] * w10 + raw[i01 + 3] * w01 + raw[i11 + 3] * w11 : 255;
-      if (noData !== null && noData !== undefined && r0 === noData && g0 === noData && b0 === noData) alpha = 0;
-      const r = raw[i00] * w00 + raw[i10] * w10 + raw[i01] * w01 + raw[i11] * w11;
-      const g = channels >= 3 ? raw[i00 + 1] * w00 + raw[i10 + 1] * w10 + raw[i01 + 1] * w01 + raw[i11 + 1] * w11 : r;
-      const bl = channels >= 3 ? raw[i00 + 2] * w00 + raw[i10 + 2] * w10 + raw[i01 + 2] * w01 + raw[i11 + 2] * w11 : r;
+      const r = raw[si], g = raw[si + 1] ?? r, bl = raw[si + 2] ?? r;
+      let alpha = channels >= 4 ? raw[si + 3] : 255;
+      if (noData !== null && noData !== undefined && r === noData && g === noData && bl === noData) alpha = 0;
       o[oi] = r; o[oi + 1] = g; o[oi + 2] = bl; o[oi + 3] = alpha;
     }
   }
   ctx.putImageData(out, 0, 0);
+
+  onProgress?.('Lager forhåndsvisning …');
+  let preview: Blob | undefined;
+  try {
+    const k = Math.min(1, 2048 / Math.max(outW, outH));
+    if (k < 1) {
+      const pc = document.createElement('canvas');
+      pc.width = Math.max(1, Math.round(outW * k)); pc.height = Math.max(1, Math.round(outH * k));
+      const pctx = pc.getContext('2d')!;
+      pctx.imageSmoothingQuality = 'high';
+      pctx.drawImage(canvas, 0, 0, pc.width, pc.height);
+      preview = await new Promise<Blob>((resolve, reject) => pc.toBlob((bb) => (bb ? resolve(bb) : reject(new Error('preview'))), 'image/webp', 0.88));
+    }
+  } catch { preview = undefined; }
 
   onProgress?.('Lagrer bilde …');
   const blob: Blob = await new Promise((resolve, reject) =>
@@ -199,6 +207,7 @@ export async function processOrtho(
     resolution: projected ? (x1 - x0) / w : null,
     sourceSize: r.sourceSize,
     crsDetected: detected,
+    preview,
   };
 }
 

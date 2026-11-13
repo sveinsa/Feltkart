@@ -304,7 +304,7 @@ export function useProject() {
             const o = await processOrtho(f, crs, (m) => onProgress(prefix + m), sidecars.get(baseName(f.name)));
             const item: OrthoItem = {
               id: uid(), kind: 'ortho', name: f.name, folderId: folderFor('ortho', f), createdAt: Date.now(), driveId: driveIdOf(f),
-              crs: o.crs, image: o.image, bounds: o.bounds, opacity: 1, resolution: o.resolution, sourceSize: o.sourceSize,
+              crs: o.crs, image: o.image, preview: o.preview, bounds: o.bounds, opacity: 1, resolution: o.resolution, sourceSize: o.sourceSize,
             };
             saveItem(item);
             res.added.push(item);
