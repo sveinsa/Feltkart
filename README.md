@@ -149,14 +149,15 @@ Teknologi: React + TypeScript + Vite, Leaflet, proj4, dxf-parser, geotiff.js, ex
 
 ## Demodata fra Google Disk (lastes automatisk)
 
-Når kartet er helt tomt første gang appen åpnes, leses demomappen på Google Disk automatisk og alle bilder, DXF/KOF/SOSI/LandXML/IFC og ortofoto legges i kartet (bare én gang – slettes demodata, kommer de ikke tilbake av seg selv). Du kan også trykke **Last demodata** i «Kom i gang»-boksen eller øverst i Google Disk-dialogen. Demodata legges i standardmappene (Bilder, 360-bilder, Prosjektert, Innmålinger, Ortofoto). «Last demodata» erstatter tidligere innlastet demodata.
+Hver gang appen åpnes med helt tomt kart (og API-nøkkel er satt opp), leses demomappen på Google Disk automatisk og alle bilder, DXF/KOF/SOSI/LandXML/IFC og ortofoto legges i kartet. Du kan også trykke **Last demodata** i «Kom i gang»-boksen eller øverst i Google Disk-dialogen. Demodata legges i standardmappene (Bilder, 360-bilder, Prosjektert, Innmålinger, Ortofoto). «Last demodata» erstatter tidligere innlastet demodata.
 
 **Det som må være på plass (én gang):**
 1. Mappen er delt som **«Alle med lenken – Leser»**. Mappe-ID står i `src/lib/demo.ts` (kan overstyres med `VITE_DEMO_FOLDER_ID`).
 2. En **Google API-nøkkel**: Google Cloud → APIer og tjenester → Legitimasjon → Opprett legitimasjon → API-nøkkel. Slå på *Google Drive API* i biblioteket. Begrens nøkkelen til *Google Drive API* og til nettstedet `https://sveinsa.github.io/*`.
 3. Gi appen nøkkelen på **én** av disse måtene:
-   - lim den inn i `DEMO_API_KEY` i `src/lib/demo.ts`, eller
-   - GitHub → repoet → Settings → Secrets and variables → Actions → fanen *Variables* → ny variabel `GOOGLE_API_KEY` (deploy-filen sender den videre ved bygging).
+   - GitHub → repoet → Settings → Secrets and variables → Actions → fanen *Variables* → ny variabel `GOOGLE_API_KEY` (deploy-filen sender den videre ved bygging), eller
+   - legg den inn i appen under Innstillinger → Google.
+   Lim aldri nøkkelen inn i kildekoden: GitHub varsler om nøkler i kode, og de blir liggende i historikken.
 
 API-nøkler i nettapper er ikke hemmelige – sikkerheten ligger i begrensningene i punkt 2. Demofilene hentes ned fullt ut (ingen strømming).
 

@@ -382,3 +382,7 @@ body.picking .modal-back { visibility: hidden; }
 .date-filter .df-slider { width: 100%; accent-color: var(--brand); }
 .date-filter .df-sub { margin-top: -6px; }
 .date-filter .df-foot { border-top: 1px solid var(--line); padding-top: 8px; }
+
+/* Fremdrift for demodata */
+.demo-banner { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 850; background: #fff; border-radius: 999px; box-shadow: var(--shadow); padding: 8px 18px; display: flex; flex-direction: column; align-items: center; gap: 2px; max-width: 70%; text-align: center; font-size: 13px; }
+.demo-banner span { color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

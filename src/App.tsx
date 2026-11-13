@@ -69,9 +69,9 @@ export default function App() {
 
   useEffect(() => {
     if (!ready || !settings || demoStarted.current) return;
-    if (items.length > 0 || settings.demoAutoLoaded || !hasDemoKey(googleConfig(project))) return;
+    // Starter av seg selv når prosjektet er tomt ved åpning (og det finnes en API-nøkkel)
+    if (items.length > 0 || !hasDemoKey(googleConfig(project))) return;
     demoStarted.current = true;
-    project.updateSettings({ demoAutoLoaded: true }); // bare én gang, slik at demodata ikke kommer tilbake etter sletting
     void startDemo();
   }, [ready, settings, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -348,13 +348,19 @@ export default function App() {
               ) : <span className="muted">{crsName(settings.projectCrs)}</span>}
             </div>
 
-            {items.length === 0 && (
+            {demo.busy && (
+              <div className={items.length === 0 ? 'map-empty' : 'demo-banner'}>
+                <strong>Laster demodata … kan ta litt tid ☕</strong>
+                {demo.msg && <span className="muted small">{demo.msg}</span>}
+              </div>
+            )}
+
+            {items.length === 0 && !demo.busy && (
               <div className="map-empty">
                 <strong>Kom i gang</strong>
                 <span>Last opp bilder, 360-bilder, ortofoto fra drone eller prosjekterte data og innmåling (DXF, KOF, SOSI, LandXML, IFC).</span>
                 <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp filer</button>
-                <button className="btn" onClick={startDemo} disabled={demo.busy}><IconFolder size={16} /> {demo.busy ? 'Laster demodata …' : 'Last demodata'}</button>
-                {demo.busy && demo.msg && <span className="muted small">{demo.msg}</span>}
+                <button className="btn" onClick={startDemo}><IconFolder size={16} /> Last demodata</button>
                 {demo.error && <span className="error small">{demo.error}</span>}
               </div>
             )}
