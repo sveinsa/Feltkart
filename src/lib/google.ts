@@ -232,7 +232,15 @@ async function drive(path: string, access: string, init: RequestInit = {}, attem
     const msg = body?.error?.message ?? res.statusText;
     if (res.status === 404) throw new Error(`Fant ikke målmappen, eller appen har ikke tilgang til den (${msg}). Velg mappen på nytt i mappevelgeren.`);
     if (res.status === 401) { token = null; throw new Error('Innloggingen er utløpt. Prøv igjen.'); }
-    throw new Error(`Google Disk svarte ${res.status}: ${msg}`);
+    const reason = body?.error?.errors?.[0]?.reason ?? body?.error?.details?.find?.((d: any) => d?.reason)?.reason ?? body?.error?.status ?? '';
+    const hint = isKey && res.status === 403
+      ? /BLOCKED|referer/i.test(`${reason} ${msg}`)
+        ? ' Tips: API-nøkkelen er begrenset – sjekk «API-begrensninger» (må inkludere Google Drive API) og «HTTP-referanser» (https://sveinsa.github.io/*).'
+        : /DISABLED|not been used/i.test(`${reason} ${msg}`)
+          ? ' Tips: Google Drive API er ikke aktivert i dette Google Cloud-prosjektet.'
+          : ' Tips: sjekk begrensningene på API-nøkkelen og at mappen er delt med «alle med lenken».'
+      : '';
+    throw new Error(`Google Disk svarte ${res.status}: ${msg}${reason ? ` [${reason}]` : ''}.${hint}`);
   }
   return res.json();
 }
