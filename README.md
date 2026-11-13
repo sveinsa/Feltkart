@@ -157,7 +157,7 @@ Hver gang appen åpnes med helt tomt kart (og API-nøkkel er satt opp), leses de
 3. Gi appen nøkkelen på **én** av disse måtene:
    - GitHub → repoet → Settings → Secrets and variables → Actions → fanen *Variables* → ny variabel `GOOGLE_API_KEY` (deploy-filen sender den videre ved bygging), eller
    - legg den inn i appen under Innstillinger → Google.
-   Lim aldri nøkkelen inn i kildekoden: GitHub varsler om nøkler i kode, og de blir liggende i historikken.
+   I denne pakken ligger nøkkelen også i `src/lib/demo.ts` (`DEMO_API_KEY`), slik at demodata virker uten annet oppsett. GitHub kan varsle om nøkler i kildekode. Nøkkelen er begrenset til nettstedet og Drive-API-et, så varselet kan lukkes.
 
 API-nøkler i nettapper er ikke hemmelige – sikkerheten ligger i begrensningene i punkt 2. Demofilene hentes ned fullt ut (ingen strømming).
 
