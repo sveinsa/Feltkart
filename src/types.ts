@@ -61,7 +61,8 @@ export interface Settings {
   projectName: string;
   projectCrs: string;
   basemapId: string;
-  defaultFolders: Record<ItemKind, string>;
+  /** Standardmapper per type. «survey» = innmålinger (KOF/SOSI/LandXML), opprettes ved behov. */
+  defaultFolders: Record<ItemKind, string> & { survey?: string };
   /** Mappemaler for Google Disk (innrykket tekst) */
   templates?: { id: string; name: string; text: string }[];
   /** Overstyrer VITE_GOOGLE_* fra .env (nyttig på GitHub Pages) */

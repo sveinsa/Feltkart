@@ -36,6 +36,7 @@ export default function App() {
   const [upload, setUpload] = useState<{ files: File[] } | null>(null);
   const [driveOpen, setDriveOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [syncDemo, setSyncDemo] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [coord, setCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -275,6 +276,7 @@ export default function App() {
                 <strong>Kom i gang</strong>
                 <span>Last opp bilder, 360-bilder, ortofoto fra drone eller prosjekterte data og innmåling (DXF, KOF, SOSI, LandXML, IFC).</span>
                 <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp filer</button>
+                <button className="btn" onClick={() => { setSyncDemo(true); setSyncOpen(true); }}><IconFolder size={16} /> Last demodata</button>
               </div>
             )}
           </div>
@@ -302,7 +304,8 @@ export default function App() {
       {syncOpen && (
         <SyncDialog
           project={project}
-          onClose={() => setSyncOpen(false)}
+          autoDemo={syncDemo}
+          onClose={() => { setSyncOpen(false); setSyncDemo(false); }}
           onOpenSettings={() => { setSyncOpen(false); setView('settings'); }}
           onOpenTemplates={() => { setSyncOpen(false); setDriveOpen(true); }}
           onImported={(n, b) => { if (n) { showToast(`${n} element(er) lagt til i kartet`); if (b) fitTo(b, 19); } }}

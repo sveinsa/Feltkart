@@ -62,10 +62,10 @@ export function useProject() {
           const now = Date.now();
           const root: Folder = { id: uid(), name: DEFAULT_SETTINGS.projectName, parentId: null, createdAt: now };
           const mk = (name: string, i: number): Folder => ({ id: uid(), name, parentId: root.id, createdAt: now + i });
-          const photos = mk('Bilder', 1), panos = mk('360-bilder', 2), dxfF = mk('Prosjektert og innmålt', 3), ortho = mk('Ortofoto (drone)', 4);
-          fs = [root, photos, panos, dxfF, ortho];
+          const photos = mk('Bilder', 1), panos = mk('360-bilder', 2), dxfF = mk('Prosjektert (DXF/IFC)', 3), survey = mk('Innmålinger', 4), ortho = mk('Ortofoto (drone)', 5);
+          fs = [root, photos, panos, dxfF, survey, ortho];
           for (const f of fs) await db.putFolder(f);
-          st = { ...DEFAULT_SETTINGS, defaultFolders: { photo: photos.id, pano: panos.id, dxf: dxfF.id, ortho: ortho.id } };
+          st = { ...DEFAULT_SETTINGS, defaultFolders: { photo: photos.id, pano: panos.id, dxf: dxfF.id, ortho: ortho.id, survey: survey.id } };
           await db.putSettings(st);
         }
         setFolders(fs);
@@ -208,6 +208,20 @@ export function useProject() {
       };
       const st = settings!;
       const folderFor = (kind: ItemKind, f?: File) => (f && opts.meta?.get(f)?.folderId) || (target === 'auto' ? st.defaultFolders[kind] ?? foldersRef.current[0]?.id : target);
+      // Innmålinger (KOF/SOSI/LandXML) har egen standardmappe. Mappen opprettes under rotmappen hvis den mangler (eldre prosjekter).
+      let surveyFolderId = st.defaultFolders.survey && foldersRef.current.some((x) => x.id === st.defaultFolders.survey) ? st.defaultFolders.survey : undefined;
+      const surveyFolderFor = (f: File) => {
+        const chosen = opts.meta?.get(f)?.folderId;
+        if (chosen || target !== 'auto') return folderFor('dxf', f);
+        if (!surveyFolderId) {
+          const root = foldersRef.current.find((x) => x.parentId === null) ?? foldersRef.current[0];
+          const existing = foldersRef.current.find((x) => x.parentId === (root?.id ?? null) && x.name === 'Innmålinger');
+          const nf = existing ?? addFolder('Innmålinger', root?.id ?? null);
+          surveyFolderId = nf.id;
+          updateSettings({ defaultFolders: { ...st.defaultFolders, survey: nf.id } });
+        }
+        return surveyFolderId;
+      };
       const driveIdOf = (f: File) => opts.meta?.get(f)?.driveId;
       let noGps = 0;
 
@@ -225,7 +239,7 @@ export function useProject() {
             const parsed = await parseVector(f, vf, crs, { detect: true, placement: opts.placement, onProgress: (m) => onProgress(prefix + m) }); // valider før lagring
             const useCrs = parsed.crs ?? crs;
             const item: DxfItem = {
-              id: uid(), kind: 'dxf', name: f.name, folderId: folderFor('dxf', f), createdAt: Date.now(), driveId: driveIdOf(f),
+              id: uid(), kind: 'dxf', name: f.name, folderId: vf === 'kof' || vf === 'sosi' || vf === 'landxml' ? surveyFolderFor(f) : folderFor('dxf', f), createdAt: Date.now(), driveId: driveIdOf(f),
               crs: useCrs, blob: f, hiddenLayers: [], format: vf,
               placement: vf === 'ifc' && opts.placement ? opts.placement : undefined,
             };
@@ -271,7 +285,7 @@ export function useProject() {
       if (noGps) res.messages.push(`${noGps} bilde(r) mangler GPS-posisjon. Velg bildet og bruk «Plasser på kart».`);
       return res;
     },
-    [settings, saveItem],
+    [settings, saveItem, addFolder, updateSettings],
   );
 
   return {

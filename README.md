@@ -3,7 +3,7 @@
 Kartløsning for anleggsprosjekter. Du kan samle alt fra byggeplassen i ett kart:
 
 - **Bilder og 360-bilder.** De plasseres automatisk ut fra GPS-en i bildet og vises med hvert sitt ikon: grønn firkant for foto og mørkegrønn «360»-sirkel for 360-bilder.
-- **Innmåling og prosjekterte data: DXF, KOF, SOSI, LandXML og IFC.** Du kan slå hvert lag av og på, klikke på et objekt for å se lag, lengde, areal og høyder, og se tekst når du zoomer helt inn.
+- **Innmåling og prosjekterte data: DXF, KOF, SOSI, LandXML og IFC.** Innmålinger (KOF, SOSI, LandXML) havner automatisk i egen mappe «Innmålinger», mens DXF og IFC havner i «Prosjektert (DXF/IFC)». I eldre prosjekter opprettes «Innmålinger» første gang du laster opp innmåling. Du kan slå hvert lag av og på, klikke på et objekt for å se lag, lengde, areal og høyder, og se tekst når du zoomer helt inn.
 - **Ortofoto fra drone** (GeoTIFF). Det reprojiseres slik at det ligger riktig i kartet, og du kan gjøre det mer eller mindre gjennomsiktig.
 - **Bakgrunnskart.** Du kan velge mellom kart (Kartverket topo/gråtone, OpenStreetMap) og ortofoto (Norge i bilder, Esri), og legge eget droneortofoto oppå.
 - **Prosjektmapper på Google Disk.** Du lager en mappemal (innrykket tekst), ser en forhåndsvisning og oppretter hele strukturen på Google Disk med ett klikk.
@@ -144,3 +144,14 @@ Teknologi: React + TypeScript + Vite, Leaflet, proj4, dxf-parser, geotiff.js, ex
    - **Bilder:** miniatyrer lages og HEIC gjøres om.
 4. **Brukere og tilgang.** Innlogging (Auth.js, Clerk eller Entra ID), prosjekter med medlemmer og roller (les/skriv/admin), og deling av mapper.
 5. **Personvern.** Bilder kan vise personer og bilskilt. Tenk på tilgangsstyring, og fjern EXIF-posisjon ved deling utenfor prosjektet.
+
+
+## Demodata fra Google Disk
+
+Knappen **Last demodata** (i «Kom i gang»-boksen på tomt kart, og øverst i Google Disk-dialogen) henter alle bilder, DXF/KOF/SOSI/LandXML/IFC og ortofoto fra demomappen og legger dem i kartet. Mappestrukturen i Disk speiles i mappetreet.
+
+- Demomappen er satt i `src/lib/demo.ts` (kan overstyres med `VITE_DEMO_FOLDER_ID`).
+- Mappen må være delt som **«Alle med lenken – Leser»**.
+- Med en **Google API-nøkkel** (Innstillinger → Google) leses mappen uten innlogging. API-nøkkelen må tillate *Google Drive API* (ikke bare Picker API), og hvis den har referanse-begrensning må `https://sveinsa.github.io/*` være lagt til.
+- Uten API-nøkkel brukes vanlig innlogging, og da må tilgangsnivået være «Full».
+- Demofilene hentes ned fullt ut (ingen strømming), og filer som allerede er i kartet hoppes over.

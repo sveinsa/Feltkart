@@ -24,7 +24,11 @@ export interface GoogleConfig {
   apiKey?: string; // trengs bare for mappevelgeren
   appId?: string; // prosjektnummeret i Google Cloud – trengs for at valgt mappe skal kunne skrives til
   access?: DriveAccess;
+  /** Les offentlig delt mappe («alle med lenken») med bare API-nøkkel – ingen innlogging. Brukes av demodata. */
+  publicRead?: boolean;
 }
+
+const KEY_PREFIX = 'key:';
 
 export function envGoogleConfig(): GoogleConfig {
   const env = (import.meta as any).env ?? {};
@@ -72,6 +76,10 @@ function notifyPicker(open: boolean) {
 
 /** Henter tilgangstoken. Må kalles fra et klikk (åpner Googles innloggingsvindu første gang). */
 export async function getAccessToken(cfg: GoogleConfig, forcePrompt = false): Promise<string> {
+  if (cfg.publicRead) {
+    if (!cfg.apiKey) throw new Error('Demodata krever en Google API-nøkkel (legges inn under Innstillinger).');
+    return KEY_PREFIX + cfg.apiKey;
+  }
   if (!cfg.clientId) throw new Error('Google Client ID mangler. Legg den inn under Innstillinger.');
   const scope = SCOPES[cfg.access ?? 'file'];
   if (!forcePrompt && token && token.clientId === cfg.clientId && token.scope === scope && token.expires > Date.now() + 60_000) return token.value;
@@ -204,9 +212,11 @@ export async function downloadDriveFile(cfg: GoogleConfig, f: PickedFile): Promi
 }
 
 async function drive(path: string, access: string, init: RequestInit = {}, attempt = 0): Promise<any> {
-  const res = await fetch(API + path, {
+  const isKey = access.startsWith(KEY_PREFIX);
+  const url = API + path + (isKey ? `${path.includes('?') ? '&' : '?'}key=${encodeURIComponent(access.slice(KEY_PREFIX.length))}` : '');
+  const res = await fetch(url, {
     ...init,
-    headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    headers: { ...(isKey ? {} : { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' }), ...(init.headers ?? {}) },
   });
   // Ved for mange forespørsler: vent og prøv igjen
   if ((res.status === 429 || res.status === 403 || res.status >= 500) && attempt < 4) {
@@ -307,9 +317,11 @@ export interface DriveFileInfo {
 /** Henter en fil fra Disk som Blob (brukes både ved import og for å strømme originaler). */
 export async function fetchDriveBlob(cfg: GoogleConfig, id: string, name = ''): Promise<Blob> {
   const access = await getAccessToken(cfg);
-  const res = await fetch(`${API}/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${access}` } });
+  const isKey = access.startsWith(KEY_PREFIX);
+  const res = await fetch(`${API}/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true${isKey ? `&key=${encodeURIComponent(access.slice(KEY_PREFIX.length))}` : ''}`, isKey ? {} : { headers: { Authorization: `Bearer ${access}` } });
   if (!res.ok) {
     if (res.status === 401) token = null;
+    if (isKey && (res.status === 403 || res.status === 404)) throw new Error(`Kunne ikke hente ${name || 'filen'} uten innlogging (${res.status}). Sjekk at mappen er delt med «alle med lenken» og at API-nøkkelen tillater Google Drive API.`);
     throw new Error(`Kunne ikke hente ${name || 'filen'} fra Google Disk (${res.status}).`);
   }
   return res.blob();

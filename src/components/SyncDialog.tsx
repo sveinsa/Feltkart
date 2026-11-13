@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../state';
 import type { DxfItem, Item, PhotoItem } from '../types';
 import {
@@ -11,6 +11,7 @@ import { isImageFile } from '../lib/photos';
 import { isVectorFile } from '../lib/vector';
 import { usePickerOpen } from '../lib/usePickerOpen';
 import { googleConfig } from './DriveDialog';
+import { DEMO_FOLDER_ID, DEMO_FOLDER_URL } from '../lib/demo';
 import { IconClose, IconFolder } from './icons';
 
 interface Props {
@@ -19,6 +20,8 @@ interface Props {
   onOpenSettings: () => void;
   onOpenTemplates: () => void;
   onImported: (added: number, bounds: [[number, number], [number, number]] | null) => void;
+  /** Start innlasting av demodata med én gang dialogen åpnes */
+  autoDemo?: boolean;
 }
 
 const sizeFmt = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b ? `${Math.max(1, Math.round(b / 1024))} kB` : '');
@@ -27,7 +30,7 @@ const supported = (name: string, mime = '') =>
 
 type Tab = 'hent' | 'last';
 
-export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTemplates, onImported }: Props) {
+export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTemplates, onImported, autoDemo }: Props) {
   const settings = project.settings!;
   const access: DriveAccess = settings.driveAccess ?? 'file';
   const cfg = googleConfig(project);
@@ -100,12 +103,11 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
     setSel((s) => new Set([...s, ...list.map((l) => l.id)]));
   });
 
-  const importSelected = () => run(async () => {
-    if (!found) return;
-    const chosen = found.filter((f) => sel.has(f.id));
+  /** Henter valgte Disk-filer og legger dem i kartet. */
+  const importList = async (chosen: DriveFileInfo[], pool: DriveFileInfo[], c: typeof cfg, doStream: boolean) => {
     // world files følger med JP2-filer i samme mappe
-    const extras = found.filter((f) => isWorldFile({ name: f.name } as File) && !sel.has(f.id) &&
-      chosen.some((c) => c.path.join('/') === f.path.join('/') && c.name.replace(/\.[^.]+$/, '').toLowerCase() === f.name.replace(/\.[^.]+$/, '').toLowerCase()));
+    const extras = pool.filter((f) => isWorldFile({ name: f.name } as File) && !chosen.includes(f) &&
+      chosen.some((x) => x.path.join('/') === f.path.join('/') && x.name.replace(/\.[^.]+$/, '').toLowerCase() === f.name.replace(/\.[^.]+$/, '').toLowerCase()));
     const all = [...chosen, ...extras];
     const files: File[] = [];
     const meta = new Map<File, { driveId?: string; folderId?: string }>();
@@ -114,22 +116,45 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
       const d = all[i];
       setMsg(`Henter ${i + 1} av ${all.length}: ${d.name} (${sizeFmt(d.size)}) …`);
       try {
-        const blob = await fetchDriveBlob(cfg, d.id, d.name);
+        const blob = await fetchDriveBlob(c, d.id, d.name);
         const f = new File([blob], d.name, { type: d.mimeType });
         files.push(f);
         meta.set(f, { driveId: d.id, folderId: mirror && d.path.length ? project.ensureFolderPath(d.path) : undefined });
       } catch (e: any) { errs.push(String(e?.message ?? e)); }
     }
     if (files.length) {
-      const r = await project.upload(files, 'auto', settings.projectCrs, setMsg, { meta, stream });
-      const fails = r.failed.map((x) => `${x.name}: ${x.reason}`);
-      errs.push(...fails);
-      setOkMsg(`${r.added.length} element(er) hentet fra Google Disk${stream ? ' (bilder strømmes fra Disk)' : ''}.`);
+      const r = await project.upload(files, 'auto', settings.projectCrs, setMsg, { meta, stream: doStream });
+      errs.push(...r.failed.map((x) => `${x.name}: ${x.reason}`));
+      setOkMsg(`${r.added.length} element(er) hentet fra Google Disk${doStream ? ' (bilder strømmes fra Disk)' : ''}.`);
       setSel(new Set());
       onImported(r.added.length, r.bounds);
     }
     if (errs.length) setError(errs.join(' '));
+  };
+
+  const importSelected = () => run(async () => {
+    if (!found) return;
+    await importList(found.filter((f) => sel.has(f.id)), found, cfg, stream);
   });
+
+  // ---------- Demodata (offentlig delt mappe) ----------
+  // Med API-nøkkel leses mappen uten innlogging. Uten nøkkel brukes vanlig innlogging (krever full tilgang).
+  const loadDemo = () => run(async () => {
+    const dcfg = cfg.apiKey ? { ...cfg, publicRead: true } : { ...cfg, access: 'full' as DriveAccess };
+    const list = await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => setMsg(`Skanner demomappen … ${n} filer i ${d} mapper`));
+    const usable = list.filter((f) => supported(f.name, f.mimeType));
+    if (!usable.length) throw new Error(`Fant ${list.length} filer i demomappen, men ingen bilder, DXF/KOF/SOSI/LandXML/IFC eller ortofoto.`);
+    const fresh = usable.filter((f) => !imported.has(f.id) || isWorldFile({ name: f.name } as File));
+    const todo = fresh.filter((f) => !isWorldFile({ name: f.name } as File));
+    if (!todo.length) { setOkMsg('Demodataene ligger allerede i kartet.'); return; }
+    await importList(todo, usable, dcfg, false);
+  });
+
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (autoDemo && !autoStarted.current) { autoStarted.current = true; void loadDemo(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---------- Last opp til mappen ----------
   const pathOf = (folderId: string): string[] => {
@@ -201,6 +226,19 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
           {!cfg.clientId && (
             <div className="notice">Google-innlogging er ikke satt opp. Legg inn Client ID under <button className="link-btn" onClick={onOpenSettings}>Innstillinger</button>.</div>
           )}
+
+          <div className="folder-card">
+            <IconFolder size={22} className="kind-folder" />
+            <div className="grow">
+              <strong>Demodata</strong>
+              <span className="muted small">Laster eksempeldata fra en delt mappe – uten innlogging. <a href={DEMO_FOLDER_URL} target="_blank" rel="noreferrer">Åpne mappen ↗</a></span>
+              {!cfg.apiKey && <span className="small">Legg inn Google API-nøkkel under Innstillinger for å slippe innlogging.</span>}
+            </div>
+            <button className="btn primary" onClick={loadDemo} disabled={busy}>Last demodata</button>
+          </div>
+          {busy && msg && <p className="muted small" style={{ margin: '-4px 0 10px' }}>{msg}</p>}
+          {error && <p className="error small" style={{ margin: '-4px 0 10px' }}>{error}</p>}
+          {okMsg && <div className="success" style={{ margin: '-4px 0 10px' }}>{okMsg}</div>}
 
           <div className="folder-card">
             <IconFolder size={22} className="kind-folder" />
@@ -306,8 +344,6 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
             </>
           )}
 
-          {error && <p className="error small" style={{ marginTop: 10 }}>{error}</p>}
-          {okMsg && <div className="success">{okMsg}</div>}
         </div>
 
         <div className="modal-foot pad">
