@@ -112,9 +112,44 @@ function planarArea(pts: P3[]): number {
   return Math.abs(a / 2);
 }
 
+
+/**
+ * Fjerner entiteter i papirrom (gruppekode 67 = 1) fra ENTITIES-seksjonen før filen tolkes.
+ * Gjøres på tekstnivå slik at det virker uavhengig av hva DXF-biblioteket tar med.
+ */
+export function stripPaperSpace(text: string): { text: string; removed: number } {
+  if (!/^\s*67\s*\r?\n\s*1\s*$/m.test(text)) return { text, removed: 0 };
+  const lines = text.split(/\r?\n/);
+  const out: string[] = [];
+  let i = 0, removed = 0, inEntities = false;
+  let skipChain = false; // underordnede VERTEX/ATTRIB/SEQEND følger moren
+  while (i + 1 < lines.length) {
+    if (lines[i].trim() !== '0') { out.push(lines[i], lines[i + 1]); i += 2; continue; }
+    const type = lines[i + 1].trim();
+    if (type === 'SECTION') {
+      inEntities = lines[i + 2]?.trim() === '2' && lines[i + 3]?.trim() === 'ENTITIES';
+      out.push(lines[i], lines[i + 1]); i += 2; continue;
+    }
+    if (type === 'ENDSEC' || !inEntities) { inEntities = false; out.push(lines[i], lines[i + 1]); i += 2; continue; }
+    // Finn slutten på entiteten (neste gruppekode 0)
+    let j = i + 2;
+    while (j + 1 < lines.length && lines[j].trim() !== '0') j += 2;
+    let paper = false;
+    for (let k = i + 2; k + 1 < j; k += 2) if (lines[k].trim() === '67' && lines[k + 1].trim() === '1') { paper = true; break; }
+    const child = type === 'VERTEX' || type === 'SEQEND' || type === 'ATTRIB';
+    const drop = child ? skipChain : paper;
+    if (!child) skipChain = paper;
+    if (drop) { if (!child) removed++; } else for (let k = i; k < j; k++) out.push(lines[k]);
+    i = j;
+  }
+  while (i < lines.length) out.push(lines[i++]);
+  return { text: out.join('\n'), removed };
+}
+
 export function parseDxf(text: string, crs: string): ParsedDxf {
+  const stripped = stripPaperSpace(text);
   const parser = new DxfParser();
-  const dxf: any = parser.parseSync(text);
+  const dxf: any = parser.parseSync(stripped.text);
   if (!dxf) throw new Error('Kunne ikke lese DXF-filen');
 
   const layerTable: Record<string, any> = dxf.tables?.layer?.layers ?? {};
@@ -277,7 +312,13 @@ export function parseDxf(text: string, crs: string): ParsedDxf {
     }
   };
 
-  walk(dxf.entities ?? [], identity, 0);
+  // Bare modellrommet (Model space) skal med. Entiteter i papirrom/layout (rammer, tittelfelt, målestokk, viewporter)
+  // er merket med gruppekode 67 = 1 og ligger i arkkoordinater (mm), ikke i kartkoordinater.
+  const all: any[] = dxf.entities ?? [];
+  const model = all.filter((e) => !(e.inPaperSpace || e.paperSpace) && e.type !== 'VIEWPORT');
+  const paper = all.length - model.length + stripped.removed;
+  walk(model, identity, 0);
+  if (paper) warnings.push(`${paper} objekt(er) i papirrom (layout) ble utelatt. Bare modellrommet vises.`);
 
   // Lagoversikt
   const layerMap = new Map<string, DxfLayer>();

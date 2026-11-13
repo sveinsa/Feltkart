@@ -68,6 +68,42 @@ export function useProject() {
           st = { ...DEFAULT_SETTINGS, defaultFolders: { photo: photos.id, pano: panos.id, dxf: dxfF.id, ortho: ortho.id, survey: survey.id } };
           await db.putSettings(st);
         }
+        // Opprydding: elementer hentet fra Google Disk ble tidligere lagt i speilede mapper (Foto, Innmåling, Ortofoto, Prosjektert …)
+        // ved siden av standardmappene. Flytt dem til standardmappene og fjern de tomme duplikatene (én gang).
+        if (!st.foldersCleaned) {
+          const rootF = fs.find((f) => f.parentId === null);
+          const def = { ...st.defaultFolders };
+          const isDefault = new Set(Object.values(def));
+          const legacy = fs.filter((f) => f.parentId === rootF?.id && !isDefault.has(f.id) && /^(foto|innmåling|ortofoto|prosjektert|360)$/i.test(f.name.trim()));
+          let changed = false;
+          for (const lf of legacy) {
+            const ids = descendantFolderIds(fs, lf.id);
+            const inside = its.filter((i) => ids.includes(i.folderId));
+            if (!inside.every((i) => !!i.driveId)) continue; // inneholder egne filer – la stå
+            for (const it of inside) {
+              let target: string | undefined;
+              if (it.kind === 'photo') target = def.photo;
+              else if (it.kind === 'pano') target = def.pano;
+              else if (it.kind === 'ortho') target = def.ortho;
+              else if (it.kind === 'dxf') {
+                if (it.format === 'kof' || it.format === 'sosi' || it.format === 'landxml') {
+                  if (!def.survey || !fs.some((f) => f.id === def.survey)) {
+                    const nf: Folder = { id: uid(), name: 'Innmålinger', parentId: rootF?.id ?? null, createdAt: Date.now() };
+                    fs = [...fs, nf]; await db.putFolder(nf); def.survey = nf.id;
+                  }
+                  target = def.survey;
+                } else target = def.dxf;
+              }
+              if (target && fs.some((f) => f.id === target)) { it.folderId = target; await db.putItem(it); }
+            }
+            const left = its.some((i) => ids.includes(i.folderId));
+            if (!left) { for (const id of ids) await db.deleteFolder(id); fs = fs.filter((f) => !ids.includes(f.id)); }
+            changed = true;
+          }
+          st = { ...st, defaultFolders: def, foldersCleaned: true };
+          await db.putSettings(st);
+          if (changed) its = [...its];
+        }
         setFolders(fs);
         setItems(its);
         setSettings(st);

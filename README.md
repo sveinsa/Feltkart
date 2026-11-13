@@ -163,3 +163,11 @@ API-nøkler i nettapper er ikke hemmelige – sikkerheten ligger i begrensningen
 ## Koordinatsystem for DXF og KOF
 
 DXF og KOF oppgir ikke koordinatsystem. Ved opplasting sjekker Feltkart at dataene havner i Norge og i nærheten av bildene/ortofotoet som allerede er i kartet. Passer ikke valgt koordinatsystem (f.eks. UTM 32), prøver den UTM 31–36 og NTM-sonene og bruker det som treffer. Endringen står i meldingene etter opplasting. Enkeltpunkter i KOF som ligger mer enn 20 km unna resten rettes (byttet øst/nord) eller utelates.
+
+## DXF: bare modellrommet
+
+Feltkart leser kun **modellrommet** (Model space) i DXF-filer. Alt i papirrom/layout (tegningsramme, tittelfelt, målestokk, viewporter) hoppes over, siden det ligger i arkkoordinater og ikke i kartkoordinater. Antall utelatte objekter står i meldingene etter opplasting. Koordinatsystemet gjettes ut fra modellrommets plassering (se over). Du kan også endre det manuelt i infopanelet («Koordinatsystem i filen»).
+
+## Mappene i prosjektet
+
+Standardmappene er Bilder, 360-bilder, Prosjektert (DXF/IFC), Innmålinger og Ortofoto (drone). Data fra Google Disk (inkl. demodata) legges direkte i disse. Eldre prosjekter som har fått egne speilede mapper (Foto, Innmåling, Ortofoto, Prosjektert) ryddes automatisk første gang appen åpnes: innholdet flyttes til standardmappene og de tomme duplikatene fjernes. Mapper som inneholder egne, opplastede filer røres ikke.

@@ -62,6 +62,8 @@ export interface Settings {
   projectCrs: string;
   /** Demodata er forsøkt lastet automatisk (gjøres bare én gang) */
   demoAutoLoaded?: boolean;
+  /** Eldre speilede Disk-mapper er ryddet bort (gjøres én gang) */
+  foldersCleaned?: boolean;
   basemapId: string;
   /** Standardmapper per type. «survey» = innmålinger (KOF/SOSI/LandXML), opprettes ved behov. */
   defaultFolders: Record<ItemKind, string> & { survey?: string };
