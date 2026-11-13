@@ -197,7 +197,7 @@ export async function decodeJp2(buf: ArrayBuffer, target: number): Promise<Jp2Pi
     enc.set(new Uint8Array(buf));
 
     // Maks antall piksler vi tør å avkode i nettleseren (RGBA ≈ 4 byte/piksel, pluss kopier i WASM-minnet)
-    const MAX_PIXELS = 48e6;
+    const MAX_PIXELS = 64e6;
     const canSub = typeof dec.readHeader === 'function' && typeof dec.decodeSubResolution === 'function' && typeof dec.calculateSizeAtDecompositionLevel === 'function';
     if (canSub) {
       dec.readHeader();

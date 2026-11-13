@@ -87,6 +87,12 @@ async function readJp2(file: File, fallbackCrs: string, maxSize: number, sidecar
   };
 }
 
+/** Største side (piksler) på ortofotoet som lagres. 8192 gir god skarphet; små enheter med lite minne får 4096. */
+function defaultMaxSize(): number {
+  const mem = (navigator as any).deviceMemory as number | undefined; // GB, bare oppgitt i Chromium
+  return mem !== undefined && mem < 4 ? 4096 : 8192;
+}
+
 /**
  * @param maxSize største side i pikselbildet som lagres i nettleseren.
  *  Store ortofoto (flere GB) bør i en produksjonsløsning tiles på serveren – se README.
@@ -97,7 +103,7 @@ export async function processOrtho(
   fallbackCrs: string,
   onProgress?: (msg: string) => void,
   sidecar?: File,
-  maxSize = 4096,
+  maxSize = defaultMaxSize(),
 ): Promise<OrthoResult> {
   const r = isJp2(file)
     ? await readJp2(file, fallbackCrs, maxSize, sidecar, onProgress)
@@ -158,10 +164,20 @@ export async function processOrtho(
       const sxp = px | 0, syp = py | 0;
       const oi = (y * outW + x) * 4;
       if (px < 0 || py < 0 || sxp >= sw || syp >= sh) { o[oi + 3] = 0; continue; }
+      // Bilineær interpolasjon mellom de fire nærmeste pikslene (jevnere enn nærmeste nabo)
+      const bx = px - 0.5, by = py - 0.5;
+      const xa = Math.max(0, Math.min(sw - 1, Math.floor(bx))), ya = Math.max(0, Math.min(sh - 1, Math.floor(by)));
+      const xb = Math.min(sw - 1, xa + 1), yb = Math.min(sh - 1, ya + 1);
+      const wx = Math.max(0, Math.min(1, bx - xa)), wy = Math.max(0, Math.min(1, by - ya));
+      const w11 = wx * wy, w10 = wx * (1 - wy), w01 = (1 - wx) * wy, w00 = (1 - wx) * (1 - wy);
+      const i00 = (ya * sw + xa) * channels, i10 = (ya * sw + xb) * channels, i01 = (yb * sw + xa) * channels, i11 = (yb * sw + xb) * channels;
       const si = (syp * sw + sxp) * channels;
-      const r = raw[si], g = raw[si + 1] ?? r, bl = raw[si + 2] ?? r;
-      let alpha = channels >= 4 ? raw[si + 3] : 255;
-      if (noData !== null && noData !== undefined && r === noData && g === noData && bl === noData) alpha = 0;
+      const r0 = raw[si], g0 = raw[si + 1] ?? r0, b0 = raw[si + 2] ?? r0;
+      let alpha = channels >= 4 ? raw[i00 + 3] * w00 + raw[i10 + 3] * w10 + raw[i01 + 3] * w01 + raw[i11 + 3] * w11 : 255;
+      if (noData !== null && noData !== undefined && r0 === noData && g0 === noData && b0 === noData) alpha = 0;
+      const r = raw[i00] * w00 + raw[i10] * w10 + raw[i01] * w01 + raw[i11] * w11;
+      const g = channels >= 3 ? raw[i00 + 1] * w00 + raw[i10 + 1] * w10 + raw[i01 + 1] * w01 + raw[i11 + 1] * w11 : r;
+      const bl = channels >= 3 ? raw[i00 + 2] * w00 + raw[i10 + 2] * w10 + raw[i01 + 2] * w01 + raw[i11 + 2] * w11 : r;
       o[oi] = r; o[oi + 1] = g; o[oi + 2] = bl; o[oi + 3] = alpha;
     }
   }
@@ -169,7 +185,7 @@ export async function processOrtho(
 
   onProgress?.('Lagrer bilde …');
   const blob: Blob = await new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Kunne ikke lage bilde'))), 'image/webp', 0.9),
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Kunne ikke lage bilde'))), 'image/webp', 0.95),
   );
 
   const [west, south] = transform('EPSG:3857', 'EPSG:4326', mx0, my0);
