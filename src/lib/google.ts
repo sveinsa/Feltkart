@@ -326,7 +326,22 @@ export interface DriveFileInfo {
 export async function fetchDriveBlob(cfg: GoogleConfig, id: string, name = ''): Promise<Blob> {
   const access = await getAccessToken(cfg);
   const isKey = access.startsWith(KEY_PREFIX);
-  const res = await fetch(`${API}/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true${isKey ? `&key=${encodeURIComponent(access.slice(KEY_PREFIX.length))}` : ''}`, isKey ? {} : { headers: { Authorization: `Bearer ${access}` } });
+  const keyPart = isKey ? `&key=${encodeURIComponent(access.slice(KEY_PREFIX.length))}` : '';
+  const init: RequestInit = isKey ? {} : { headers: { Authorization: `Bearer ${access}` } };
+  const urls = [
+    `${API}/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true${keyPart}`,
+    // Reserve: samme nedlasting via Googles «download»-endepunkt (noen nettlesere/oppsett svarer bare på ett av dem)
+    `https://www.googleapis.com/download/drive/v3/files/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true${keyPart}`,
+  ];
+  let res: Response | null = null;
+  let netErr: any = null;
+  for (const u of urls) {
+    try { res = await fetch(u, init); break; } catch (e) { netErr = e; }
+  }
+  if (!res) {
+    // «Failed to fetch» = nettleseren fikk ikke noe svar (blokkert, nettverk eller CORS). Statuskode finnes ikke.
+    throw new Error(`Nettleseren fikk ikke hentet filer fra Google Disk (${String(netErr?.message ?? netErr)}). Åpne F12 → Network, finn den røde forespørselen til googleapis.com og se hva den sier.`);
+  }
   if (!res.ok) {
     if (res.status === 401) token = null;
     if (isKey && (res.status === 403 || res.status === 404)) throw new Error(`Kunne ikke hente ${name || 'filen'} uten innlogging (${res.status}). Sjekk at mappen er delt med «alle med lenken» og at API-nøkkelen tillater Google Drive API.`);

@@ -27,8 +27,38 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
   const usable = list.filter((f) => supportedDriveFile(f.name, f.mimeType));
   if (!usable.length) throw new Error(`Fant ${list.length} filer i demomappen, men ingen bilder, DXF/KOF/SOSI/LandXML/IFC eller ortofoto.`);
   // Demodata legges i standardmappene (Bilder, 360-bilder, Prosjektert, Innmålinger, Ortofoto) – ikke i Disk-mappenes struktur.
-  // «replace»: tidligere innlastet demodata fjernes først (ellers hoppes filer som allerede er i kartet over).
+  // «replace»: tidligere innlastet demodata fjernes, men først når nye filer er hentet (slik at man aldri står uten data ved feil).
   const usableIds = new Set(usable.map((f) => f.id));
+  const have = new Set(opts.replace ? [] : project.items.map((i) => i.driveId).filter(Boolean) as string[]);
+  const todo = usable.filter((f) => !isWorldFile({ name: f.name } as File) && !have.has(f.id));
+  if (!todo.length) return { added: 0, bounds: null, message: 'Demodataene ligger allerede i kartet.' };
+  // world files følger med JP2-filer i samme mappe
+  const stem = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase();
+  const extras = usable.filter((f) => isWorldFile({ name: f.name } as File) && todo.some((x) => x.path.join('/') === f.path.join('/') && stem(x.name) === stem(f.name)));
+  const all = [...todo, ...extras];
+  const files: File[] = [];
+  const meta = new Map<File, { driveId?: string; folderId?: string }>();
+  const errCount = new Map<string, number>();
+  let consecutiveFails = 0;
+  for (let i = 0; i < all.length; i++) {
+    const d = all[i];
+    onProgress(`Henter demodata ${i + 1} av ${all.length}: ${d.name} …`);
+    try {
+      const blob = await fetchDriveBlob(dcfg, d.id, d.name);
+      const f = new File([blob], d.name, { type: d.mimeType });
+      files.push(f);
+      meta.set(f, { driveId: d.id });
+      consecutiveFails = 0;
+    } catch (e: any) {
+      const m = String(e?.message ?? e);
+      errCount.set(m, (errCount.get(m) ?? 0) + 1);
+      // Gir opp tidlig hvis ingenting lar seg hente (unngår 20 like feilmeldinger)
+      if (++consecutiveFails >= 3 && !files.length) break;
+    }
+  }
+  const errs = [...errCount.entries()].map(([m, n]) => (n > 1 ? `${m} (${n} filer)` : m));
+  if (!files.length) throw new Error(errs.join(' ') || 'Ingen filer kunne hentes.');
+
   if (opts.replace) {
     const old = project.items.filter((i) => i.driveId && usableIds.has(i.driveId));
     const oldIds = new Set(old.map((i) => i.id));
@@ -42,28 +72,7 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
       if (f.parentId !== null && !keep.has(f.id) && segs.has(f.name.toLowerCase()) && !used(f.id)) project.deleteFolder(f.id);
     }
   }
-  const have = new Set(opts.replace ? [] : project.items.map((i) => i.driveId).filter(Boolean) as string[]);
-  const todo = usable.filter((f) => !isWorldFile({ name: f.name } as File) && !have.has(f.id));
-  if (!todo.length) return { added: 0, bounds: null, message: 'Demodataene ligger allerede i kartet.' };
-  // world files følger med JP2-filer i samme mappe
-  const stem = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase();
-  const extras = usable.filter((f) => isWorldFile({ name: f.name } as File) && todo.some((x) => x.path.join('/') === f.path.join('/') && stem(x.name) === stem(f.name)));
-  const all = [...todo, ...extras];
-  const files: File[] = [];
-  const meta = new Map<File, { driveId?: string; folderId?: string }>();
-  const errs: string[] = [];
-  for (let i = 0; i < all.length; i++) {
-    const d = all[i];
-    onProgress(`Henter demodata ${i + 1} av ${all.length}: ${d.name} …`);
-    try {
-      const blob = await fetchDriveBlob(dcfg, d.id, d.name);
-      const f = new File([blob], d.name, { type: d.mimeType });
-      files.push(f);
-      meta.set(f, { driveId: d.id });
-    } catch (e: any) { errs.push(String(e?.message ?? e)); }
-  }
-  if (!files.length) throw new Error(errs.join(' ') || 'Ingen filer kunne hentes.');
   const r = await project.upload(files, 'auto', project.settings!.projectCrs, onProgress, { meta, stream: false });
-  errs.push(...r.failed.map((x) => `${x.name}: ${x.reason}`));
-  return { added: r.added.length, bounds: r.bounds, message: errs.length ? errs.join(' ') : '' };
+  r.failed.forEach((x) => errs.push(`${x.name}: ${x.reason}`));
+  return { added: r.added.length, bounds: r.bounds, message: errs.join(' ') };
 }
