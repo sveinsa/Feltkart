@@ -18,7 +18,7 @@ export interface DemoResult {
 }
 
 /** Leser demomappen på Google Disk (uten innlogging, med API-nøkkel) og legger alt i kartet. */
-export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgress: (msg: string) => void): Promise<DemoResult> {
+export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgress: (msg: string) => void, opts: { replace?: boolean } = {}): Promise<DemoResult> {
   const key = cfg.apiKey || DEMO_API_KEY;
   if (!key) throw new Error('Demodata krever en Google API-nøkkel. Lim den inn i src/lib/demo.ts (DEMO_API_KEY) eller under Innstillinger → Google.');
   const dcfg: GoogleConfig = { ...cfg, apiKey: key, publicRead: true };
@@ -26,7 +26,23 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
   const list = await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => onProgress(`Skanner demomappen … ${n} filer i ${d} mapper`));
   const usable = list.filter((f) => supportedDriveFile(f.name, f.mimeType));
   if (!usable.length) throw new Error(`Fant ${list.length} filer i demomappen, men ingen bilder, DXF/KOF/SOSI/LandXML/IFC eller ortofoto.`);
-  const have = new Set(project.items.map((i) => i.driveId).filter(Boolean) as string[]);
+  // Demodata legges i standardmappene (Bilder, 360-bilder, Prosjektert, Innmålinger, Ortofoto) – ikke i Disk-mappenes struktur.
+  // «replace»: tidligere innlastet demodata fjernes først (ellers hoppes filer som allerede er i kartet over).
+  const usableIds = new Set(usable.map((f) => f.id));
+  if (opts.replace) {
+    const old = project.items.filter((i) => i.driveId && usableIds.has(i.driveId));
+    const oldIds = new Set(old.map((i) => i.id));
+    old.forEach((i) => project.deleteItem(i.id));
+    // Fjern tomme undermapper som tidligere demoinnlasting kan ha opprettet (Disk-mappenavn)
+    const segs = new Set(usable.flatMap((f) => f.path.map((p) => p.toLowerCase())));
+    const keep = new Set(Object.values(project.settings?.defaultFolders ?? {}));
+    const remaining = project.items.filter((i) => !oldIds.has(i.id));
+    const used = (id: string): boolean => remaining.some((i) => i.folderId === id) || project.folders.some((f) => f.parentId === id && used(f.id));
+    for (const f of project.folders) {
+      if (f.parentId !== null && !keep.has(f.id) && segs.has(f.name.toLowerCase()) && !used(f.id)) project.deleteFolder(f.id);
+    }
+  }
+  const have = new Set(opts.replace ? [] : project.items.map((i) => i.driveId).filter(Boolean) as string[]);
   const todo = usable.filter((f) => !isWorldFile({ name: f.name } as File) && !have.has(f.id));
   if (!todo.length) return { added: 0, bounds: null, message: 'Demodataene ligger allerede i kartet.' };
   // world files følger med JP2-filer i samme mappe
@@ -43,7 +59,7 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
       const blob = await fetchDriveBlob(dcfg, d.id, d.name);
       const f = new File([blob], d.name, { type: d.mimeType });
       files.push(f);
-      meta.set(f, { driveId: d.id, folderId: d.path.length ? project.ensureFolderPath(d.path) : undefined });
+      meta.set(f, { driveId: d.id });
     } catch (e: any) { errs.push(String(e?.message ?? e)); }
   }
   if (!files.length) throw new Error(errs.join(' ') || 'Ingen filer kunne hentes.');

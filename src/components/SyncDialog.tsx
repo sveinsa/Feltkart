@@ -134,7 +134,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
 
   // ---------- Demodata (offentlig delt mappe) ----------
   const loadDemo = () => run(async () => {
-    const r = await loadDemoData(project, cfg, setMsg);
+    const r = await loadDemoData(project, cfg, setMsg, { replace: true });
     if (r.message) setError(r.message);
     if (r.added) { setOkMsg(`${r.added} element(er) hentet fra demomappen.`); onImported(r.added, r.bounds); }
     else if (!r.message) setOkMsg('Demodataene ligger allerede i kartet.');

@@ -17,7 +17,7 @@ import { hasDemoKey, loadDemoData } from './lib/demoLoad';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
 import {
-  IconArea, IconEdit, IconFolder, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconUpload,
+  IconArea, IconCalendar, IconEdit, IconFolder, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconUpload,
 } from './components/icons';
 
 type View = 'map' | 'gallery' | 'settings';
@@ -40,6 +40,9 @@ export default function App() {
   const [demo, setDemo] = useState<{ busy: boolean; msg: string; error: string | null }>({ busy: false, msg: '', error: null });
   const demoStarted = useRef(false);
   const [bmOpen, setBmOpen] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [coord, setCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [globalDrag, setGlobalDrag] = useState(false);
@@ -56,7 +59,7 @@ export default function App() {
   const startDemo = useCallback(async () => {
     setDemo({ busy: true, msg: 'Starter …', error: null });
     try {
-      const r = await loadDemoData(project, googleConfig(project), (msg) => setDemo((d) => ({ ...d, msg })));
+      const r = await loadDemoData(project, googleConfig(project), (msg) => setDemo((d) => ({ ...d, msg })), { replace: true });
       setDemo({ busy: false, msg: '', error: r.message || null });
       if (r.added) { showToast(`${r.added} demoelement(er) lastet inn`); if (r.bounds) fitTo(r.bounds, 19); }
     } catch (e: any) {
@@ -76,6 +79,23 @@ export default function App() {
     () => items.filter((i): i is PhotoItem => i.kind === 'photo' || i.kind === 'pano').sort((a, b) => a.takenAt.localeCompare(b.takenAt)),
     [items],
   );
+
+  // ---------- Datofilter for bilder i kartet ----------
+  const dayOf = (p: PhotoItem) => p.takenAt.slice(0, 10);
+  const photoDays = useMemo(() => {
+    const d = photos.map(dayOf).sort();
+    return { min: d[0] ?? '', max: d[d.length - 1] ?? '', list: [...new Set(d)] };
+  }, [photos]);
+  const dateActive = !!(dateFrom || dateTo);
+  const inDateRange = useCallback((p: PhotoItem) => (!dateFrom || dayOf(p) >= dateFrom) && (!dateTo || dayOf(p) <= dateTo), [dateFrom, dateTo]);
+  const mapItems = useMemo(
+    () => (dateActive ? items.filter((i) => !(i.kind === 'photo' || i.kind === 'pano') || inDateRange(i)) : items),
+    [items, dateActive, inDateRange],
+  );
+  const shownPhotos = useMemo(() => photos.filter(inDateRange).length, [photos, inDateRange]);
+  const isoDay = (offset: number) => { const d = new Date(); d.setDate(d.getDate() - offset); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+  const setRange = (from: string, to: string) => { setDateFrom(from); setDateTo(to); };
+  const dateFmtShort = (d: string) => (d ? d.split('-').reverse().join('.') : '…');
 
   // ---------- Zoom ----------
   const boundsOf = useCallback((it: Item): FitRequest['bounds'] | null => {
@@ -241,7 +261,7 @@ export default function App() {
         <main className="main">
           <div className="map-host" style={{ visibility: view === 'map' ? 'visible' : 'hidden' }}>
             <MapView
-              items={items}
+              items={mapItems}
               dxf={dxf}
               basemapId={settings.basemapId}
               projectCrs={settings.projectCrs}
@@ -260,8 +280,43 @@ export default function App() {
                 {toolBtn('area', IconArea, 'Mål areal')}
                 <button className="tb-btn" title="Zoom til alt innhold" onClick={zoomToAll}><IconExtent size={18} /></button>
               </div>
+              {photos.length > 0 && (
+                <div className="tb-group bm">
+                  <button className={`tb-btn wide${dateOpen || dateActive ? ' on' : ''}`} onClick={() => { setDateOpen(!dateOpen); setBmOpen(false); }} title="Filtrer bilder på dato">
+                    <IconCalendar size={16} /> <span>{dateActive ? `${dateFmtShort(dateFrom)} – ${dateFmtShort(dateTo)}` : 'Dato'}</span>
+                    {dateActive && <span className="muted small">· {shownPhotos}/{photos.length}</span>}
+                  </button>
+                  {dateOpen && (
+                    <div className="popover date-filter">
+                      <div className="df-row">
+                        <label>Fra<input type="date" value={dateFrom} min={photoDays.min} max={dateTo || photoDays.max} onChange={(e) => setDateFrom(e.target.value)} /></label>
+                        <label>Til<input type="date" value={dateTo} min={dateFrom || photoDays.min} max={photoDays.max} onChange={(e) => setDateTo(e.target.value)} /></label>
+                      </div>
+                      <div className="df-chips">
+                        <button className="chip" onClick={() => setRange('', '')}>Alle</button>
+                        <button className="chip" onClick={() => setRange(isoDay(0), isoDay(0))}>I dag</button>
+                        <button className="chip" onClick={() => setRange(isoDay(6), '')}>Siste 7 dager</button>
+                        <button className="chip" onClick={() => setRange(isoDay(29), '')}>Siste 30 dager</button>
+                        {photoDays.max && <button className="chip" onClick={() => setRange(photoDays.max, photoDays.max)}>Siste bildedag</button>}
+                      </div>
+                      {photoDays.list.length > 1 && (
+                        <>
+                          <input
+                            type="range" className="df-slider" min={0} max={photoDays.list.length - 1}
+                            value={Math.max(0, photoDays.list.indexOf(dateTo || photoDays.max))}
+                            onChange={(e) => { const d = photoDays.list[Number(e.target.value)]; setRange(d, d); }}
+                            title="Dra for å bla mellom dager med bilder"
+                          />
+                          <div className="df-sub small muted">Dra for å bla mellom dager med bilder ({photoDays.list.length} dager)</div>
+                        </>
+                      )}
+                      <div className="df-foot small muted">{shownPhotos} av {photos.length} bilder vises i kartet{dateActive && <button className="link-btn" onClick={() => setRange('', '')}> · Nullstill</button>}</div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="tb-group bm">
-                <button className={`tb-btn wide${bmOpen ? ' on' : ''}`} onClick={() => setBmOpen(!bmOpen)} title="Velg bakgrunnskart">
+                <button className={`tb-btn wide${bmOpen ? ' on' : ''}`} onClick={() => { setBmOpen(!bmOpen); setDateOpen(false); }} title="Velg bakgrunnskart">
                   <IconMap size={16} /> <span>{basemap.name}</span>
                   <span className="muted small">· {layerCount} lag</span>
                 </button>

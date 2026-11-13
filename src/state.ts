@@ -225,6 +225,20 @@ export function useProject() {
       const driveIdOf = (f: File) => opts.meta?.get(f)?.driveId;
       let noGps = 0;
 
+      // Bilder og ortofoto leses først, slik at DXF/KOF kan plasseres ut fra dem. Vektorfiler leses sist.
+      files = [...files.filter((f) => !vectorFormatOf(f.name)), ...files.filter((f) => !!vectorFormatOf(f.name))];
+      const refAcc: { s: number; w: number; n: number; e: number } = { s: 90, w: 180, n: -90, e: -180 };
+      const addRef = (b: [[number, number], [number, number]] | null) => {
+        if (!b) return;
+        refAcc.s = Math.min(refAcc.s, b[0][0]); refAcc.w = Math.min(refAcc.w, b[0][1]);
+        refAcc.n = Math.max(refAcc.n, b[1][0]); refAcc.e = Math.max(refAcc.e, b[1][1]);
+      };
+      for (const it of itemsRef.current) {
+        if (it.kind === 'photo' || it.kind === 'pano') { if (it.lat !== null) addRef([[it.lat, it.lng!], [it.lat, it.lng!]]); }
+        else if (it.kind === 'ortho') addRef(it.bounds);
+      }
+      const reference = (): [number, number] | null => (refAcc.n >= refAcc.s ? [(refAcc.s + refAcc.n) / 2, (refAcc.w + refAcc.e) / 2] : null);
+
       const baseName = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase();
       const sidecars = new Map(files.filter(isWorldFile).map((f) => [baseName(f.name), f] as const));
 
@@ -236,7 +250,7 @@ export function useProject() {
           const vf = vectorFormatOf(f.name);
           if (vf) {
             onProgress(prefix + `leser ${FORMAT_LABEL[vf]} …`);
-            const parsed = await parseVector(f, vf, crs, { detect: true, placement: opts.placement, onProgress: (m) => onProgress(prefix + m) }); // valider før lagring
+            const parsed = await parseVector(f, vf, crs, { detect: true, placement: opts.placement, reference: reference(), onProgress: (m) => onProgress(prefix + m) }); // valider før lagring
             const useCrs = parsed.crs ?? crs;
             const item: DxfItem = {
               id: uid(), kind: 'dxf', name: f.name, folderId: vf === 'kof' || vf === 'sosi' || vf === 'landxml' ? surveyFolderFor(f) : folderFor('dxf', f), createdAt: Date.now(), driveId: driveIdOf(f),
@@ -259,6 +273,7 @@ export function useProject() {
             saveItem(item);
             res.added.push(item);
             grow(o.bounds);
+            addRef(o.bounds);
             if (!o.crsDetected) res.messages.push(`${f.name}: fant ikke koordinatsystem i filen, brukte ${crs}.`);
           } else if (isImageFile(f)) {
             onProgress(prefix + 'leser bilde …');
@@ -270,7 +285,7 @@ export function useProject() {
             saveItem(item);
             res.added.push(item);
             if (item.lat === null) noGps++;
-            else grow([[item.lat, item.lng!], [item.lat, item.lng!]]);
+            else { grow([[item.lat, item.lng!], [item.lat, item.lng!]]); addRef([[item.lat, item.lng!], [item.lat, item.lng!]]); }
           } else {
             res.failed.push({ name: f.name, reason: 'Filtypen støttes ikke' });
           }

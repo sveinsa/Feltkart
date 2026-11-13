@@ -3,6 +3,7 @@
 Kartløsning for anleggsprosjekter. Du kan samle alt fra byggeplassen i ett kart:
 
 - **Bilder og 360-bilder.** De plasseres automatisk ut fra GPS-en i bildet og vises med hvert sitt ikon: grønn firkant for foto og mørkegrønn «360»-sirkel for 360-bilder.
+- **Datofilter for bilder i kartet.** Knappen «Dato» øverst til høyre i kartet filtrerer bildene på tatt-dato: fra/til-dato, hurtigvalg (I dag, siste 7/30 dager, siste bildedag) og en glidebryter som blar mellom dagene som har bilder. Filteret gjelder bare kartvisningen.
 - **Innmåling og prosjekterte data: DXF, KOF, SOSI, LandXML og IFC.** Innmålinger (KOF, SOSI, LandXML) havner automatisk i egen mappe «Innmålinger», mens DXF og IFC havner i «Prosjektert (DXF/IFC)». I eldre prosjekter opprettes «Innmålinger» første gang du laster opp innmåling. Du kan slå hvert lag av og på, klikke på et objekt for å se lag, lengde, areal og høyder, og se tekst når du zoomer helt inn.
 - **Ortofoto fra drone** (GeoTIFF). Det reprojiseres slik at det ligger riktig i kartet, og du kan gjøre det mer eller mindre gjennomsiktig.
 - **Bakgrunnskart.** Du kan velge mellom kart (Kartverket topo/gråtone, OpenStreetMap) og ortofoto (Norge i bilder, Esri), og legge eget droneortofoto oppå.
@@ -148,7 +149,7 @@ Teknologi: React + TypeScript + Vite, Leaflet, proj4, dxf-parser, geotiff.js, ex
 
 ## Demodata fra Google Disk (lastes automatisk)
 
-Når kartet er helt tomt første gang appen åpnes, leses demomappen på Google Disk automatisk og alle bilder, DXF/KOF/SOSI/LandXML/IFC og ortofoto legges i kartet (bare én gang – slettes demodata, kommer de ikke tilbake av seg selv). Du kan også trykke **Last demodata** i «Kom i gang»-boksen eller øverst i Google Disk-dialogen. Mappestrukturen i Disk speiles i mappetreet.
+Når kartet er helt tomt første gang appen åpnes, leses demomappen på Google Disk automatisk og alle bilder, DXF/KOF/SOSI/LandXML/IFC og ortofoto legges i kartet (bare én gang – slettes demodata, kommer de ikke tilbake av seg selv). Du kan også trykke **Last demodata** i «Kom i gang»-boksen eller øverst i Google Disk-dialogen. Demodata legges i standardmappene (Bilder, 360-bilder, Prosjektert, Innmålinger, Ortofoto). «Last demodata» erstatter tidligere innlastet demodata.
 
 **Det som må være på plass (én gang):**
 1. Mappen er delt som **«Alle med lenken – Leser»**. Mappe-ID står i `src/lib/demo.ts` (kan overstyres med `VITE_DEMO_FOLDER_ID`).
@@ -158,3 +159,7 @@ Når kartet er helt tomt første gang appen åpnes, leses demomappen på Google 
    - GitHub → repoet → Settings → Secrets and variables → Actions → fanen *Variables* → ny variabel `GOOGLE_API_KEY` (deploy-filen sender den videre ved bygging).
 
 API-nøkler i nettapper er ikke hemmelige – sikkerheten ligger i begrensningene i punkt 2. Demofilene hentes ned fullt ut (ingen strømming).
+
+## Koordinatsystem for DXF og KOF
+
+DXF og KOF oppgir ikke koordinatsystem. Ved opplasting sjekker Feltkart at dataene havner i Norge og i nærheten av bildene/ortofotoet som allerede er i kartet. Passer ikke valgt koordinatsystem (f.eks. UTM 32), prøver den UTM 31–36 og NTM-sonene og bruker det som treffer. Endringen står i meldingene etter opplasting. Enkeltpunkter i KOF som ligger mer enn 20 km unna resten rettes (byttet øst/nord) eller utelates.
