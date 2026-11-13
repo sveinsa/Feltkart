@@ -13,6 +13,7 @@ import DriveDialog, { googleConfig } from './components/DriveDialog';
 import SyncDialog from './components/SyncDialog';
 import { VERSION_LABEL } from './version';
 import { fetchDriveBlob } from './lib/google';
+import { hasDemoKey, loadDemoData } from './lib/demoLoad';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
 import {
@@ -36,7 +37,8 @@ export default function App() {
   const [upload, setUpload] = useState<{ files: File[] } | null>(null);
   const [driveOpen, setDriveOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
-  const [syncDemo, setSyncDemo] = useState(false);
+  const [demo, setDemo] = useState<{ busy: boolean; msg: string; error: string | null }>({ busy: false, msg: '', error: null });
+  const demoStarted = useRef(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [coord, setCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -49,6 +51,26 @@ export default function App() {
     window.clearTimeout((showToast as any)._t);
     (showToast as any)._t = window.setTimeout(() => setToast(null), 3500);
   }, []);
+
+  // ---------- Demodata fra Google Disk (lastes automatisk når kartet er tomt) ----------
+  const startDemo = useCallback(async () => {
+    setDemo({ busy: true, msg: 'Starter …', error: null });
+    try {
+      const r = await loadDemoData(project, googleConfig(project), (msg) => setDemo((d) => ({ ...d, msg })));
+      setDemo({ busy: false, msg: '', error: r.message || null });
+      if (r.added) { showToast(`${r.added} demoelement(er) lastet inn`); if (r.bounds) fitTo(r.bounds, 19); }
+    } catch (e: any) {
+      setDemo({ busy: false, msg: '', error: String(e?.message ?? e) });
+    }
+  }, [project, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!ready || !settings || demoStarted.current) return;
+    if (items.length > 0 || settings.demoAutoLoaded || !hasDemoKey(googleConfig(project))) return;
+    demoStarted.current = true;
+    project.updateSettings({ demoAutoLoaded: true }); // bare én gang, slik at demodata ikke kommer tilbake etter sletting
+    void startDemo();
+  }, [ready, settings, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const photos = useMemo(
     () => items.filter((i): i is PhotoItem => i.kind === 'photo' || i.kind === 'pano').sort((a, b) => a.takenAt.localeCompare(b.takenAt)),
@@ -276,7 +298,9 @@ export default function App() {
                 <strong>Kom i gang</strong>
                 <span>Last opp bilder, 360-bilder, ortofoto fra drone eller prosjekterte data og innmåling (DXF, KOF, SOSI, LandXML, IFC).</span>
                 <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp filer</button>
-                <button className="btn" onClick={() => { setSyncDemo(true); setSyncOpen(true); }}><IconFolder size={16} /> Last demodata</button>
+                <button className="btn" onClick={startDemo} disabled={demo.busy}><IconFolder size={16} /> {demo.busy ? 'Laster demodata …' : 'Last demodata'}</button>
+                {demo.busy && demo.msg && <span className="muted small">{demo.msg}</span>}
+                {demo.error && <span className="error small">{demo.error}</span>}
               </div>
             )}
           </div>
@@ -304,8 +328,7 @@ export default function App() {
       {syncOpen && (
         <SyncDialog
           project={project}
-          autoDemo={syncDemo}
-          onClose={() => { setSyncOpen(false); setSyncDemo(false); }}
+          onClose={() => setSyncOpen(false)}
           onOpenSettings={() => { setSyncOpen(false); setView('settings'); }}
           onOpenTemplates={() => { setSyncOpen(false); setDriveOpen(true); }}
           onImported={(n, b) => { if (n) { showToast(`${n} element(er) lagt til i kartet`); if (b) fitTo(b, 19); } }}

@@ -60,6 +60,8 @@ export type Item = PhotoItem | DxfItem | OrthoItem;
 export interface Settings {
   projectName: string;
   projectCrs: string;
+  /** Demodata er forsøkt lastet automatisk (gjøres bare én gang) */
+  demoAutoLoaded?: boolean;
   basemapId: string;
   /** Standardmapper per type. «survey» = innmålinger (KOF/SOSI/LandXML), opprettes ved behov. */
   defaultFolders: Record<ItemKind, string> & { survey?: string };

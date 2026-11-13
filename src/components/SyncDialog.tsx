@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Project } from '../state';
 import type { DxfItem, Item, PhotoItem } from '../types';
 import {
   driveFileExists, ensureDrivePath, fetchDriveBlob, getAccessToken, isSignedIn, listFolderFiles, pickFiles, pickFolder, signOut,
   uploadDriveFile, type DriveAccess, type DriveFileInfo,
 } from '../lib/google';
-import { isOrthoFile } from '../lib/ortho';
 import { isWorldFile } from '../lib/jp2';
-import { isImageFile } from '../lib/photos';
-import { isVectorFile } from '../lib/vector';
 import { usePickerOpen } from '../lib/usePickerOpen';
 import { googleConfig } from './DriveDialog';
-import { DEMO_FOLDER_ID, DEMO_FOLDER_URL } from '../lib/demo';
+import { DEMO_FOLDER_URL } from '../lib/demo';
+import { hasDemoKey, loadDemoData, supportedDriveFile } from '../lib/demoLoad';
 import { IconClose, IconFolder } from './icons';
 
 interface Props {
@@ -20,17 +18,14 @@ interface Props {
   onOpenSettings: () => void;
   onOpenTemplates: () => void;
   onImported: (added: number, bounds: [[number, number], [number, number]] | null) => void;
-  /** Start innlasting av demodata med én gang dialogen åpnes */
-  autoDemo?: boolean;
 }
 
 const sizeFmt = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b ? `${Math.max(1, Math.round(b / 1024))} kB` : '');
-const supported = (name: string, mime = '') =>
-  isVectorFile({ name }) || isOrthoFile({ name, type: mime } as File) || isWorldFile({ name } as File) || isImageFile({ name, type: mime } as File);
+const supported = supportedDriveFile;
 
 type Tab = 'hent' | 'last';
 
-export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTemplates, onImported, autoDemo }: Props) {
+export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTemplates, onImported }: Props) {
   const settings = project.settings!;
   const access: DriveAccess = settings.driveAccess ?? 'file';
   const cfg = googleConfig(project);
@@ -138,23 +133,12 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
   });
 
   // ---------- Demodata (offentlig delt mappe) ----------
-  // Med API-nøkkel leses mappen uten innlogging. Uten nøkkel brukes vanlig innlogging (krever full tilgang).
   const loadDemo = () => run(async () => {
-    const dcfg = cfg.apiKey ? { ...cfg, publicRead: true } : { ...cfg, access: 'full' as DriveAccess };
-    const list = await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => setMsg(`Skanner demomappen … ${n} filer i ${d} mapper`));
-    const usable = list.filter((f) => supported(f.name, f.mimeType));
-    if (!usable.length) throw new Error(`Fant ${list.length} filer i demomappen, men ingen bilder, DXF/KOF/SOSI/LandXML/IFC eller ortofoto.`);
-    const fresh = usable.filter((f) => !imported.has(f.id) || isWorldFile({ name: f.name } as File));
-    const todo = fresh.filter((f) => !isWorldFile({ name: f.name } as File));
-    if (!todo.length) { setOkMsg('Demodataene ligger allerede i kartet.'); return; }
-    await importList(todo, usable, dcfg, false);
+    const r = await loadDemoData(project, cfg, setMsg);
+    if (r.message) setError(r.message);
+    if (r.added) { setOkMsg(`${r.added} element(er) hentet fra demomappen.`); onImported(r.added, r.bounds); }
+    else if (!r.message) setOkMsg('Demodataene ligger allerede i kartet.');
   });
-
-  const autoStarted = useRef(false);
-  useEffect(() => {
-    if (autoDemo && !autoStarted.current) { autoStarted.current = true; void loadDemo(); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ---------- Last opp til mappen ----------
   const pathOf = (folderId: string): string[] => {
@@ -231,8 +215,8 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
             <IconFolder size={22} className="kind-folder" />
             <div className="grow">
               <strong>Demodata</strong>
-              <span className="muted small">Laster eksempeldata fra en delt mappe – uten innlogging. <a href={DEMO_FOLDER_URL} target="_blank" rel="noreferrer">Åpne mappen ↗</a></span>
-              {!cfg.apiKey && <span className="small">Legg inn Google API-nøkkel under Innstillinger for å slippe innlogging.</span>}
+              <span className="muted small" style={{ display: 'block' }}>Laster eksempeldata fra en delt mappe – uten innlogging. <a href={DEMO_FOLDER_URL} target="_blank" rel="noreferrer">Åpne mappen ↗</a></span>
+              {!hasDemoKey(cfg) && <span className="small error">Mangler Google API-nøkkel (se README: Demodata).</span>}
             </div>
             <button className="btn primary" onClick={loadDemo} disabled={busy}>Last demodata</button>
           </div>

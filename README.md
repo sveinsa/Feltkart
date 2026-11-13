@@ -146,12 +146,15 @@ Teknologi: React + TypeScript + Vite, Leaflet, proj4, dxf-parser, geotiff.js, ex
 5. **Personvern.** Bilder kan vise personer og bilskilt. Tenk på tilgangsstyring, og fjern EXIF-posisjon ved deling utenfor prosjektet.
 
 
-## Demodata fra Google Disk
+## Demodata fra Google Disk (lastes automatisk)
 
-Knappen **Last demodata** (i «Kom i gang»-boksen på tomt kart, og øverst i Google Disk-dialogen) henter alle bilder, DXF/KOF/SOSI/LandXML/IFC og ortofoto fra demomappen og legger dem i kartet. Mappestrukturen i Disk speiles i mappetreet.
+Når kartet er helt tomt første gang appen åpnes, leses demomappen på Google Disk automatisk og alle bilder, DXF/KOF/SOSI/LandXML/IFC og ortofoto legges i kartet (bare én gang – slettes demodata, kommer de ikke tilbake av seg selv). Du kan også trykke **Last demodata** i «Kom i gang»-boksen eller øverst i Google Disk-dialogen. Mappestrukturen i Disk speiles i mappetreet.
 
-- Demomappen er satt i `src/lib/demo.ts` (kan overstyres med `VITE_DEMO_FOLDER_ID`).
-- Mappen må være delt som **«Alle med lenken – Leser»**.
-- Med en **Google API-nøkkel** (Innstillinger → Google) leses mappen uten innlogging. API-nøkkelen må tillate *Google Drive API* (ikke bare Picker API), og hvis den har referanse-begrensning må `https://sveinsa.github.io/*` være lagt til.
-- Uten API-nøkkel brukes vanlig innlogging, og da må tilgangsnivået være «Full».
-- Demofilene hentes ned fullt ut (ingen strømming), og filer som allerede er i kartet hoppes over.
+**Det som må være på plass (én gang):**
+1. Mappen er delt som **«Alle med lenken – Leser»**. Mappe-ID står i `src/lib/demo.ts` (kan overstyres med `VITE_DEMO_FOLDER_ID`).
+2. En **Google API-nøkkel**: Google Cloud → APIer og tjenester → Legitimasjon → Opprett legitimasjon → API-nøkkel. Slå på *Google Drive API* i biblioteket. Begrens nøkkelen til *Google Drive API* og til nettstedet `https://sveinsa.github.io/*`.
+3. Gi appen nøkkelen på **én** av disse måtene:
+   - lim den inn i `DEMO_API_KEY` i `src/lib/demo.ts`, eller
+   - GitHub → repoet → Settings → Secrets and variables → Actions → fanen *Variables* → ny variabel `GOOGLE_API_KEY` (deploy-filen sender den videre ved bygging).
+
+API-nøkler i nettapper er ikke hemmelige – sikkerheten ligger i begrensningene i punkt 2. Demofilene hentes ned fullt ut (ingen strømming).
