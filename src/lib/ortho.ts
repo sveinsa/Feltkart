@@ -99,6 +99,45 @@ async function readTiff(file: File, fallbackCrs: string, maxSize: number, onProg
   return { raw, channels, sw, sh, bbox, crs, crsDetected: !!detected, noData: image.getGDALNoData(), sourceSize: [w, h] };
 }
 
+/**
+ * Finner svart (eller nodata-)bakgrunn som henger sammen med bildekanten og markerer den som gjennomsiktig.
+ * Skanner innover fra alle fire sider til første ikke-svarte piksel (+ 2 piksler kant mot JPEG-støy).
+ * Mørke områder inne i bildet berøres ikke. Gir null hvis det ikke finnes svart kant, eller hvis nesten alt er mørkt.
+ */
+function edgeBlackMask(raw: ArrayLike<number>, w: number, h: number, ch: number, noData: number | null | undefined): Uint8Array | null {
+  const T = 22; // størst tillatte kanalverdi for «svart» (JPEG gir litt støy nær kanten)
+  const FRINGE = 2;
+  const black = (x: number, y: number) => {
+    const i = (y * w + x) * ch;
+    const r = raw[i], g = ch > 1 ? raw[i + 1] : r, b = ch > 2 ? raw[i + 2] : r;
+    if (noData !== null && noData !== undefined && r === noData && g === noData && b === noData) return true;
+    return r <= T && g <= T && b <= T;
+  };
+  const mask = new Uint8Array(w * h);
+  let cleared = 0;
+  const mark = (x: number, y: number) => { const k = y * w + x; if (!mask[k]) { mask[k] = 1; cleared++; } };
+  for (let y = 0; y < h; y++) {
+    let x = 0;
+    while (x < w && black(x, y)) { mark(x, y); x++; }
+    if (x > 0) for (let f = 0; f < FRINGE && x < w; f++, x++) mark(x, y);
+    if (x >= w) continue; // hele raden var svart
+    let xr = w - 1;
+    while (xr > x && black(xr, y)) { mark(xr, y); xr--; }
+    if (xr < w - 1) for (let f = 0; f < FRINGE && xr > x; f++, xr--) mark(xr, y);
+  }
+  for (let x = 0; x < w; x++) {
+    let y = 0;
+    while (y < h && black(x, y)) { mark(x, y); y++; }
+    if (y > 0) for (let f = 0; f < FRINGE && y < h; f++, y++) mark(x, y);
+    if (y >= h) continue;
+    let yb = h - 1;
+    while (yb > y && black(x, yb)) { mark(x, yb); yb--; }
+    if (yb < h - 1) for (let f = 0; f < FRINGE && yb > y; f++, yb--) mark(x, yb);
+  }
+  if (cleared === 0 || cleared > w * h * 0.7) return null;
+  return mask;
+}
+
 async function readJp2(file: File, fallbackCrs: string, maxSize: number, sidecar: File | undefined, onProgress?: (m: string) => void): Promise<Raster> {
   onProgress?.('Leser JPEG 2000 …');
   const buf = await file.arrayBuffer();
@@ -172,6 +211,9 @@ export async function processOrtho(
     }
   }
 
+  // Ortofoto uten alfakanal (f.eks. JPEG-komprimert GeoTIFF) har ofte svart bakgrunn utenfor flyområdet. Gjør den gjennomsiktig.
+  const edge = channels < 4 ? edgeBlackMask(raw, sw, sh, channels, noData) : null;
+
   const canvas = document.createElement('canvas');
   canvas.width = outW;
   canvas.height = outH;
@@ -199,6 +241,7 @@ export async function processOrtho(
       const r = raw[si], g = raw[si + 1] ?? r, bl = raw[si + 2] ?? r;
       let alpha = channels >= 4 ? raw[si + 3] : 255;
       if (noData !== null && noData !== undefined && r === noData && g === noData && bl === noData) alpha = 0;
+      if (edge && edge[syp * sw + sxp]) alpha = 0;
       o[oi] = r; o[oi + 1] = g; o[oi + 2] = bl; o[oi + 3] = alpha;
     }
   }

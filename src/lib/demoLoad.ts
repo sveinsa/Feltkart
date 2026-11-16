@@ -21,8 +21,8 @@ export interface DemoResult {
 interface DemoFile { id: string; name: string; mimeType: string; path: string[]; url?: string }
 
 /** Demodata som ligger i selve nettstedet (public/demo/manifest.json). Gir null hvis den ikke finnes. */
-let manifestPromise: Promise<DemoFile[] | null> | null = null;
-export function localDemoFiles(): Promise<DemoFile[] | null> {
+let manifestPromise: Promise<(DemoFile[] & { alsoFromDrive?: boolean }) | null> | null = null;
+export function localDemoFiles(): Promise<(DemoFile[] & { alsoFromDrive?: boolean }) | null> {
   if (!manifestPromise) {
     manifestPromise = (async () => {
       try {
@@ -31,14 +31,16 @@ export function localDemoFiles(): Promise<DemoFile[] | null> {
         const j = await res.json();
         const rel: string[] = (Array.isArray(j) ? j : j?.files ?? []).map((x: any) => (typeof x === 'string' ? x : x?.path)).filter(Boolean);
         if (!rel.length) return null;
-        return rel.map((r) => {
+        const out = rel.map((r) => {
           const segs = r.split('/').filter(Boolean);
           const name = segs[segs.length - 1];
           return {
             id: `demo:${r}`, name, mimeType: '', path: segs.slice(0, -1),
             url: new URL('demo/' + segs.map(encodeURIComponent).join('/'), document.baseURI).toString(),
           } as DemoFile;
-        });
+        }) as DemoFile[] & { alsoFromDrive?: boolean };
+        out.alsoFromDrive = !Array.isArray(j) && !!j?.alsoFromDrive;
+        return out;
       } catch {
         return null; // ingen manifest (eller ikke JSON, f.eks. 404-side) – bruk Google Disk
       }
@@ -67,7 +69,14 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
   const dcfg: GoogleConfig = { ...cfg, apiKey: key, publicRead: true };
   let list: DemoFile[];
   if (local) {
-    list = local;
+    list = [...local];
+    // «alsoFromDrive»: filer som ikke ligger i public/demo (f.eks. et ortofoto over 100 MB) hentes fra Google Disk
+    if (local.alsoFromDrive && key) {
+      onProgress('Skanner demomappen på Google Disk for filer som mangler …');
+      const have = new Set(local.map((f) => [...f.path, f.name].join('/').toLowerCase()));
+      const remote = (await listFolderFiles(dcfg, DEMO_FOLDER_ID)) as DemoFile[];
+      for (const f of remote) if (!have.has([...f.path, f.name].join('/').toLowerCase())) list.push(f);
+    }
   } else {
     onProgress('Skanner demomappen …');
     list = (await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => onProgress(`Skanner demomappen … ${n} filer i ${d} mapper`))) as DemoFile[];

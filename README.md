@@ -202,3 +202,10 @@ Feltkart bruker `public/demo/manifest.json` hvis den finnes, ellers Google Disk.
 3. Last opp til GitHub (commit + push). Maks 100 MB per fil; nettleser-opplasting på github.com tar maks 25 MB per fil, så bruk GitHub Desktop eller git for større filer.
 Tips for fart: nedskaler bilder (ca. 2000 px bredde, 360-bilder 4096 px) og lag ortofotoet som COG, f.eks. `gdal_translate in.tif ut.tif -of COG -co COMPRESS=JPEG -outsize 6144 0`.
 Nedlastingen går også parallelt (4 filer om gangen), både fra nettstedet og fra Google Disk.
+
+### Store filer (over 25 / 100 MB)
+- github.com tar maks 25 MB per fil i nettleseren, og GitHub tar aldri over 100 MB. Legg små filer på GitHub via nettleseren, og store via **GitHub Desktop** (clone repoet, kopier filene inn, Commit, Push).
+- Alternativt: la det store ortofotoet ligge på Google Disk. Kjør `node scripts/lag-demo-manifest.mjs --drive`. Da hentes alt som ikke ligger i `public/demo` fra Google Disk-demomappen (samme mappenavn som lokalt).
+
+## Svart bakgrunn i ortofoto (v 3.6)
+Ortofoto uten alfakanal (f.eks. JPEG-komprimert GeoTIFF/COG uten gjennomsiktighet) har svart bakgrunn utenfor flyområdet. Feltkart gjør nå svart bakgrunn som henger sammen med bildekanten gjennomsiktig ved innlasting (mørke områder inne i bildet beholdes). Det virker også for demo-ortofotoet. Last det opp på nytt (eller bruk Nullstill demo og last demodata) for at det skal gjelde.
