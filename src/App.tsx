@@ -16,7 +16,7 @@ import DriveDialog, { googleConfig } from './components/DriveDialog';
 import SyncDialog from './components/SyncDialog';
 import { VERSION_LABEL } from './version';
 import { fetchDriveBlob } from './lib/google';
-import { hasDemoKey, loadDemoData } from './lib/demoLoad';
+import { hasDemoSource, loadDemoData } from './lib/demoLoad';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
 import {
@@ -78,9 +78,9 @@ export default function App() {
   useEffect(() => {
     if (!ready || !settings || demoStarted.current) return;
     // Når prosjektet er tomt ved åpning (og det finnes en API-nøkkel): vis velkomstboks med spørsmål om å laste demodata
-    if (items.length > 0 || !hasDemoKey(googleConfig(project))) return;
+    if (items.length > 0) return;
     demoStarted.current = true;
-    setWelcomeOpen(true); // spør først – lastingen starter når brukeren sier ja
+    void hasDemoSource(googleConfig(project)).then((ok) => { if (ok) setWelcomeOpen(true); else demoStarted.current = false; }); // spør først – lastingen starter når brukeren sier ja
   }, [ready, settings, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Når alt innhold er slettet (Nullstill demo): nullstill valg og filtre, og vis «Kom i gang»

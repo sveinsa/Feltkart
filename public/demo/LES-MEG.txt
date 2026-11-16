@@ -1,0 +1,12 @@
+Demodata for Feltkart
+=====================
+Legg demofilene her, i mapper med samme navn som i kartet, f.eks.:
+
+  public/demo/01 Foto/...        (bilder og 360-bilder)
+  public/demo/02 Innmåling/...   (KOF, SOSI, LandXML)
+  public/demo/03 Prosjektert/... (DXF, IFC)
+  public/demo/04 Ortofoto/...    (GeoTIFF, helst COG/nedskalert)
+
+Kjør deretter:  node scripts/lag-demo-manifest.mjs
+Det lager manifest.json. Når manifest.json finnes, bruker Feltkart denne mappen i stedet for Google Disk.
+Slett manifest.json for å gå tilbake til Google Disk.

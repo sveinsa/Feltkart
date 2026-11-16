@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Project } from '../state';
 import type { DxfItem, Item, PhotoItem } from '../types';
 import {
@@ -10,7 +10,7 @@ import { usePickerOpen } from '../lib/usePickerOpen';
 import { googleConfig } from './DriveDialog';
 import ResetDemoButton from './ResetDemoButton';
 import { DEMO_FOLDER_URL } from '../lib/demo';
-import { hasDemoKey, loadDemoData, supportedDriveFile } from '../lib/demoLoad';
+import { hasDemoKey, loadDemoData, localDemoFiles, supportedDriveFile } from '../lib/demoLoad';
 import { IconClose, IconFolder, IconGoogle } from './icons';
 
 interface Props {
@@ -35,6 +35,8 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
 
   const [tab, setTab] = useState<Tab>('hent');
   const [busy, setBusy] = useState(false);
+  const [hasLocalDemo, setHasLocalDemo] = useState(false);
+  useEffect(() => { void localDemoFiles().then((l) => setHasLocalDemo(!!l)); }, []);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
@@ -216,8 +218,10 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
             <IconFolder size={22} className="kind-folder" />
             <div className="grow">
               <strong>Demodata</strong>
-              <span className="muted small" style={{ display: 'block' }}>Laster eksempeldata fra en delt mappe – uten innlogging. <a href={DEMO_FOLDER_URL} target="_blank" rel="noreferrer">Åpne mappen ↗</a></span>
-              {!hasDemoKey(cfg) && <span className="small error">Mangler Google API-nøkkel (se README: Demodata).</span>}
+              <span className="muted small" style={{ display: 'block' }}>
+                {hasLocalDemo ? 'Laster eksempeldata fra Feltkart-nettstedet (mappen public/demo) – raskt og uten innlogging.' : <>Laster eksempeldata fra en delt mappe – uten innlogging. <a href={DEMO_FOLDER_URL} target="_blank" rel="noreferrer">Åpne mappen ↗</a></>}
+              </span>
+              {!hasLocalDemo && !hasDemoKey(cfg) && <span className="small error">Mangler Google API-nøkkel (se README: Demodata).</span>}
             </div>
             <button className="btn primary" onClick={loadDemo} disabled={busy}>Last demodata</button>
           </div>

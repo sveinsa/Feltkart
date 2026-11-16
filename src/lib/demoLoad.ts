@@ -18,16 +18,63 @@ export interface DemoResult {
   message: string;
 }
 
-/** Leser demomappen på Google Disk (uten innlogging, med API-nøkkel) og legger alt i kartet. */
+interface DemoFile { id: string; name: string; mimeType: string; path: string[]; url?: string }
+
+/** Demodata som ligger i selve nettstedet (public/demo/manifest.json). Gir null hvis den ikke finnes. */
+let manifestPromise: Promise<DemoFile[] | null> | null = null;
+export function localDemoFiles(): Promise<DemoFile[] | null> {
+  if (!manifestPromise) {
+    manifestPromise = (async () => {
+      try {
+        const res = await fetch(new URL('demo/manifest.json', document.baseURI).toString(), { cache: 'no-cache' });
+        if (!res.ok) return null;
+        const j = await res.json();
+        const rel: string[] = (Array.isArray(j) ? j : j?.files ?? []).map((x: any) => (typeof x === 'string' ? x : x?.path)).filter(Boolean);
+        if (!rel.length) return null;
+        return rel.map((r) => {
+          const segs = r.split('/').filter(Boolean);
+          const name = segs[segs.length - 1];
+          return {
+            id: `demo:${r}`, name, mimeType: '', path: segs.slice(0, -1),
+            url: new URL('demo/' + segs.map(encodeURIComponent).join('/'), document.baseURI).toString(),
+          } as DemoFile;
+        });
+      } catch {
+        return null; // ingen manifest (eller ikke JSON, f.eks. 404-side) – bruk Google Disk
+      }
+    })();
+  }
+  return manifestPromise;
+}
+
+/** Finnes det en demokilde (egen mappe i nettstedet eller Google Disk med nøkkel)? */
+export async function hasDemoSource(cfg: GoogleConfig): Promise<boolean> {
+  return hasDemoKey(cfg) || !!(await localDemoFiles());
+}
+
+/** Kjører oppgaver parallelt (maks `limit` om gangen). */
+async function mapLimit<T>(items: T[], limit: number, fn: (x: T, i: number) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => { while (next < items.length) { const i = next++; await fn(items[i], i); } };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+/** Henter demodata (fra egen mappe i nettstedet hvis den finnes, ellers Google Disk) og legger alt i kartet. */
 export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgress: (msg: string) => void, opts: { replace?: boolean } = {}): Promise<DemoResult> {
+  const local = await localDemoFiles();
   const key = cfg.apiKey || DEMO_API_KEY;
-  if (!key) throw new Error('Demodata krever en Google API-nøkkel. Lim den inn i src/lib/demo.ts (DEMO_API_KEY) eller under Innstillinger → Google.');
+  if (!local && !key) throw new Error('Demodata krever en Google API-nøkkel. Lim den inn i src/lib/demo.ts (DEMO_API_KEY) eller under Innstillinger → Google.');
   const dcfg: GoogleConfig = { ...cfg, apiKey: key, publicRead: true };
-  onProgress('Skanner demomappen …');
-  const list = await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => onProgress(`Skanner demomappen … ${n} filer i ${d} mapper`));
+  let list: DemoFile[];
+  if (local) {
+    list = local;
+  } else {
+    onProgress('Skanner demomappen …');
+    list = (await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => onProgress(`Skanner demomappen … ${n} filer i ${d} mapper`))) as DemoFile[];
+  }
   const usable = list.filter((f) => supportedDriveFile(f.name, f.mimeType));
   if (!usable.length) throw new Error(`Fant ${list.length} filer i demomappen, men ingen bilder, DXF/KOF/SOSI/LandXML/IFC eller ortofoto.`);
-  // Mappestrukturen i kartet speiler mappene i demomappen på Google Disk (f.eks. 01 Foto, 02 Innmåling, 03 Prosjektert, 04 Ortofoto).
+  // Mappestrukturen i kartet speiler mappene i demomappen (f.eks. 01 Foto, 02 Innmåling, 03 Prosjektert, 04 Ortofoto).
   // «replace»: tidligere innlastet demodata fjernes, men først når nye filer er hentet (slik at man aldri står uten data ved feil).
   const usableIds = new Set(usable.map((f) => f.id));
   const have = new Set(opts.replace ? [] : project.items.map((i) => i.driveId).filter(Boolean) as string[]);
@@ -40,23 +87,31 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
   const files: File[] = [];
   const meta = new Map<File, { driveId?: string; folderId?: string }>();
   const errCount = new Map<string, number>();
-  let consecutiveFails = 0;
-  for (let i = 0; i < all.length; i++) {
-    const d = all[i];
-    onProgress(`Henter demodata ${i + 1} av ${all.length}: ${d.name} …`);
+  let failed = 0;
+  let done = 0;
+  // Parallell nedlasting (fire om gangen) – mye raskere enn én og én, særlig fra en treg Google Disk
+  await mapLimit(all, 4, async (d) => {
+    if (failed >= 3 && !files.length) return; // gir opp tidlig hvis ingenting lar seg hente
     try {
-      const blob = await fetchDriveBlob(dcfg, d.id, d.name);
+      let blob: Blob;
+      if (d.url) {
+        const res = await fetch(d.url);
+        if (!res.ok) throw new Error(`Kunne ikke hente ${d.name} (HTTP ${res.status})`);
+        blob = await res.blob();
+      } else {
+        blob = await fetchDriveBlob(dcfg, d.id, d.name);
+      }
       const f = new File([blob], d.name, { type: d.mimeType });
       files.push(f);
       meta.set(f, { driveId: d.id });
-      consecutiveFails = 0;
     } catch (e: any) {
       const m = String(e?.message ?? e);
       errCount.set(m, (errCount.get(m) ?? 0) + 1);
-      // Gir opp tidlig hvis ingenting lar seg hente (unngår 20 like feilmeldinger)
-      if (++consecutiveFails >= 3 && !files.length) break;
+      failed++;
+    } finally {
+      onProgress(`Henter demodata ${++done} av ${all.length} …`);
     }
-  }
+  });
   const errs = [...errCount.entries()].map(([m, n]) => (n > 1 ? `${m} (${n} filer)` : m));
   if (!files.length) throw new Error(errs.join(' ') || 'Ingen filer kunne hentes.');
 

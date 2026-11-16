@@ -194,3 +194,11 @@ Knappen **Nullstill demo** (Innstillinger, Prosjektfiler og Google Disk-dialogen
 
 ## Mapperekkefølge og nullstilling (v 3.3)
 Nummererte mapper (01 Foto, 02 Innmåling …) vises alltid i nummerrekkefølge øverst; øvrige mapper kommer etterpå i opprettelsesrekkefølge. Nederst i menyen til venstre ligger en rød **Nullstill demo**-knapp (med bekreftelse). Etter nullstilling spør Feltkart på nytt om demodata skal lastes ned.
+
+## Demodata i selve nettstedet – raskere enn Google Disk (v 3.4)
+Feltkart bruker `public/demo/manifest.json` hvis den finnes, ellers Google Disk.
+1. Legg filene i `public/demo/` i mapper (`01 Foto`, `02 Innmåling`, `03 Prosjektert`, `04 Ortofoto`).
+2. Kjør `node scripts/lag-demo-manifest.mjs` (lager manifest.json).
+3. Last opp til GitHub (commit + push). Maks 100 MB per fil; nettleser-opplasting på github.com tar maks 25 MB per fil, så bruk GitHub Desktop eller git for større filer.
+Tips for fart: nedskaler bilder (ca. 2000 px bredde, 360-bilder 4096 px) og lag ortofotoet som COG, f.eks. `gdal_translate in.tif ut.tif -of COG -co COMPRESS=JPEG -outsize 6144 0`.
+Nedlastingen går også parallelt (4 filer om gangen), både fra nettstedet og fra Google Disk.
