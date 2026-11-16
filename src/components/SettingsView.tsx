@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { Project } from '../state';
 import { CRS_LIST } from '../lib/crs';
 
+import ResetDemoButton from './ResetDemoButton';
+
 export default function SettingsView({ project }: { project: Project }) {
   const s = project.settings!;
   const root = project.folders.find((f) => f.parentId === null);
@@ -60,6 +62,15 @@ export default function SettingsView({ project }: { project: Project }) {
         <div><strong>{counts.pano}</strong><span>360-bilder</span></div>
         <div><strong>{counts.dxf}</strong><span>prosjekterte data</span></div>
         <div><strong>{counts.ortho}</strong><span>ortofoto</span></div>
+      </div>
+      <div className="card">
+        <div className="reset-row">
+          <div>
+            <strong>Nullstill demo</strong>
+            <span className="muted small" style={{ display: 'block' }}>Sletter alt innhold i Feltkart (bilder, ortofoto, DXF og innmålinger). Filer på Google Disk berøres ikke. Etterpå kan du laste demodata på nytt.</span>
+          </div>
+          <ResetDemoButton project={project} />
+        </div>
       </div>
 
       <h3>Google Disk</h3>

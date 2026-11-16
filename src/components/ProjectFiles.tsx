@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Folder, Item } from '../types';
 import type { Project } from '../state';
 import { descendantFolderIds } from '../state';
+import ResetDemoButton from './ResetDemoButton';
 import { IconFolder, IconFolderOpen, IconPin, IconTrash, IconUpload, KIND_ICON } from './icons';
 
 interface Props {
@@ -79,6 +80,7 @@ export default function ProjectFiles({ project, onZoomTo, onOpenViewer, onUpload
         <div className="pf-bar">
           <h2>{sel ? folderName(sel) : 'Prosjektfiler'} <span className="muted small">· {list.length} filer</span></h2>
           <input className="pf-search" placeholder="Søk i filnavn" value={q} onChange={(e) => setQ(e.target.value)} />
+          <ResetDemoButton project={project} />
           <button className="btn" onClick={onDrive}><IconFolder size={16} /> Google Disk</button>
           <button className="btn primary" onClick={onUpload}><IconUpload size={16} /> Last opp</button>
         </div>

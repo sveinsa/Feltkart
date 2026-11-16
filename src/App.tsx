@@ -80,6 +80,17 @@ export default function App() {
     void startDemo();
   }, [ready, settings, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Når alt innhold er slettet (Nullstill demo): nullstill valg og filtre, og vis «Kom i gang»
+  useEffect(() => {
+    if (!ready || items.length > 0) return;
+    setSelection(null);
+    setDateFrom(''); setDateTo('');
+    setPhotoType('all'); setOffFolders(new Set());
+    setPlacingId(null); setViewerId(null);
+    setView((v) => (v === 'photos' || v === 'gallery' ? 'map' : v));
+    setDemo((d) => (d.busy ? d : { busy: false, msg: '', error: null }));
+  }, [ready, items.length]);
+
   const photos = useMemo(
     () => items.filter((i): i is PhotoItem => i.kind === 'photo' || i.kind === 'pano').sort((a, b) => a.takenAt.localeCompare(b.takenAt)),
     [items],

@@ -211,6 +211,24 @@ export function useProject() {
     });
   }, [folders]);
 
+  /** Sletter alt innhold i nettleseren (elementer og ekstra mapper). Rotmappe og standardmapper beholdes. Google Disk berøres ikke. */
+  const resetContent = useCallback(() => {
+    const st = settings;
+    const keep = new Set<string>();
+    const root = foldersRef.current.find((f) => f.parentId === null);
+    if (root) keep.add(root.id);
+    for (const v of Object.values(st?.defaultFolders ?? {})) if (v) keep.add(v as string);
+    const doomedItems = itemsRef.current.slice();
+    const doomedFolders = foldersRef.current.filter((f) => !keep.has(f.id));
+    setItems([]);
+    setDxf({});
+    setFolders((fs) => fs.filter((f) => keep.has(f.id)));
+    safe(async () => {
+      for (const it of doomedItems) await db.deleteItem(it.id);
+      for (const f of doomedFolders) await db.deleteFolder(f.id);
+    });
+  }, [settings]);
+
   // ---------- Synlighet ----------
   const setVisible = useCallback((ids: string[], visible: boolean) => {
     const set = new Set(ids);
@@ -342,7 +360,7 @@ export function useProject() {
   return {
     ready, folders, items, settings, dxf, storageError,
     saveItem, saveItems, deleteItem, updateSettings,
-    addFolder, ensureFolderPath, renameFolder, deleteFolder,
+    addFolder, ensureFolderPath, renameFolder, deleteFolder, resetContent,
     setVisible, setFolderVisible, toggleDxfLayer, upload,
   };
 }

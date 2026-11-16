@@ -184,3 +184,6 @@ GeoTIFF avkodes nå med flere arbeidstråder (geotiff `Pool`), og fremdriften vi
 - Toppmeny: **Kart**, **Bilder**, **Prosjektfiler**, **Innstillinger**.
 - **Bilder** (også knappen med rutenett-ikonet til venstre) viser kartet med et bildepanel: filtrer på type (Foto / 360°), dato (fra–til, hurtigvalg, sortering nyeste/eldste først) og hvilke mapper som skal vise bilder. Klikk et miniatyrbilde for å zoome til det i kartet, dobbeltklikk for å åpne det i visning. «Rutenett» gir den store bildeoversikten.
 - **Prosjektfiler** er en filoversikt: mapper til venstre, tabell med alle filer til høyre (type, mappe, størrelse, dato, vis/skjul i kart, zoom, slett).
+
+## Nullstill demo (v 3.0)
+Knappen **Nullstill demo** (Innstillinger, Prosjektfiler og Google Disk-dialogen) sletter alt innhold i Feltkart – bilder, ortofoto, DXF/innmålinger og ekstra mapper. Rotmappen og standardmappene beholdes, og filer på Google Disk berøres ikke. Etterpå kommer «Kom i gang»-boksen tilbake med knappen **Last demodata**, slik at demoen kan hentes på nytt.

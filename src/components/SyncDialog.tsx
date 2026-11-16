@@ -8,6 +8,7 @@ import {
 import { isWorldFile } from '../lib/jp2';
 import { usePickerOpen } from '../lib/usePickerOpen';
 import { googleConfig } from './DriveDialog';
+import ResetDemoButton from './ResetDemoButton';
 import { DEMO_FOLDER_URL } from '../lib/demo';
 import { hasDemoKey, loadDemoData, supportedDriveFile } from '../lib/demoLoad';
 import { IconClose, IconFolder } from './icons';
@@ -220,6 +221,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
             </div>
             <button className="btn primary" onClick={loadDemo} disabled={busy}>Last demodata</button>
           </div>
+          <div className="reset-line"><ResetDemoButton project={project} onDone={() => { setOkMsg(''); }} /></div>
           {busy && msg && <p className="muted small" style={{ margin: '-4px 0 10px' }}>{msg}</p>}
           {error && <p className="error small" style={{ margin: '-4px 0 10px' }}>{error}</p>}
           {okMsg && <div className="success" style={{ margin: '-4px 0 10px' }}>{okMsg}</div>}

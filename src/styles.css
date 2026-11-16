@@ -447,3 +447,8 @@ body.picking .modal-back { visibility: hidden; }
 .pf-name:hover { color: var(--brand); text-decoration: underline; }
 .pf-actions { white-space: nowrap; text-align: right; }
 @media (max-width: 900px) { .pf-folders { display: none; } .pf-table th:nth-child(n+4), .pf-table td:nth-child(n+4):not(.pf-actions) { display: none; } }
+
+/* ---------- Nullstill demo ---------- */
+.reset-row { display: flex; align-items: center; gap: 14px; justify-content: space-between; }
+.reset-line { margin: -4px 0 10px; }
+.reset-confirm { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
