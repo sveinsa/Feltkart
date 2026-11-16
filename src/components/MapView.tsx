@@ -9,6 +9,10 @@ import { formatAreaShort, formatLengthShort, isDoubleClick, isTouchEvent, pathLe
 import type { ClickMemo, MeasureMode, MPt } from '../lib/measure';
 import { markerHtml } from './icons';
 import MeasurePanel from './MeasurePanel';
+import MeasureChip from './MeasureChip';
+import { buildPlanarIndex, snapPlanar, SNAP_LABEL } from '../lib/snap';
+import type { PlanarIndex, SnapResult2d } from '../lib/snap';
+import { clearStoredMeasure, loadMeasure, loadSnap, onMeasureChanged, saveMeasure, saveSnap } from '../lib/measureStore';
 
 export interface FitRequest {
   seq: number;
@@ -38,6 +42,10 @@ const ORANGE = '#ef6c1a';
 interface MeasureState {
   pts: L.LatLng[];
   finished: boolean;
+  /** Avstand eller areal. Beholdes også når måleverktøyet ikke er valgt (målingen er lagret og vises fortsatt). */
+  mode: MeasureMode;
+  /** Hva markøren snapper til nå */
+  snap: SnapResult2d | null;
   /** Musepekerens posisjon (til strek under arbeid) */
   cursor: L.LatLng | null;
   /** Faste punkter, linjer og etiketter */
@@ -80,6 +88,11 @@ export default function MapView(props: Props) {
   /** Siste klikk under måling – brukes til å kjenne igjen dobbeltklikk / dobbelttrykk */
   const lastClick = useRef<ClickMemo | null>(null);
   const [measureVer, setMeasureVer] = useState(0);
+  const [snapOn, setSnapOn] = useState(() => loadSnap());
+  const snapOnRef = useRef(snapOn);
+  snapOnRef.current = snapOn;
+  const snapIndex = useRef<PlanarIndex | null>(null);
+  const [snapState, setSnapState] = useState<string | null>(null);
 
   // ---------- Opprett kart ----------
   useEffect(() => {
@@ -95,7 +108,28 @@ export default function MapView(props: Props) {
     dxfRenderer.current = L.canvas({ pane: 'dxfPane', padding: 0.5, tolerance: 5 });
     photoGroup.current = L.layerGroup().addTo(map);
     highlight.current = L.layerGroup().addTo(map);
-    measure.current = { pts: [], finished: false, cursor: null, group: L.layerGroup().addTo(map), live: L.layerGroup().addTo(map) };
+    measure.current = { pts: [], finished: false, mode: 'distance', snap: null, cursor: null, group: L.layerGroup().addTo(map), live: L.layerGroup().addTo(map) };
+    // Gjenopprett målingen som ble lagret sist (etter omlasting eller bytte av fane), og følg med når Terreng 3D endrer den
+    const reload = (): void => {
+      const m = measure.current;
+      if (!m) return;
+      try {
+        const saved = loadMeasure();
+        m.pts = saved ? saved.pts.map((q) => Object.assign(L.latLng(q.lat, q.lng), q.z !== null ? { alt: q.z } : {}, q.fix ? { fix: true } : {})) : [];
+        m.mode = saved?.mode ?? m.mode;
+        m.finished = saved?.finished ?? false;
+      } catch { m.pts = []; m.finished = false; /* ødelagt lagring: start uten måling */ }
+    };
+    reload();
+    const offStore = onMeasureChanged('2d', () => {
+      reload();
+      const m = measure.current;
+      if (!m) return;
+      m.cursor = null; m.snap = null;
+      drawMeasure();
+      drawLive();
+      setMeasureVer((v) => v + 1);
+    });
 
     const updateTextVis = () => map.getContainer().classList.toggle('show-dxf-text', map.getZoom() >= 18);
     map.on('zoomend', updateTextVis);
@@ -103,10 +137,10 @@ export default function MapView(props: Props) {
     // Etikettene på målingen avhenger av hvor lange strekene er på skjermen
     map.on('zoomend', () => { if (measure.current?.pts.length) drawMeasure(); });
 
-    map.on('mousemove', (e: L.LeafletMouseEvent) => { propsRef.current.onMouseCoord(e.latlng); liveMove(e.latlng); });
+    map.on('mousemove', (e: L.LeafletMouseEvent) => { propsRef.current.onMouseCoord(e.latlng); liveMove(e.latlng, e.originalEvent); });
     map.on('mouseout', () => {
       propsRef.current.onMouseCoord(null);
-      if (measure.current) { measure.current.cursor = null; drawLive(); }
+      if (measure.current) { measure.current.cursor = null; measure.current.snap = null; setSnapState(null); drawLive(); }
     });
     map.on('click', (e: L.LeafletMouseEvent) => {
       const p = propsRef.current;
@@ -129,6 +163,7 @@ export default function MapView(props: Props) {
     const ro = new ResizeObserver(() => map.invalidateSize());
     ro.observe(el.current!);
     return () => {
+      offStore();
       ro.disconnect();
       cancelAnimationFrame(liveFrame.current);
       liveFrame.current = 0;
@@ -296,6 +331,26 @@ export default function MapView(props: Props) {
     }
   }, [props.items, props.dxf]);
 
+  // ---------- Snapping: hjørner og kanter fra synlige tegninger og IFC-modeller ----------
+  useEffect(() => {
+    try {
+      const feats: { pts: [number, number][]; closed: boolean }[] = [];
+      for (const it of props.items) {
+        if (it.kind !== 'dxf' || it.hidden) continue;
+        const data = props.dxf[it.id]?.data;
+        if (!data) continue;
+        const hidden = new Set(it.hiddenLayers);
+        for (const f of data.features) {
+          if (hidden.has(f.layer) || f.geom === 'text') continue;
+          const pts = f.latlngs as unknown as [number, number][] | L.LatLng[];
+          const flat = (pts as any[]).map((q) => (Array.isArray(q) ? [q[0], q[1]] : [q.lat, q.lng]) as [number, number]);
+          if (flat.length) feats.push({ pts: flat, closed: f.geom === 'polygon' });
+        }
+      }
+      snapIndex.current = buildPlanarIndex(feats);
+    } catch { snapIndex.current = null; }
+  }, [props.items, props.dxf]);
+
   // ---------- Markering av valgt DXF-objekt ----------
   useEffect(() => {
     const h = highlight.current!;
@@ -317,16 +372,16 @@ export default function MapView(props: Props) {
     if (measuring) map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
     map.getContainer().classList.toggle('tool-crosshair', props.tool !== 'select');
     const m = measure.current!;
-    if (!measuring) clearMeasure();
-    else if (m.finished) {
-      // En ferdig måling er ferdig: velger man et verktøy på nytt (eller bytter mellom avstand og areal), starter neste måling helt på nytt
-      clearMeasure();
-    } else {
-      // Bytter man mellom avstand og areal midt i en måling, beholdes punktene
-      drawMeasure();
-      drawLive();
-      setMeasureVer((v) => v + 1);
-    }
+    // Målingen er lagret og blir stående (også når verktøyet ikke er valgt) til brukeren trykker Nullstill.
+    if (measuring) m.mode = props.tool === 'area' ? 'area' : 'distance';
+    if (m.finished && m.pts.length < (m.mode === 'area' ? 3 : 2)) m.finished = false;
+    m.cursor = null;
+    m.snap = null;
+    setSnapState(null);
+    drawMeasure();
+    drawLive();
+    persistMeasure();
+    setMeasureVer((v) => v + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.tool]);
 
@@ -360,10 +415,45 @@ export default function MapView(props: Props) {
     m.pts = [];
     m.finished = false;
     m.cursor = null;
+    m.snap = null;
+    setSnapState(null);
     lastClick.current = null;
     m.group.clearLayers();
     m.live.clearLayers();
+    clearStoredMeasure('2d');
     setMeasureVer((v) => v + 1);
+  }
+
+  /** Lagrer målingen i nettleseren etter hver endring. Uten punkter fjernes den lagrede målingen. */
+  function persistMeasure() {
+    const m = measure.current;
+    if (!m) return;
+    try {
+      saveMeasure({
+        mode: m.mode,
+        finished: m.finished,
+        pts: m.pts.map((ll) => {
+          const a = ll as L.LatLng & { alt?: number; fix?: boolean };
+          return { lat: ll.lat, lng: ll.lng, z: typeof a.alt === 'number' ? a.alt : null, fix: a.fix === true };
+        }),
+      }, '2d');
+    } catch { /* lagring er ikke kritisk */ }
+  }
+
+  /** Nærmeste hjørne eller kant på IFC og tegninger, hvis snapping er på og Alt ikke holdes inne */
+  function snapTo(ll: L.LatLng, ev?: unknown): SnapResult2d | null {
+    const map = mapRef.current;
+    const idx = snapIndex.current;
+    if (!map || !idx || !snapOnRef.current || (ev as { altKey?: boolean } | null | undefined)?.altKey) return null;
+    try {
+      const p0 = map.latLngToContainerPoint(ll);
+      const dLat = 1e-4;
+      const pLat = map.latLngToContainerPoint(L.latLng(ll.lat + dLat, ll.lng));
+      const pLng = map.latLngToContainerPoint(L.latLng(ll.lat, ll.lng + dLat));
+      const pxPerLat = Math.abs(pLat.y - p0.y) / dLat, pxPerLng = Math.abs(pLng.x - p0.x) / dLat;
+      if (!(pxPerLat > 0) || !(pxPerLng > 0)) return null;
+      return snapPlanar(idx, { lat: ll.lat, lng: ll.lng }, { pxPerLat, pxPerLng });
+    } catch { return null; }
   }
 
   function addMeasurePoint(ll: L.LatLng, ev?: unknown) {
@@ -374,16 +464,20 @@ export default function MapView(props: Props) {
     // Det avgjøres her og ikke av «dblclick», som kommer i ulik rekkefølge og på mobil ofte ikke i det hele tatt. Uten dette kunne
     // det siste klikket etter en avsluttet måling starte en ny måling på det samme punktet.
     const pt = map.latLngToContainerPoint(ll);
+    const snapped = snapTo(ll, ev);
     const here: ClickMemo = { t: performance.now(), x: pt.x, y: pt.y, touch: isTouchEvent(ev) };
     const second = isDoubleClick(lastClick.current, here);
     lastClick.current = here;
     if (second) { finishMeasure(false); return; }
     // Etter en avsluttet måling starter neste klikk en helt ny måling
     if (m.finished) { m.pts = []; m.finished = false; }
-    m.pts.push(ll);
-    m.cursor = ll;
+    m.pts.push(snapped ? L.latLng(snapped.lat, snapped.lng) : ll);
+    m.cursor = null; // strek til pekeren vises igjen ved neste musebevegelse
+    m.snap = null;
+    setSnapState(null);
     drawMeasure();
     drawLive();
+    persistMeasure();
     setMeasureVer((v) => v + 1);
   }
 
@@ -395,6 +489,7 @@ export default function MapView(props: Props) {
     lastClick.current = null;
     drawMeasure();
     drawLive();
+    persistMeasure();
     setMeasureVer((v) => v + 1);
   }
 
@@ -408,9 +503,10 @@ export default function MapView(props: Props) {
       const b = map.latLngToContainerPoint(m.pts[m.pts.length - 2]);
       if (a.distanceTo(b) < 5) m.pts.pop();
     }
-    const need = propsRef.current.tool === 'area' ? 3 : 2;
+    const need = m.mode === 'area' ? 3 : 2;
     if (m.pts.length >= need) { m.finished = true; m.live.clearLayers(); }
     drawMeasure();
+    persistMeasure();
     setMeasureVer((v) => v + 1);
   }
 
@@ -423,7 +519,7 @@ export default function MapView(props: Props) {
     const n = m.pts.length;
     if (!n) return;
     const p = propsRef.current;
-    const mode: MeasureMode = p.tool === 'area' ? 'area' : 'distance';
+    const mode: MeasureMode = m.mode;
     const { crs, mpts } = toMeters(m.pts, p.projectCrs);
     const s = summarize(mode, mpts);
     const base = { pane: 'measurePane', interactive: false } as const;
@@ -458,9 +554,14 @@ export default function MapView(props: Props) {
     const m = measure.current;
     if (!m) return;
     m.live.clearLayers();
-    if (m.finished || !m.cursor || !m.pts.length) return;
     const p = propsRef.current;
     if (p.tool !== 'distance' && p.tool !== 'area') return;
+    if (m.snap) {
+      const k = m.snap.kind;
+      L.marker([m.snap.lat, m.snap.lng], { pane: 'measurePane', interactive: false, keyboard: false, zIndexOffset: 1000,
+        icon: L.divIcon({ className: 'snap-icon', html: `<div class="snap-mark ${k} on"><b>${SNAP_LABEL[k]}</b></div>`, iconSize: [0, 0] }) }).addTo(m.live);
+    }
+    if (m.finished || !m.cursor || !m.pts.length) return;
     const last = m.pts[m.pts.length - 1];
     const dash = { pane: 'measurePane', interactive: false, color: ORANGE, weight: 2.5, dashArray: '6 6' } as const;
     L.polyline([last, m.cursor], dash).addTo(m.live);
@@ -473,12 +574,17 @@ export default function MapView(props: Props) {
     L.marker(m.cursor, { pane: 'measurePane', interactive: false, keyboard: false, icon: labelIcon(text, 'live') }).addTo(m.live);
   }
 
-  function liveMove(ll: L.LatLng) {
+  function liveMove(ll: L.LatLng, ev?: unknown) {
     const m = measure.current;
     const t = propsRef.current.tool;
     if (!m || (t !== 'distance' && t !== 'area')) return;
-    m.cursor = ll;
-    if (!m.pts.length || m.finished || liveFrame.current) return;
+    const sn = snapTo(ll, ev);
+    m.snap = sn;
+    m.cursor = sn ? L.latLng(sn.lat, sn.lng) : ll;
+    const label = sn ? SNAP_LABEL[sn.kind] : null;
+    setSnapState((cur) => (cur === label ? cur : label));
+    if ((!m.pts.length || m.finished) && !sn) { m.live.clearLayers(); return; }
+    if (liveFrame.current) return;
     liveFrame.current = requestAnimationFrame(() => { liveFrame.current = 0; drawLive(); });
   }
 
@@ -491,6 +597,21 @@ export default function MapView(props: Props) {
     return { summary: summarize(measureMode, mpts), crs, finished: m.finished };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measuring, measureMode, measureVer, props.projectCrs]);
+  // Lagret måling når verktøyet ikke er i bruk
+  const storedView = useMemo(() => {
+    const m = measure.current;
+    if (measuring || !m || !m.pts.length) return null;
+    const { mpts } = toMeters(m.pts, props.projectCrs);
+    return { mode: m.mode, summary: summarize(m.mode, mpts), finished: m.finished };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measuring, measureVer, props.projectCrs]);
+  const toggleSnap = (on: boolean) => {
+    saveSnap(on);
+    setSnapOn(on);
+    const m = measure.current;
+    if (m) { m.snap = null; drawLive(); }
+    setSnapState(null);
+  };
 
   return (
     <div className="map-wrap">
@@ -501,11 +622,23 @@ export default function MapView(props: Props) {
           summary={measureView.summary}
           crsLabel={crsName(measureView.crs)}
           finished={measureView.finished}
+          snap={snapOn}
+          onSnap={toggleSnap}
+          snapState={snapState}
           onMode={(mm) => props.onTool(mm)}
           onUndo={undoMeasurePoint}
           onFinish={() => finishMeasure(false)}
           onClear={clearMeasure}
           onClose={() => props.onTool('select')}
+        />
+      )}
+      {storedView && (
+        <MeasureChip
+          mode={storedView.mode}
+          summary={storedView.summary}
+          finished={storedView.finished}
+          onOpen={() => props.onTool(storedView.mode)}
+          onClear={clearMeasure}
         />
       )}
       {props.tool === 'place' && (

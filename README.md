@@ -112,6 +112,8 @@ src/
     db.ts              Lagring i nettleseren (IndexedDB)
     crs.ts             Koordinatsystemer (EUREF89 UTM 32/33/35, NTM 5–30) med proj4
     measure.ts         Måling: lengde, areal, stigning og formatering (felles for kart og 3D)
+    snap.ts            Snapping: hjørner/kanter/flater på IFC (3D) og hjørner/kanter i tegninger (2D)
+    measureStore.ts    Mellomlagring av målingen i nettleseren (deles av kart og Terreng 3D)
     photos.ts          EXIF og gjenkjenning av 360-bilder
     dxf.ts             DXF → kartgeometri (inkl. blokker, buer, høyder)
     ortho.ts           GeoTIFF → reprojisert bilde (Web Mercator)
@@ -119,6 +121,7 @@ src/
   components/
     MapView.tsx        Leaflet-kartet, markører, DXF-lag, måling
     MeasurePanel.tsx   Målepanel (felles for kart og Terreng 3D)
+    MeasureChip.tsx    Liten «Lagret måling»-boks når måleverktøyet ikke er i bruk
     Terrain3D.tsx      Terreng 3D (MapLibre + three.js): terreng, ortofoto, IFC, bilder, måling
     LayerTree.tsx      Mappestruktur med avkrysning
     InfoPanel.tsx      Objektinformasjon
@@ -267,3 +270,14 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 - **Prosjektfiler** har kolonnene **Navn, Type, Sist endret, Versjon, Beskrivelse og Endret av** (etterfulgt av Mappe, Størrelse og I kartet). Klikk på en kolonneoverskrift for å sortere. Klikk i **Beskrivelse** eller **Versjon** for å redigere (Enter lagrer, Esc avbryter). Sist endret og Endret av oppdateres da.
   - Filer fra Google Disk får Disk-datoen, beskrivelsen og navnet til den som sist endret filen der. Filer fra datamaskinen får filens egen dato. «Endret av» er navnet du skriver under **Innstillinger → Ditt navn**, ellers navnet på innlogget Google-bruker. Eldre filer får versjon 1 og opprettelsestidspunktet.
 - **Felles statusfelt:** Fremdriften for nedlasting og opplasting (demodata, Google Disk, opplasting av filer) vises nederst i alle visninger (Kart, Bilder, Prosjektfiler, Terreng 3D og Innstillinger). Opplastings- og Disk-dialogene har **Skjul – fortsetter i bakgrunnen**, så du kan bytte visning mens det pågår. Feil blir stående til du lukker dem.
+
+## Snapping til IFC og lagring av målinger (v 4.5)
+- **Snapping til 3D-objekter:** Under måling i **Terreng 3D** snapper markøren til IFC-modellen. Den prøver først **hjørne** (firkantet markør, innen 12 piksler), så **kant** (rund markør, innen 9 piksler) og ellers punkt på **flaten** (liten rund markør). Markøren og panelet viser hva du snapper til. Det snappede punktet får **høyden fra IFC-modellen** (ikke terrenghøyde), så skrå lengde og høydeforskjell blir riktige mellom f.eks. to takhjørner. Mellom snappede punkter tegnes også en tynn 3D-linje med riktige høyder (selve målelinjen på kartet ligger fortsatt på bakken).
+  - Bare «ekte» kanter snappes til (ytterkanter og knekk over 28°). Skjøtene som deler en plan flate i trekanter hoppes over.
+  - Like utenfor modellens silhuett finnes hjørner og kanter likevel, så du trenger ikke treffe flaten nøyaktig.
+- **Snapping i kartet (2D):** Markøren snapper til hjørner og kanter i synlige tegninger (DXF, KOF, SOSI, LandXML og IFC-omriss). Skjulte filer og skjulte lag hoppes over.
+- **Av og på:** Avkrysningsboksen **Snap til objekter** i målepanelet slår snapping av og på (valget huskes). Hold inne **Alt** for å snappe av midlertidig.
+- **Målingen lagres underveis:** Hvert punkt, hver angring og hver avslutning lagres straks i nettleseren. Målingen blir stående når du lukker måleverktøyet, bytter mellom Kart og Terreng 3D (de deler samme måling) eller laster siden på nytt, helt til du trykker **Nullstill**. Når verktøyet ikke er i bruk, vises en liten boks nederst i kartet («Lagret avstandsmåling: …») med **Åpne** og **Nullstill**.
+  - Bytter du mellom Avstand og Areal, beholdes punktene (også i en ferdig måling). Et nytt klikk i en ferdig måling starter en ny måling og erstatter den lagrede.
+  - Målingen lagres i nettleseren på denne maskinen (localStorage), ikke på Google Disk, og er ikke delt med andre.
+- **Målepanelet i 2D-kartet** står nå øverst til venstre, så det ikke lenger kan dekkes av verktøylinjen på smalere skjermer.

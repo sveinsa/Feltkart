@@ -14,6 +14,13 @@ interface Props {
   note?: string;
   /** Høyreklikk angrer siste punkt (gjelder 2D-kartet; i 3D brukes høyre museknapp til å rotere) */
   rightClickUndo?: boolean;
+  /** Snapping til objekter (IFC og tegninger). Utelates hvis visningen ikke støtter det. */
+  snap?: boolean;
+  onSnap?: (on: boolean) => void;
+  /** Hva markøren snapper til akkurat nå («Hjørne», «Kant», «Flate») */
+  snapState?: string | null;
+  /** Målingen er lagret og blir stående til du trykker Nullstill */
+  stored?: boolean;
   onMode: (m: MeasureMode) => void;
   onUndo: () => void;
   onFinish: () => void;
@@ -90,15 +97,22 @@ export default function MeasurePanel(p: Props) {
         )}
 
         {p.note && <div className="mp-note">{p.note}</div>}
+        {p.onSnap && (
+          <label className="mp-snap" title="Snapper til hjørner og kanter på IFC-modeller og tegninger. Hold inne Alt for å snappe midlertidig av.">
+            <input type="checkbox" checked={!!p.snap} onChange={(e) => p.onSnap!(e.target.checked)} />
+            <span>Snap til objekter</span>
+            {p.snap && p.snapState && <b className="mp-snap-now">{p.snapState}</b>}
+          </label>
+        )}
       </div>
 
       <div className="mp-actions">
         <button className="btn" disabled={s.count === 0} onClick={p.onUndo} title="Angre siste punkt (Backspace)">Angre</button>
         <button className="btn primary" disabled={finished || s.count < need} onClick={p.onFinish} title="Fullfør målingen (Enter eller dobbeltklikk)">Fullfør</button>
-        <button className="btn" disabled={s.count === 0} onClick={p.onClear} title="Fjern målingen og start på nytt">Nullstill</button>
+        <button className="btn" disabled={s.count === 0} onClick={p.onClear} title="Fjern målingen, også den lagrede kopien">Nullstill</button>
         <button className="btn" disabled={rows.length === 0} onClick={copy} title="Kopier resultatet som tekst">{copied ? 'Kopiert' : 'Kopier'}</button>
       </div>
-      <div className="mp-foot">Enter fullfører · {p.rightClickUndo === false ? 'Backspace' : 'Backspace/høyreklikk'} angrer · Esc avslutter<br />Regnet i {p.crsLabel}</div>
+      <div className="mp-foot">{p.stored !== false && s.count > 0 ? 'Målingen lagres underveis og blir stående til du trykker Nullstill.' : ''}{p.stored !== false && s.count > 0 && <br />}Enter fullfører · {p.rightClickUndo === false ? 'Backspace' : 'Backspace/høyreklikk'} angrer · Esc avslutter<br />Regnet i {p.crsLabel}</div>
     </div>
   );
 }
