@@ -10,6 +10,7 @@ import MediaViewer from './components/MediaViewer';
 import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/PhotosPanel';
 import ProjectFiles from './components/ProjectFiles';
 import WelcomeDemo from './components/WelcomeDemo';
+import DemoProgress from './components/DemoProgress';
 import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
@@ -40,7 +41,7 @@ export default function App() {
   const [upload, setUpload] = useState<{ files: File[] } | null>(null);
   const [driveOpen, setDriveOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
-  const [demo, setDemo] = useState<{ busy: boolean; msg: string; error: string | null }>({ busy: false, msg: '', error: null });
+  const [demo, setDemo] = useState<{ busy: boolean; msg: string; pct: number; startedAt: number; error: string | null }>({ busy: false, msg: '', pct: 0, startedAt: 0, error: null });
   const demoStarted = useRef(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
@@ -65,13 +66,13 @@ export default function App() {
 
   // ---------- Demodata fra Google Disk (lastes automatisk når kartet er tomt) ----------
   const startDemo = useCallback(async () => {
-    setDemo({ busy: true, msg: 'Starter …', error: null });
+    setDemo({ busy: true, msg: 'Starter …', pct: 1, startedAt: Date.now(), error: null });
     try {
-      const r = await loadDemoData(project, googleConfig(project), (msg) => setDemo((d) => ({ ...d, msg })), { replace: true });
-      setDemo({ busy: false, msg: '', error: r.message || null });
+      const r = await loadDemoData(project, googleConfig(project), (msg, pct) => setDemo((d) => ({ ...d, msg, pct: pct !== undefined ? Math.max(d.pct, pct) : d.pct })), { replace: true });
+      setDemo((d) => ({ ...d, busy: false, msg: '', error: r.message || null }));
       if (r.added) { showToast(`${r.added} demoelement(er) lastet inn`); if (r.bounds) fitTo(r.bounds, 19); }
     } catch (e: any) {
-      setDemo({ busy: false, msg: '', error: String(e?.message ?? e) });
+      setDemo((d) => ({ ...d, busy: false, msg: '', error: String(e?.message ?? e) }));
     }
   }, [project, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -91,7 +92,7 @@ export default function App() {
     setPhotoType('all'); setOffFolders(new Set());
     setPlacingId(null); setViewerId(null);
     setView((v) => (v === 'photos' || v === 'gallery' ? 'map' : v));
-    setDemo((d) => (d.busy ? d : { busy: false, msg: '', error: null }));
+    setDemo((d) => (d.busy ? d : { ...d, busy: false, msg: '', pct: 0, error: null }));
   }, [ready, items.length]);
 
   const photos = useMemo(
@@ -398,9 +399,8 @@ export default function App() {
             </div>
 
             {demo.busy && (
-              <div className={items.length === 0 ? 'map-empty' : 'demo-banner'}>
-                <strong>Laster demodata … kan ta litt tid ☕</strong>
-                {demo.msg && <span className="muted small">{demo.msg}</span>}
+              <div className={items.length === 0 ? 'map-empty demo-progress-box' : 'demo-banner demo-progress-box'}>
+                <DemoProgress pct={demo.pct} msg={demo.msg} startedAt={demo.startedAt} />
               </div>
             )}
 

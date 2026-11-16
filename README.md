@@ -212,3 +212,6 @@ Ortofoto uten alfakanal (f.eks. JPEG-komprimert GeoTIFF/COG uten gjennomsiktighe
 
 ## Bakgrunnskart: «Norge i bilder» (v 3.7)
 Norge i bilder er ikke lenger en åpen kartflis-tjeneste hos Kartverket/Geonorge (den krever nå pålogging), så den er tatt ut. Ortofoto-bakgrunn er nå **Esri verdensbilder**. Har du tilgang til en annen tjeneste, legg inn en XYZ-adresse (`.../{z}/{x}/{y}.jpg`) under Innstillinger → Egen bakgrunn (ortofoto). Den vises da under «Ortofoto» i bakgrunnsvelgeren.
+
+## Fremdrift ved demodata (v 3.8)
+Innlasting av demodata viser en statuslinje med prosent og klokke (tid brukt, forventet ca. 1 min 10 s) og en kaffekopp med rykende damp. Fremdriften er reell: skanning, nedlasting (per fil) og behandling (veid etter filstørrelse, siden ortofoto tar lengst tid).

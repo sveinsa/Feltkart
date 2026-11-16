@@ -474,3 +474,21 @@ body.picking .modal-back { visibility: hidden; }
 .rail button.rail-reset:hover { background: #fbeceb; color: var(--danger, #c0392b); }
 .rail button.rail-reset svg { margin-top: -6px; }
 .rail-beta.warn { color: var(--danger, #c0392b); background: #fbeceb; bottom: 2px; }
+
+/* ---------- Fremdrift demodata + kaffekopp ---------- */
+.dp { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 280px; }
+.dp-title { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 15px; }
+.dp-bar { height: 10px; border-radius: 999px; background: #e3e8e5; overflow: hidden; position: relative; }
+.dp-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-2)); transition: width 0.6s ease; position: relative; overflow: hidden; }
+.dp-fill::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent); transform: translateX(-100%); animation: dp-shine 1.6s infinite; }
+@keyframes dp-shine { to { transform: translateX(100%); } }
+.dp-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dp-msg { font-size: 11.5px; color: var(--muted); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
+.demo-progress-box { max-width: 420px; }
+.demo-banner.demo-progress-box { border-radius: 14px; padding: 12px 20px; top: 14px; max-width: 420px; }
+.coffee { color: var(--brand); overflow: visible; flex: none; }
+.coffee .steam { fill: none; stroke: #9aa7a0; stroke-width: 1.8; stroke-linecap: round; opacity: 0; animation: steam 2.4s infinite ease-in-out; }
+.coffee .s2 { animation-delay: 0.8s; }
+.coffee .s3 { animation-delay: 1.6s; }
+@keyframes steam { 0% { opacity: 0; transform: translateY(4px) scaleY(0.8); } 30% { opacity: 0.9; } 100% { opacity: 0; transform: translateY(-6px) scaleY(1.15); } }
+@media (prefers-reduced-motion: reduce) { .coffee .steam, .dp-fill::after { animation: none; } .coffee .steam { opacity: 0.7; } }

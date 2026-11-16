@@ -62,7 +62,7 @@ async function mapLimit<T>(items: T[], limit: number, fn: (x: T, i: number) => P
 }
 
 /** Henter demodata (fra egen mappe i nettstedet hvis den finnes, ellers Google Disk) og legger alt i kartet. */
-export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgress: (msg: string) => void, opts: { replace?: boolean } = {}): Promise<DemoResult> {
+export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgress: (msg: string, pct?: number) => void, opts: { replace?: boolean } = {}): Promise<DemoResult> {
   const local = await localDemoFiles();
   const key = cfg.apiKey || DEMO_API_KEY;
   if (!local && !key) throw new Error('Demodata krever en Google API-nøkkel. Lim den inn i src/lib/demo.ts (DEMO_API_KEY) eller under Innstillinger → Google.');
@@ -78,8 +78,8 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
       for (const f of remote) if (!have.has([...f.path, f.name].join('/').toLowerCase())) list.push(f);
     }
   } else {
-    onProgress('Skanner demomappen …');
-    list = (await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => onProgress(`Skanner demomappen … ${n} filer i ${d} mapper`))) as DemoFile[];
+    onProgress('Skanner demomappen …', 2);
+    list = (await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => onProgress(`Skanner demomappen … ${n} filer i ${d} mapper`, 3))) as DemoFile[];
   }
   const usable = list.filter((f) => supportedDriveFile(f.name, f.mimeType));
   if (!usable.length) throw new Error(`Fant ${list.length} filer i demomappen, men ingen bilder, DXF/KOF/SOSI/LandXML/IFC eller ortofoto.`);
@@ -118,7 +118,8 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
       errCount.set(m, (errCount.get(m) ?? 0) + 1);
       failed++;
     } finally {
-      onProgress(`Henter demodata ${++done} av ${all.length} …`);
+      ++done;
+      onProgress(`Henter demodata ${done} av ${all.length} …`, 5 + (40 * done) / all.length);
     }
   });
   const errs = [...errCount.entries()].map(([m, n]) => (n > 1 ? `${m} (${n} filer)` : m));
@@ -139,7 +140,23 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
     const d = all.find((x) => x.id === m.driveId);
     if (d && d.path.length) m.folderId = project.ensureFolderPath(d.path);
   }
-  const r = await project.upload(files, 'auto', project.settings!.projectCrs, onProgress, { meta, stream: false });
+  // Fremdrift under behandling: veid etter filstørrelse (store ortofoto tar lengst tid)
+  const bytes = new Map(files.map((f) => [f.name, Math.max(f.size, 20_000)] as const));
+  const totalBytes = [...bytes.values()].reduce((a, b) => a + b, 0) || 1;
+  let curName = '';
+  let doneBytes = 0;
+  const processing = (msg: string) => {
+    const m = /^\((\d+)\/(\d+)\) (.+?): /.exec(msg);
+    if (m && m[2] !== undefined && m[3] !== curName) {
+      if (curName) doneBytes += bytes.get(curName) ?? 0;
+      curName = m[3];
+    }
+    const sub = /(\d+) %/.exec(msg); // «Reprojiserer … 40 %»
+    const cur = (bytes.get(curName) ?? 0) * (sub ? Math.min(1, Number(sub[1]) / 100) * 0.6 : 0);
+    onProgress(msg, 45 + (53 * Math.min(1, (doneBytes + cur) / totalBytes)));
+  };
+  const r = await project.upload(files, 'auto', project.settings!.projectCrs, processing, { meta, stream: false });
+  onProgress('Ferdig', 100);
   r.failed.forEach((x) => errs.push(`${x.name}: ${x.reason}`));
   tidyDefaults(project, r.added, removed);
   return { added: r.added.length, bounds: r.bounds, message: errs.join(' ') };
