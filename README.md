@@ -179,3 +179,8 @@ Ortofoto lagres i nettleseren med opptil 6144 piksler på lengste side (4096 på
 
 ## Ortofoto – hastighet (v 2.8)
 GeoTIFF avkodes nå med flere arbeidstråder (geotiff `Pool`), og fremdriften viser sekunder. Komprimerte TIFF-er er tregest; hvis det fortsatt tar lang tid, eksporter fra drone-programvaren som *tiled GeoTIFF med overviews (COG)* – da bruker Feltkart de innebygde oversiktsbildene og lastingen går på noen sekunder.
+
+## Faner og bildevisning (v 2.9)
+- Toppmeny: **Kart**, **Bilder**, **Prosjektfiler**, **Innstillinger**.
+- **Bilder** (også knappen med rutenett-ikonet til venstre) viser kartet med et bildepanel: filtrer på type (Foto / 360°), dato (fra–til, hurtigvalg, sortering nyeste/eldste først) og hvilke mapper som skal vise bilder. Klikk et miniatyrbilde for å zoome til det i kartet, dobbeltklikk for å åpne det i visning. «Rutenett» gir den store bildeoversikten.
+- **Prosjektfiler** er en filoversikt: mapper til venstre, tabell med alle filer til høyre (type, mappe, størrelse, dato, vis/skjul i kart, zoom, slett).

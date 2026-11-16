@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react';
 import type { PhotoItem } from '../types';
-import { IconSearch } from './icons';
+import { IconMap, IconSearch } from './icons';
 
 interface Props {
   photos: PhotoItem[];
   onOpen: (id: string) => void;
   onShowOnMap: (id: string) => void;
+  onBack?: () => void;
 }
 
 const monthFmt = new Intl.DateTimeFormat('nb-NO', { month: 'long', year: 'numeric' });
 
-export default function Gallery({ photos, onOpen, onShowOnMap }: Props) {
+export default function Gallery({ photos, onOpen, onShowOnMap, onBack }: Props) {
   const [q, setQ] = useState('');
   const [kind, setKind] = useState<'all' | 'photo' | 'pano'>('all');
   const [from, setFrom] = useState('');
@@ -35,6 +36,7 @@ export default function Gallery({ photos, onOpen, onShowOnMap }: Props) {
   return (
     <div className="gallery">
       <div className="gallery-filters">
+        {onBack && <button className="btn primary" onClick={onBack}><IconMap size={16} /> Kartvisning</button>}
         <div className="search-box"><IconSearch size={15} /><input placeholder="Søk i filnavn og notater" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div className="seg">
           {(['all', 'photo', 'pano'] as const).map((k) => (

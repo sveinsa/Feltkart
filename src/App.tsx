@@ -7,6 +7,8 @@ import BasemapPicker from './components/BasemapPicker';
 import InfoPanel from './components/InfoPanel';
 import UploadDialog from './components/UploadDialog';
 import MediaViewer from './components/MediaViewer';
+import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/PhotosPanel';
+import ProjectFiles from './components/ProjectFiles';
 import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
@@ -20,7 +22,7 @@ import {
   IconArea, IconCalendar, IconEdit, IconFolder, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconUpload,
 } from './components/icons';
 
-type View = 'map' | 'gallery' | 'settings';
+type View = 'map' | 'photos' | 'gallery' | 'files' | 'settings';
 type Panel = 'tree' | 'basemap' | null;
 
 export default function App() {
@@ -43,6 +45,9 @@ export default function App() {
   const [dateOpen, setDateOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [photoType, setPhotoType] = useState<PhotoTypeFilter>('all');
+  const [photoSort, setPhotoSort] = useState<PhotoSort>('new');
+  const [offFolders, setOffFolders] = useState<Set<string>>(() => new Set());
   const [coord, setCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [globalDrag, setGlobalDrag] = useState(false);
@@ -88,10 +93,19 @@ export default function App() {
   }, [photos]);
   const dateActive = !!(dateFrom || dateTo);
   const inDateRange = useCallback((p: PhotoItem) => (!dateFrom || dayOf(p) >= dateFrom) && (!dateTo || dayOf(p) <= dateTo), [dateFrom, dateTo]);
-  const mapItems = useMemo(
-    () => (dateActive ? items.filter((i) => !(i.kind === 'photo' || i.kind === 'pano') || inDateRange(i)) : items),
-    [items, dateActive, inDateRange],
-  );
+  // Type- og mappefilter gjelder i bildevisningen; datofilteret gjelder overalt
+  const photoMode = view === 'photos';
+  const mapItems = useMemo(() => {
+    const isPhoto = (i: Item) => i.kind === 'photo' || i.kind === 'pano';
+    const extra = photoMode && (photoType !== 'all' || offFolders.size > 0);
+    if (!dateActive && !extra) return items;
+    return items.filter((i) => {
+      if (!isPhoto(i)) return true;
+      if (!inDateRange(i as PhotoItem)) return false;
+      if (extra && ((photoType !== 'all' && i.kind !== photoType) || offFolders.has(i.folderId))) return false;
+      return true;
+    });
+  }, [items, dateActive, inDateRange, photoMode, photoType, offFolders]);
   const shownPhotos = useMemo(() => photos.filter(inDateRange).length, [photos, inDateRange]);
   const isoDay = (offset: number) => { const d = new Date(); d.setDate(d.getDate() - offset); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
   const setRange = (from: string, to: string) => { setDateFrom(from); setDateTo(to); };
@@ -113,7 +127,7 @@ export default function App() {
   const zoomToItem = useCallback((id: string) => {
     const it = items.find((i) => i.id === id);
     if (!it) return;
-    setView('map');
+    setView((v) => ((v === 'photos' || v === 'gallery') && (it.kind === 'photo' || it.kind === 'pano') ? 'photos' : 'map'));
     fitTo(boundsOf(it), it.kind === 'photo' || it.kind === 'pano' ? 19 : 20);
   }, [items, boundsOf, fitTo]);
 
@@ -221,14 +235,15 @@ export default function App() {
         </div>
         <nav className="topnav">
           <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')}>Kart</button>
-          <button className={view === 'gallery' ? 'on' : ''} onClick={() => setView('gallery')}>Bilder</button>
+          <button className={view === 'photos' || view === 'gallery' ? 'on' : ''} onClick={() => setView('photos')}>Bilder</button>
+          <button className={view === 'files' ? 'on' : ''} onClick={() => setView('files')}>Prosjektfiler</button>
           <button className={view === 'settings' ? 'on' : ''} onClick={() => setView('settings')}>Innstillinger</button>
         </nav>
         <div className="topbar-right">
           <button className="project-pill" onClick={() => setView('settings')} title="Prosjektinnstillinger">
-            <IconEdit size={14} /> {settings.projectName}
+            <IconEdit size={14} /> {settings.projectName} <span className="beta-tag">beta</span>
           </button>
-          <button className="btn" onClick={() => setSyncOpen(true)} title="Hent fra og last opp til Google Disk-mappen"><IconFolder size={16} /> Google Disk</button>
+          <button className="btn" onClick={() => setSyncOpen(true)} title="Hent fra og last opp til Google Disk-mappen"><IconFolder size={16} /> Google Disk <span className="beta-tag">beta</span></button>
           <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp</button>
         </div>
       </header>
@@ -239,13 +254,31 @@ export default function App() {
             onClick={() => { setView('map'); setPanel(panel === 'tree' && view === 'map' ? null : 'tree'); }}><IconLayers size={20} /></button>
           <button className={view === 'map' && panel === 'basemap' ? 'on' : ''} title="Bakgrunnskart"
             onClick={() => { setView('map'); setPanel(panel === 'basemap' && view === 'map' ? null : 'basemap'); }}><IconMap size={20} /></button>
-          <button className={view === 'gallery' ? 'on' : ''} title="Bilder" onClick={() => setView('gallery')}><IconGrid size={20} /></button>
+          <button className={view === 'photos' || view === 'gallery' ? 'on' : ''} title="Bilder i kart" onClick={() => setView('photos')}><IconGrid size={20} /></button>
           <button title="Last opp" onClick={() => setUpload({ files: [] })}><IconUpload size={20} /></button>
           <button title="Google Disk-mappe" onClick={() => setSyncOpen(true)}><IconFolder size={20} /></button>
           <div className="rail-spacer" />
           <button className={view === 'settings' ? 'on' : ''} title="Innstillinger" onClick={() => setView('settings')}><IconSettings size={20} /></button>
         </nav>
 
+        {view === 'photos' && (
+          <aside className="side-panel wide">
+            <PhotosPanel
+              photos={photos}
+              folders={project.folders}
+              selectedId={selection?.type === 'item' ? selection.id : null}
+              type={photoType} onType={setPhotoType}
+              sort={photoSort} onSort={setPhotoSort}
+              dateFrom={dateFrom} dateTo={dateTo} onRange={setRange}
+              offFolders={offFolders}
+              onToggleFolder={(id, on) => setOffFolders((s0) => { const n = new Set(s0); if (on) n.delete(id); else n.add(id); return n; })}
+              onSetFolders={(ids) => setOffFolders(new Set(ids))}
+              onPick={(ph) => { if (ph.lat !== null) openItem(ph.id); else setViewerId(ph.id); }}
+              onOpenViewer={setViewerId}
+              onGrid={() => setView('gallery')}
+            />
+          </aside>
+        )}
         {view === 'map' && panel && (
           <aside className="side-panel">
             {panel === 'tree' && <LayerTree project={project} selection={selection} onOpenItem={openItem} />}
@@ -259,7 +292,7 @@ export default function App() {
         )}
 
         <main className="main">
-          <div className="map-host" style={{ visibility: view === 'map' ? 'visible' : 'hidden' }}>
+          <div className="map-host" style={{ visibility: view === 'map' || view === 'photos' ? 'visible' : 'hidden' }}>
             <MapView
               items={mapItems}
               dxf={dxf}
@@ -367,7 +400,11 @@ export default function App() {
           </div>
 
           {view === 'gallery' && (
-            <Gallery photos={photos} onOpen={setViewerId} onShowOnMap={(id) => { setSelection({ type: 'item', id }); zoomToItem(id); }} />
+            <Gallery photos={photos} onBack={() => setView('photos')} onOpen={setViewerId} onShowOnMap={(id) => { setSelection({ type: 'item', id }); zoomToItem(id); }} />
+          )}
+          {view === 'files' && (
+            <ProjectFiles project={project} onZoomTo={zoomToItem} onOpenViewer={setViewerId}
+              onUpload={() => setUpload({ files: [] })} onDrive={() => setSyncOpen(true)} />
           )}
           {view === 'settings' && <SettingsView project={project} />}
         </main>
