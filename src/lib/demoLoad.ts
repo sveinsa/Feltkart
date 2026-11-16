@@ -1,4 +1,5 @@
 import type { Project } from '../state';
+import type { Item } from '../types';
 import { fetchDriveBlob, listFolderFiles, type GoogleConfig } from './google';
 import { isOrthoFile } from './ortho';
 import { isWorldFile } from './jp2';
@@ -26,7 +27,7 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
   const list = await listFolderFiles(dcfg, DEMO_FOLDER_ID, (n, d) => onProgress(`Skanner demomappen … ${n} filer i ${d} mapper`));
   const usable = list.filter((f) => supportedDriveFile(f.name, f.mimeType));
   if (!usable.length) throw new Error(`Fant ${list.length} filer i demomappen, men ingen bilder, DXF/KOF/SOSI/LandXML/IFC eller ortofoto.`);
-  // Demodata legges i standardmappene (Bilder, 360-bilder, Prosjektert, Innmålinger, Ortofoto) – ikke i Disk-mappenes struktur.
+  // Mappestrukturen i kartet speiler mappene i demomappen på Google Disk (f.eks. 01 Foto, 02 Innmåling, 03 Prosjektert, 04 Ortofoto).
   // «replace»: tidligere innlastet demodata fjernes, men først når nye filer er hentet (slik at man aldri står uten data ved feil).
   const usableIds = new Set(usable.map((f) => f.id));
   const have = new Set(opts.replace ? [] : project.items.map((i) => i.driveId).filter(Boolean) as string[]);
@@ -59,20 +60,54 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
   const errs = [...errCount.entries()].map(([m, n]) => (n > 1 ? `${m} (${n} filer)` : m));
   if (!files.length) throw new Error(errs.join(' ') || 'Ingen filer kunne hentes.');
 
+  const removed = new Set<string>();
   if (opts.replace) {
     const old = project.items.filter((i) => i.driveId && usableIds.has(i.driveId));
-    const oldIds = new Set(old.map((i) => i.id));
-    old.forEach((i) => project.deleteItem(i.id));
-    // Fjern tomme undermapper som tidligere demoinnlasting kan ha opprettet (Disk-mappenavn)
-    const segs = new Set(usable.flatMap((f) => f.path.map((p) => p.toLowerCase())));
-    const keep = new Set(Object.values(project.settings?.defaultFolders ?? {}));
-    const remaining = project.items.filter((i) => !oldIds.has(i.id));
-    const used = (id: string): boolean => remaining.some((i) => i.folderId === id) || project.folders.some((f) => f.parentId === id && used(f.id));
-    for (const f of project.folders) {
-      if (f.parentId !== null && !keep.has(f.id) && segs.has(f.name.toLowerCase()) && !used(f.id)) project.deleteFolder(f.id);
-    }
+    old.forEach((i) => { removed.add(i.id); project.deleteItem(i.id); });
+  }
+  // Opprett Disk-mappene i riktig rekkefølge (01, 02, 03 …) – eksisterende mapper med samme navn gjenbrukes
+  const paths = new Map<string, string[]>();
+  for (const d of all) if (d.path.length) paths.set(d.path.join('/'), d.path);
+  [...paths.values()]
+    .sort((a, b) => a.join('/').localeCompare(b.join('/'), 'nb', { numeric: true }))
+    .forEach((p) => project.ensureFolderPath(p));
+  for (const m of meta.values()) {
+    const d = all.find((x) => x.id === m.driveId);
+    if (d && d.path.length) m.folderId = project.ensureFolderPath(d.path);
   }
   const r = await project.upload(files, 'auto', project.settings!.projectCrs, onProgress, { meta, stream: false });
   r.failed.forEach((x) => errs.push(`${x.name}: ${x.reason}`));
+  tidyDefaults(project, r.added, removed);
   return { added: r.added.length, bounds: r.bounds, message: errs.join(' ') };
+}
+
+/** Gjør Disk-mappene til standardmapper for hver filtype, og fjern de tomme startmappene (Bilder, 360-bilder …). */
+function tidyDefaults(project: Project, added: Item[], removed: Set<string>) {
+  const st = project.settings;
+  if (!st || !added.length) return;
+  const mode = (ids: string[]) => {
+    const n = new Map<string, number>();
+    ids.forEach((i) => n.set(i, (n.get(i) ?? 0) + 1));
+    return [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  };
+  const pick = (f: (i: Item) => boolean) => mode(added.filter(f).map((i) => i.folderId));
+  const isSurvey = (i: Item) => i.kind === 'dxf' && (i.format === 'kof' || i.format === 'sosi' || i.format === 'landxml');
+  const photo = pick((i) => i.kind === 'photo');
+  const pano = pick((i) => i.kind === 'pano') ?? photo;
+  const dxf = pick((i) => i.kind === 'dxf' && !isSurvey(i));
+  const ortho = pick((i) => i.kind === 'ortho');
+  const survey = pick(isSurvey);
+  const old = Object.values(st.defaultFolders).filter(Boolean) as string[];
+  const next = {
+    ...st.defaultFolders,
+    ...(photo ? { photo } : {}), ...(pano ? { pano } : {}), ...(dxf ? { dxf } : {}), ...(ortho ? { ortho } : {}), ...(survey ? { survey } : {}),
+  };
+  project.updateSettings({ defaultFolders: next });
+  // Fjern gamle standardmapper som nå er tomme og ikke lenger er standard
+  const keep = new Set(Object.values(next).filter(Boolean) as string[]);
+  const remaining = project.items.filter((i) => !removed.has(i.id));
+  const used = (id: string): boolean => remaining.some((i) => i.folderId === id) || added.some((i) => i.folderId === id) || project.folders.some((f) => f.parentId === id && used(f.id));
+  for (const id of old) {
+    if (!keep.has(id) && !used(id)) project.deleteFolder(id);
+  }
 }

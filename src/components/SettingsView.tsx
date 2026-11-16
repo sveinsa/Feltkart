@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Project } from '../state';
 import { CRS_LIST } from '../lib/crs';
 
+import { IconGoogle } from './icons';
 import ResetDemoButton from './ResetDemoButton';
 
 export default function SettingsView({ project }: { project: Project }) {
@@ -73,7 +74,7 @@ export default function SettingsView({ project }: { project: Project }) {
         </div>
       </div>
 
-      <h3>Google Disk</h3>
+      <h3 className="g-title"><IconGoogle size={18} /> Google Disk <span className="beta-tag dark">beta</span></h3>
       <div className="card">
         <div className="field">
           <label>Client ID (OAuth, nettapplikasjon)</label>

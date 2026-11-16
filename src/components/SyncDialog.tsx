@@ -11,7 +11,7 @@ import { googleConfig } from './DriveDialog';
 import ResetDemoButton from './ResetDemoButton';
 import { DEMO_FOLDER_URL } from '../lib/demo';
 import { hasDemoKey, loadDemoData, supportedDriveFile } from '../lib/demoLoad';
-import { IconClose, IconFolder } from './icons';
+import { IconClose, IconFolder, IconGoogle } from './icons';
 
 interface Props {
   project: Project;
@@ -203,7 +203,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
     <div className="modal-back" style={pickerOpen ? { display: 'none' } : undefined} onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="modal sync">
         <div className="modal-head">
-          <h2>Google Disk-mappe</h2>
+          <h2 className="g-title"><IconGoogle size={20} /> Google Disk-mappe <span className="beta-tag dark">beta</span></h2>
           <button className="icon-btn" onClick={onClose} disabled={busy} aria-label="Lukk"><IconClose /></button>
         </div>
 

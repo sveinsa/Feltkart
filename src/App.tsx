@@ -9,6 +9,7 @@ import UploadDialog from './components/UploadDialog';
 import MediaViewer from './components/MediaViewer';
 import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/PhotosPanel';
 import ProjectFiles from './components/ProjectFiles';
+import WelcomeDemo from './components/WelcomeDemo';
 import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
@@ -19,7 +20,7 @@ import { hasDemoKey, loadDemoData } from './lib/demoLoad';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
 import {
-  IconArea, IconCalendar, IconEdit, IconFolder, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconUpload,
+  IconArea, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconUpload,
 } from './components/icons';
 
 type View = 'map' | 'photos' | 'gallery' | 'files' | 'settings';
@@ -41,6 +42,7 @@ export default function App() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [demo, setDemo] = useState<{ busy: boolean; msg: string; error: string | null }>({ busy: false, msg: '', error: null });
   const demoStarted = useRef(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
@@ -74,10 +76,10 @@ export default function App() {
 
   useEffect(() => {
     if (!ready || !settings || demoStarted.current) return;
-    // Starter av seg selv når prosjektet er tomt ved åpning (og det finnes en API-nøkkel)
+    // Når prosjektet er tomt ved åpning (og det finnes en API-nøkkel): vis velkomstboks med spørsmål om å laste demodata
     if (items.length > 0 || !hasDemoKey(googleConfig(project))) return;
     demoStarted.current = true;
-    void startDemo();
+    setWelcomeOpen(true); // spør først – lastingen starter når brukeren sier ja
   }, [ready, settings, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Når alt innhold er slettet (Nullstill demo): nullstill valg og filtre, og vis «Kom i gang»
@@ -254,7 +256,7 @@ export default function App() {
           <button className="project-pill" onClick={() => setView('settings')} title="Prosjektinnstillinger">
             <IconEdit size={14} /> {settings.projectName} <span className="beta-tag">beta</span>
           </button>
-          <button className="btn" onClick={() => setSyncOpen(true)} title="Hent fra og last opp til Google Disk-mappen"><IconFolder size={16} /> Google Disk <span className="beta-tag">beta</span></button>
+          <button className="btn" onClick={() => setSyncOpen(true)} title="Hent fra og last opp til Google Disk-mappen"><IconGoogle size={16} /> Google Disk <span className="beta-tag">beta</span></button>
           <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp</button>
         </div>
       </header>
@@ -267,7 +269,7 @@ export default function App() {
             onClick={() => { setView('map'); setPanel(panel === 'basemap' && view === 'map' ? null : 'basemap'); }}><IconMap size={20} /></button>
           <button className={view === 'photos' || view === 'gallery' ? 'on' : ''} title="Bilder i kart" onClick={() => setView('photos')}><IconGrid size={20} /></button>
           <button title="Last opp" onClick={() => setUpload({ files: [] })}><IconUpload size={20} /></button>
-          <button title="Google Disk-mappe" onClick={() => setSyncOpen(true)}><IconFolder size={20} /></button>
+          <button title="Google Disk (beta)" className="rail-google" onClick={() => setSyncOpen(true)}><IconGoogle size={20} /><span className="rail-beta">beta</span></button>
           <div className="rail-spacer" />
           <button className={view === 'settings' ? 'on' : ''} title="Innstillinger" onClick={() => setView('settings')}><IconSettings size={20} /></button>
         </nav>
@@ -420,6 +422,10 @@ export default function App() {
           {view === 'settings' && <SettingsView project={project} />}
         </main>
       </div>
+
+      {welcomeOpen && (
+        <WelcomeDemo onYes={() => { setWelcomeOpen(false); void startDemo(); }} onNo={() => setWelcomeOpen(false)} />
+      )}
 
       {upload && (
         <UploadDialog

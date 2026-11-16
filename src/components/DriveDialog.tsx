@@ -11,7 +11,7 @@ import {
 } from '../lib/google';
 import { uid } from '../lib/db';
 import { usePickerOpen } from '../lib/usePickerOpen';
-import { IconClose, IconFolder, IconFolderOpen, IconPlus, IconTrash } from './icons';
+import { IconClose, IconFolder, IconFolderOpen, IconGoogle, IconPlus, IconTrash } from './icons';
 
 interface Props {
   project: Project;
@@ -151,7 +151,7 @@ export default function DriveDialog({ project, onClose, onOpenSettings }: Props)
     <div className="modal-back" style={pickerOpen ? { display: 'none' } : undefined} onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="modal drive">
         <div className="modal-head">
-          <h2>Opprett prosjektmapper på Google Disk</h2>
+          <h2 className="g-title"><IconGoogle size={20} /> Opprett prosjektmapper på Google Disk <span className="beta-tag dark">beta</span></h2>
           <button className="icon-btn" onClick={onClose} disabled={busy} aria-label="Lukk"><IconClose /></button>
         </div>
 

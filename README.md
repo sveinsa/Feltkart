@@ -187,3 +187,7 @@ GeoTIFF avkodes nå med flere arbeidstråder (geotiff `Pool`), og fremdriften vi
 
 ## Nullstill demo (v 3.0)
 Knappen **Nullstill demo** (Innstillinger, Prosjektfiler og Google Disk-dialogen) sletter alt innhold i Feltkart – bilder, ortofoto, DXF/innmålinger og ekstra mapper. Rotmappen og standardmappene beholdes, og filer på Google Disk berøres ikke. Etterpå kommer «Kom i gang»-boksen tilbake med knappen **Last demodata**, slik at demoen kan hentes på nytt.
+
+## Demo: Disk-mapper og velkomstboks (v 3.1)
+- Før demodata lastes automatisk vises en velkomstboks («Velkommen til demo av Feltkart») med valgene **Ja** og **Nei**. Ved Nei starter Feltkart tomt, og demoen kan hentes senere med «Last demodata».
+- Mappestrukturen til venstre følger nå mappene i demomappen på Google Disk (f.eks. *01 Foto, 02 Innmåling, 03 Prosjektert, 04 Ortofoto*, inkl. undermapper). Disse blir også standardmapper for nye opplastinger av tilsvarende type, og de tomme startmappene (Bilder, 360-bilder …) fjernes hvis de ikke inneholder egne filer.

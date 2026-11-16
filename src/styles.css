@@ -452,3 +452,19 @@ body.picking .modal-back { visibility: hidden; }
 .reset-row { display: flex; align-items: center; gap: 14px; justify-content: space-between; }
 .reset-line { margin: -4px 0 10px; }
 .reset-confirm { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- Velkomst (demo) ---------- */
+.modal.welcome { width: min(480px, 100%); }
+.welcome-body { text-align: center; padding: 28px 28px 24px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.welcome-body h2 { margin: 6px 0 0; font-size: 20px; }
+.welcome-body p { margin: 0; color: var(--ink-2); line-height: 1.5; }
+.welcome-actions { display: flex; gap: 10px; margin: 12px 0 4px; flex-wrap: wrap; justify-content: center; }
+.btn.big { padding: 10px 18px; font-size: 15px; }
+
+/* ---------- Google-logo og beta ved Disk-funksjoner ---------- */
+.g-title { display: flex; align-items: center; gap: 8px; }
+.beta-tag.dark { background: var(--brand-soft); color: var(--brand); opacity: 1; }
+.rail button.rail-google { color: inherit; }
+.rail-beta { position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); font-size: 7px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand); background: var(--brand-soft); border-radius: 3px; padding: 0 3px; line-height: 1.4; }
+.rail button.rail-google svg { margin-top: -5px; }
+.topbar .btn svg:first-child { flex: none; }
