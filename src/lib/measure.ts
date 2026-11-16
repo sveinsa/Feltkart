@@ -233,3 +233,42 @@ export function summaryText(s: Summary, crsLabel?: string): string {
   if (crsLabel) lines.push(`Koordinatsystem: ${crsLabel}`);
   return lines.join('\n');
 }
+
+// ---------- Dobbeltklikk ----------
+
+/** Et klikk eller trykk i kartet: når og hvor (skjermpiksler). */
+export interface ClickMemo {
+  t: number;
+  x: number;
+  y: number;
+  /** Trykk med finger: større toleranse for hvor nær det andre trykket må være */
+  touch?: boolean;
+}
+
+/** Lengste tid mellom to klikk som regnes som ett dobbeltklikk (ms). Vanlige dobbeltklikk og dobbelttrykk ligger på 100–300 ms. */
+export const DOUBLE_CLICK_MS = 400;
+
+/**
+ * Er dette klikket andre halvdel av et dobbeltklikk eller dobbelttrykk?
+ * Nettlesere og kartbibliotek sender klikk og «dblclick» i ulik rekkefølge (og på mobil og nettbrett ofte ikke «dblclick» i det hele tatt),
+ * så vi avgjør det selv ut fra tid og avstand mellom to klikk. Andre halvdel skal aldri bli et nytt punkt: den avslutter målingen.
+ */
+export function isDoubleClick(prev: ClickMemo | null | undefined, cur: ClickMemo): boolean {
+  if (!prev) return false;
+  const dt = cur.t - prev.t;
+  if (!(dt >= 0 && dt <= DOUBLE_CLICK_MS)) return false;
+  const tol = cur.touch || prev.touch ? 24 : 8;
+  return Math.hypot(cur.x - prev.x, cur.y - prev.y) <= tol;
+}
+
+/** Kom klikket fra en finger? (PointerEvent.pointerType, ellers om hovedpekeren er «grov», som på mobil og nettbrett) */
+export function isTouchEvent(ev: unknown): boolean {
+  const e = ev as { pointerType?: string; sourceCapabilities?: { firesTouchEvents?: boolean } } | null | undefined;
+  if (e?.pointerType) return e.pointerType === 'touch';
+  if (typeof e?.sourceCapabilities?.firesTouchEvents === 'boolean') return e.sourceCapabilities.firesTouchEvents;
+  try {
+    return typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}

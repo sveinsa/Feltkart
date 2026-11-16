@@ -15,8 +15,8 @@ import type { DxfItem, Item, OrthoItem, PhotoItem, Settings } from '../types';
 import type { Mesh3D, ParsedDxf } from '../lib/dxf';
 import { BASEMAPS, basemapById, customToBasemap } from '../lib/basemaps';
 import { crsName, pointsToMeters, toLatLng } from '../lib/crs';
-import { formatAreaShort, formatLengthShort, pathLength, ringArea, summarize } from '../lib/measure';
-import type { MeasureMode } from '../lib/measure';
+import { formatAreaShort, formatLengthShort, isDoubleClick, isTouchEvent, pathLength, ringArea, summarize } from '../lib/measure';
+import type { ClickMemo, MeasureMode } from '../lib/measure';
 import MeasurePanel from './MeasurePanel';
 import { IconArea, IconRuler } from './icons';
 
@@ -69,11 +69,12 @@ interface MPoint { lng: number; lat: number; z: number | null }
 
 /** Målemotoren bor inne i kart-effekten (den trenger kartet), og brukes av knappene i panelet */
 interface MeasureApi {
-  add: (lng: number, lat: number) => void;
+  /** Klikk under måling. To raske klikk på samme sted er et dobbeltklikk: det andre gir ikke noe nytt punkt, men avslutter målingen. */
+  add: (lng: number, lat: number, px?: { x: number; y: number }, ev?: unknown) => void;
   undo: () => void;
   finish: (dedupe?: boolean) => void;
   clear: () => void;
-  /** Bytte mellom avstand og areal: punktene beholdes */
+  /** Bytte mellom avstand og areal: punktene beholdes midt i en måling, men en ferdig måling nullstilles */
   modeChanged: () => void;
   state: () => { pts: MPoint[]; finished: boolean };
   /** Strek og etikett fra siste punkt til musepekeren */
@@ -311,6 +312,8 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       cursor: null as { lng: number; lat: number; x: number; y: number } | null,
       labels: [] as maplibregl.Marker[],
       fixed: [] as any[],
+      /** Siste klikk – brukes til å kjenne igjen dobbeltklikk / dobbelttrykk */
+      lastClick: null as ClickMemo | null,
     };
     const bump = () => setMeasVer((v) => v + 1);
     /** Terrenghøyde i meter over havet (uten overdrivelse), eller null når terreng er av / ikke lastet */
@@ -397,8 +400,37 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       } catch (e) { reportRef.current('Måling', e); }
     };
     const redrawAll = () => { drawFixed(); drawLive(); bump(); };
+    const finishNow = (dedupe = false) => {
+      if (mst.finished || !mst.pts.length) return;
+      const n = mst.pts.length;
+      if (dedupe && n >= 2) {
+        // Dobbeltklikk som kom for sent til å regnes som ett gir et ekstra punkt på samme sted – fjern det
+        const a = map.project([mst.pts[n - 1].lng, mst.pts[n - 1].lat]);
+        const b = map.project([mst.pts[n - 2].lng, mst.pts[n - 2].lat]);
+        if (Math.hypot(a.x - b.x, a.y - b.y) < 5) mst.pts.pop();
+      }
+      const need = measureRef.current === 'area' ? 3 : 2;
+      if (mst.pts.length >= need) { mst.finished = true; mst.cursor = null; }
+      redrawAll();
+    };
+    const clearNow = () => {
+      mst.pts = [];
+      mst.finished = false;
+      mst.cursor = null;
+      mst.lastClick = null;
+      redrawAll();
+    };
     c.measure = {
-      add(lng, lat) {
+      add(lng, lat, px, ev) {
+        // Dobbeltklikk avgjøres her (to raske klikk på samme sted) og ikke av «dblclick», som kommer i ulik rekkefølge og på mobil
+        // ofte ikke i det hele tatt. Uten dette kunne det siste klikket etter en avsluttet måling starte en ny måling på samme punkt.
+        if (px) {
+          const here: ClickMemo = { t: performance.now(), x: px.x, y: px.y, touch: isTouchEvent(ev) };
+          const second = isDoubleClick(mst.lastClick, here);
+          mst.lastClick = here;
+          if (second) { finishNow(false); return; }
+        }
+        // Etter en avsluttet måling starter neste klikk en helt ny måling
         if (mst.finished) { mst.pts = []; mst.finished = false; }
         mst.pts.push({ lng, lat, z: elevAt(lng, lat) });
         mst.cursor = null; // strek til pekeren vises igjen ved neste musebevegelse
@@ -408,29 +440,14 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
         if (!mst.pts.length) return;
         mst.pts.pop();
         mst.finished = false;
+        mst.lastClick = null;
         redrawAll();
       },
-      finish(dedupe = false) {
-        if (mst.finished || !mst.pts.length) return;
-        const n = mst.pts.length;
-        if (dedupe && n >= 2) {
-          // Dobbeltklikk gir et ekstra punkt på samme sted – fjern det
-          const a = map.project([mst.pts[n - 1].lng, mst.pts[n - 1].lat]);
-          const b = map.project([mst.pts[n - 2].lng, mst.pts[n - 2].lat]);
-          if (Math.hypot(a.x - b.x, a.y - b.y) < 5) mst.pts.pop();
-        }
-        const need = measureRef.current === 'area' ? 3 : 2;
-        if (mst.pts.length >= need) { mst.finished = true; mst.cursor = null; }
-        redrawAll();
-      },
-      clear() {
-        mst.pts = [];
-        mst.finished = false;
-        mst.cursor = null;
-        redrawAll();
-      },
+      finish: finishNow,
+      clear: clearNow,
       modeChanged() {
-        mst.finished = false;
+        // Midt i en måling beholdes punktene når man bytter mellom avstand og areal. En ferdig måling er ferdig: da starter neste måling på nytt.
+        if (mst.finished) { clearNow(); return; }
         redrawAll();
       },
       state: () => ({ pts: mst.pts, finished: mst.finished }),
@@ -553,11 +570,12 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
 
     map.on('click', (e) => {
       // Under måling skal et klikk alltid sette et punkt (også oppå en bildeboble)
-      if (measureRef.current) { c.measure?.add(e.lngLat.lng, e.lngLat.lat); return; }
+      if (measureRef.current) { c.measure?.add(e.lngLat.lng, e.lngLat.lat, { x: e.point.x, y: e.point.y }, e.originalEvent); return; }
       const hit = pick(e.point.x, e.point.y);
       if (hit) openRef.current(hit.id);
     });
-    // Dobbeltklikk gir to klikk først (det andre er et duplikat) og avslutter deretter målingen
+    // Dobbeltklikk avslutter målingen. Det avgjøres egentlig i add() (to raske klikk på samme sted), siden «dblclick» kommer i ulik
+    // rekkefølge og av og til ikke i det hele tatt. Her tas tilfellene der klikkene kom for sent til å regnes som ett.
     map.on('dblclick', () => { if (measureRef.current) c.measure?.finish(true); });
     let lastMove = 0;
     map.on('mousemove', (e) => {

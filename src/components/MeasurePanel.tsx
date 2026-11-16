@@ -34,7 +34,7 @@ export default function MeasurePanel(p: Props) {
 
   let hint: string;
   if (s.count === 0) hint = 'Klikk for å sette første punkt.';
-  else if (finished) hint = 'Målingen er ferdig. Klikk for å starte en ny.';
+  else if (finished) hint = 'Målingen er ferdig. Neste klikk starter en ny måling.';
   else if (s.count < need) hint = mode === 'area' ? `Legg til minst tre punkter (${s.count} av 3).` : 'Klikk for å sette neste punkt.';
   else hint = 'Klikk for flere punkter, eller trykk Fullfør.';
 

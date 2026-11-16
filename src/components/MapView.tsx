@@ -5,8 +5,8 @@ import type { DxfItem, Item, OrthoItem, PhotoItem, Selection, Tool } from '../ty
 import type { DxfState } from '../state';
 import { basemapById } from '../lib/basemaps';
 import { crsName, pointsToMeters, toLatLng } from '../lib/crs';
-import { formatAreaShort, formatLengthShort, pathLength, ringArea, summarize } from '../lib/measure';
-import type { MeasureMode, MPt } from '../lib/measure';
+import { formatAreaShort, formatLengthShort, isDoubleClick, isTouchEvent, pathLength, ringArea, summarize } from '../lib/measure';
+import type { ClickMemo, MeasureMode, MPt } from '../lib/measure';
 import { markerHtml } from './icons';
 import MeasurePanel from './MeasurePanel';
 
@@ -77,6 +77,8 @@ export default function MapView(props: Props) {
   const highlight = useRef<L.LayerGroup | null>(null);
   const measure = useRef<MeasureState | null>(null);
   const liveFrame = useRef(0);
+  /** Siste klikk under måling – brukes til å kjenne igjen dobbeltklikk / dobbelttrykk */
+  const lastClick = useRef<ClickMemo | null>(null);
   const [measureVer, setMeasureVer] = useState(0);
 
   // ---------- Opprett kart ----------
@@ -109,18 +111,19 @@ export default function MapView(props: Props) {
     map.on('click', (e: L.LeafletMouseEvent) => {
       const p = propsRef.current;
       if (p.tool === 'place') { p.onPlace(e.latlng.lat, e.latlng.lng); return; }
-      if (p.tool === 'distance' || p.tool === 'area') { addMeasurePoint(e.latlng); return; }
+      if (p.tool === 'distance' || p.tool === 'area') { addMeasurePoint(e.latlng, e.originalEvent); return; }
       p.onSelect({ type: 'point', lat: e.latlng.lat, lng: e.latlng.lng });
     });
-    // Dobbeltklikk gir to klikk først (det andre er et duplikat) og avslutter deretter målingen
+    // Dobbeltklikk avslutter målingen. Det avgjøres egentlig i addMeasurePoint (to raske klikk på samme sted), siden «dblclick»
+    // kommer i ulik rekkefølge og av og til ikke i det hele tatt. Her tas de tilfellene der klikkene kom for sent til å regnes som ett.
     map.on('dblclick', () => {
       const t = propsRef.current.tool;
       if (t === 'distance' || t === 'area') finishMeasure(true);
     });
-    // Høyreklikk angrer siste punkt
-    map.on('contextmenu', () => {
+    // Høyreklikk angrer siste punkt. Et langt trykk med finger gir samme hendelse på mobil og skal ikke angre noe.
+    map.on('contextmenu', (e: L.LeafletMouseEvent) => {
       const t = propsRef.current.tool;
-      if (t === 'distance' || t === 'area') undoMeasurePoint();
+      if ((t === 'distance' || t === 'area') && !isTouchEvent(e?.originalEvent)) undoMeasurePoint();
     });
 
     const ro = new ResizeObserver(() => map.invalidateSize());
@@ -212,9 +215,9 @@ export default function MapView(props: Props) {
         bubblingMouseEvents: false,
       });
       m.bindTooltip(`<img src="${p.thumb}" alt=""><div>${escapeHtml(p.name)}</div>`, { direction: 'top', offset: [0, -14], className: 'thumb-tip', opacity: 1 });
-      m.on('click', () => {
+      m.on('click', (e: L.LeafletMouseEvent) => {
         const pr = propsRef.current;
-        if (pr.tool === 'distance' || pr.tool === 'area') { addMeasurePoint(L.latLng(p.lat!, p.lng!)); return; }
+        if (pr.tool === 'distance' || pr.tool === 'area') { addMeasurePoint(L.latLng(p.lat!, p.lng!), e?.originalEvent); return; }
         pr.onSelect({ type: 'item', id: p.id });
       });
       g.addLayer(m);
@@ -255,7 +258,7 @@ export default function MapView(props: Props) {
           if (!g) { g = L.layerGroup(); entry!.groups.set(f.layer, g); }
           const onClick = (e: L.LeafletMouseEvent) => {
             const pr = propsRef.current;
-            if (pr.tool === 'distance' || pr.tool === 'area') { addMeasurePoint(e.latlng); return; }
+            if (pr.tool === 'distance' || pr.tool === 'area') { addMeasurePoint(e.latlng, e.originalEvent); return; }
             if (pr.tool === 'place') { pr.onPlace(e.latlng.lat, e.latlng.lng); return; }
             pr.onSelect({ type: 'dxf-feature', itemId: it.id, index });
           };
@@ -315,9 +318,11 @@ export default function MapView(props: Props) {
     map.getContainer().classList.toggle('tool-crosshair', props.tool !== 'select');
     const m = measure.current!;
     if (!measuring) clearMeasure();
-    else {
-      // Bytter man mellom avstand og areal beholdes punktene, slik at samme punkter kan måles begge veier
-      m.finished = false;
+    else if (m.finished) {
+      // En ferdig måling er ferdig: velger man et verktøy på nytt (eller bytter mellom avstand og areal), starter neste måling helt på nytt
+      clearMeasure();
+    } else {
+      // Bytter man mellom avstand og areal midt i en måling, beholdes punktene
       drawMeasure();
       drawLive();
       setMeasureVer((v) => v + 1);
@@ -355,14 +360,25 @@ export default function MapView(props: Props) {
     m.pts = [];
     m.finished = false;
     m.cursor = null;
+    lastClick.current = null;
     m.group.clearLayers();
     m.live.clearLayers();
     setMeasureVer((v) => v + 1);
   }
 
-  function addMeasurePoint(ll: L.LatLng) {
+  function addMeasurePoint(ll: L.LatLng, ev?: unknown) {
     const m = measure.current;
-    if (!m) return;
+    const map = mapRef.current;
+    if (!m || !map) return;
+    // To raske klikk på samme sted er et dobbeltklikk (dobbelttrykk): det andre gir ikke noe nytt punkt, men avslutter målingen.
+    // Det avgjøres her og ikke av «dblclick», som kommer i ulik rekkefølge og på mobil ofte ikke i det hele tatt. Uten dette kunne
+    // det siste klikket etter en avsluttet måling starte en ny måling på det samme punktet.
+    const pt = map.latLngToContainerPoint(ll);
+    const here: ClickMemo = { t: performance.now(), x: pt.x, y: pt.y, touch: isTouchEvent(ev) };
+    const second = isDoubleClick(lastClick.current, here);
+    lastClick.current = here;
+    if (second) { finishMeasure(false); return; }
+    // Etter en avsluttet måling starter neste klikk en helt ny måling
     if (m.finished) { m.pts = []; m.finished = false; }
     m.pts.push(ll);
     m.cursor = ll;
@@ -376,6 +392,7 @@ export default function MapView(props: Props) {
     if (!m || !m.pts.length) return;
     m.pts.pop();
     m.finished = false;
+    lastClick.current = null;
     drawMeasure();
     drawLive();
     setMeasureVer((v) => v + 1);

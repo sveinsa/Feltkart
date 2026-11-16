@@ -241,7 +241,7 @@ Egen fane **Terreng 3D** (MapLibre GL + three.js, lastes først når fanen åpne
 Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme målepanel brukes i både kartet og Terreng 3D (i 3D ligger knappene øverst i vinduet).
 - **Avstand / lengde:** Klikk punkt for punkt. Hver delstrekning får en etikett på linjen, og samlet lengde («Σ») står ved siste punkt. Mens du måler, følger en stiplet strek og en etikett pekeren, så du ser lengden før du klikker.
 - **Areal innenfor et polygon:** Klikk hjørnene. Du får areal i m², og i dekar (daa) og hektar (ha) fra 1 000 m², pluss omkrets. Krysser polygonet seg selv, vises en advarsel, siden arealet da ikke er pålitelig.
-- **Panelet** har Angre, Fullfør, Nullstill og Kopier (kopierer resultatet som tekst). Du kan bytte mellom Avstand og Areal uten å miste punktene.
+- **Panelet** har Angre, Fullfør, Nullstill og Kopier (kopierer resultatet som tekst). Midt i en måling kan du bytte mellom Avstand og Areal uten å miste punktene.
 - **Snarveier:** Enter fullfører, Backspace angrer siste punkt, Esc avslutter målingen, dobbeltklikk fullfører. I kartet angrer også høyreklikk siste punkt. Bilder og DXF-punkter i kartet kan klikkes som målepunkter mens du måler.
 - **I Terreng 3D** måles det direkte på terrenget (strekene legges langs bakken). I tillegg vises **skrå lengde**, **høydeforskjell** og **stigning** i prosent. Høydene leses av terrengmodellen når du klikker og er derfor omtrentlige. Er terrenget slått av, vises bare horisontale mål.
 - **Regnet i prosjektets koordinatsystem** (står nederst i panelet). Er prosjektet i lengde/bredde (EPSG:4326), regnes det i UTM-sonen der målingen ligger. Avstander i UTM/NTM har små avvik fra målt avstand på bakken, slik som i all kartprogramvare. Skrå lengde er rette linjer mellom punktene du klikker, ikke terrengets krumning mellom dem.
@@ -253,3 +253,9 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 - Merkelappene og rammene vender alltid mot kameraet, så de kan leses uansett fra hvilken side du ser.
 - **Bilder i 3D**-panelet har egne avkrysningsbokser for «Vanlige bilder (rammer)» og «360-bilder (kuler)» med antall, og små tegnforklaringsikoner som ser ut som objektene i 3D. Størrelsen kan justeres.
 - Holder du musen over et bilde, vises et lite kort med miniatyr, typen («Vanlig foto» eller «360-bilde») og filnavnet.
+
+## Måling: dobbeltklikk og ny måling (v 4.3)
+- **Dobbeltklikk (og dobbelttrykk på mobil) avslutter målingen, og neste klikk starter en helt ny måling.** Nettlesere og kartbiblioteker sender klikk og «dblclick» i ulik rekkefølge, og på mobil og nettbrett ofte ikke «dblclick» i det hele tatt. Da kunne målingen fortsette fra «sist brukte punkt» i stedet for å starte på nytt. Feltkart avgjør nå selv at to raske klikk (innen 0,4 sekunder og nesten på samme sted) er ett dobbeltklikk: det andre klikket legger ikke til et punkt, men avslutter målingen. Det gjelder både i kartet og i Terreng 3D.
+- **Bytte mellom Avstand og Areal** beholder punktene bare midt i en måling. Er målingen ferdig, nullstilles den ved bytte, og neste klikk starter på nytt.
+- **Langt trykk med finger** (som gir «høyreklikk» på mobil) angrer ikke lenger siste punkt i kartet.
+- Hjelpeteksten etter en ferdig måling sier nå «Neste klikk starter en ny måling».
