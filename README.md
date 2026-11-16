@@ -223,3 +223,11 @@ Egen fane **Terreng 3D** (MapLibre GL + three.js, lastes først når fanen åpne
 - **IFC-modeller** vises som ekte 3D (trekanter), farget etter objekttype. Modellen må ha georeferanse (som for kartvisning). Svært store modeller kuttes ved 2,5 mill. trekanter.
 - **Dronefoto og 360-bilder** vises som 3D-bobler i riktig posisjon og høyde (fra bildets GPS-høyde), med stolpe ned til bakken. Klikk en boble for å åpne bildet. Datofilteret i kartet gjelder også her.
 - Krever at nettleseren har WebGL. Kjør `npm install` på nytt etter oppdatering (ny avhengighet: `maplibre-gl`).
+
+### Rettelser i v 4.1 (hvit side i Terreng 3D)
+- **Feilfanger:** Krasjer noe i appen, vises nå en lesbar feilmelding med knappene «Last siden på nytt» og «Kopier feilmelding» i stedet for en hvit side. Feilen i Terreng 3D-fanen har også «Tilbake til kartet».
+- **Funksjonsnavn rettet:** 3D-koden brukte `meterInMercatorUnits`, som ikke finnes i MapLibre. Riktig navn er `meterInMercatorCoordinateUnits`. Feilen tok ned hele appen så snart demodata med bilder var lastet.
+- **Kartvinduet kollapset:** MapLibres stilark gjør kartvinduet til `position: relative`, og det lastes etter vårt eget stilark. Uten fast størrelse ble kartet 0 piksler høyt. Størrelsen settes nå både i CSS og som inline-stil.
+- **Riktig høyde på bobler og IFC:** I MapLibre 4.x er matrisen til egne lag ikke senket med terrenghøyden i kartsenteret, og `queryTerrainElevation` gir høyde relativt til senteret. Begge deler er justert, så alt tegnes i høyde over havet.
+- **Mapterhorn** leses nå via sin offisielle TileJSON (`https://tiles.mapterhorn.com/tilejson.json`). Svarer den ikke, byttes det automatisk til AWS Terrain Tiles, og du får beskjed.
+- **Teknisk info** nederst i panelet (versjon, WebGL, størrelse på kartvinduet, antall bobler og IFC-deler) hjelper når noe ikke ser riktig ut.

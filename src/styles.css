@@ -496,7 +496,9 @@ body.picking .modal-back { visibility: hidden; }
 /* ---------- Terreng 3D ---------- */
 .t3d { position: absolute; inset: 0; display: flex; flex-direction: row-reverse; background: var(--bg); }
 .t3d-map { flex: 1; position: relative; min-width: 0; }
-.t3d-canvas { position: absolute; inset: 0; }
+/* Viktig: MapLibres eget stilark setter «position: relative» på kartvinduet og lastes etter dette. Uten høyere spesifisitet
+   (og inline-stil i Terrain3D.tsx) kollapser kartet til 0 px høyde og ser ut som en hvit side. */
+.t3d .t3d-map .t3d-canvas { position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; }
 .t3d-canvas .maplibregl-canvas { outline: none; }
 .t3d-toggle { position: absolute; left: 12px; top: 12px; z-index: 5; border: 1px solid var(--line-2); background: #fff; border-radius: 6px; padding: 6px 12px; font-weight: 500; box-shadow: var(--shadow); }
 .t3d-loading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #fff; padding: 14px 20px; border-radius: 10px; box-shadow: var(--shadow); z-index: 5; }
@@ -511,3 +513,21 @@ body.picking .modal-back { visibility: hidden; }
 .t3d-item { display: flex; flex-direction: column; gap: 2px; }
 .t3d-loading.error { color: var(--danger); max-width: 320px; text-align: center; }
 @media (max-width: 900px) { .t3d-panel { position: absolute; left: 0; top: 0; bottom: 0; z-index: 6; box-shadow: var(--shadow); } }
+.t3d-problems { position: absolute; left: 12px; right: 60px; bottom: 34px; z-index: 5; background: #fff7f5; border: 1px solid #efc2bb; color: var(--danger); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; max-height: 40%; overflow: auto; }
+.t3d-problems .btn { align-self: flex-start; padding: 3px 10px; font-size: 12px; }
+.t3d-notice { position: absolute; left: 12px; right: 60px; top: 52px; z-index: 5; background: #fff; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; box-shadow: var(--shadow); }
+.t3d-tech { margin-top: 14px; font-size: 12px; color: var(--muted); }
+.t3d-tech summary { cursor: pointer; }
+.t3d-tech pre { margin: 6px 0 0; white-space: pre-wrap; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; user-select: text; }
+
+/* Venter på kodebit (Suspense) */
+.empty-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); background: var(--bg); }
+
+/* Feilfanger */
+.eb { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--bg); overflow: auto; z-index: 20; }
+.eb.eb-full { position: fixed; z-index: 9999; }
+.eb-box { background: #fff; border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow); padding: 20px 24px; max-width: 720px; width: 100%; display: flex; flex-direction: column; gap: 10px; max-height: 100%; overflow: auto; }
+.eb-box h2 { margin: 0; font-size: 18px; }
+.eb-box p { margin: 0; color: var(--ink-2); }
+.eb-report { margin: 0; padding: 10px 12px; background: #f6f7f8; border: 1px solid var(--line); border-radius: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; user-select: text; }
+.eb-actions { display: flex; flex-wrap: wrap; gap: 8px; }

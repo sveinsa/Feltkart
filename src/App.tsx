@@ -11,6 +11,7 @@ import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/
 import ProjectFiles from './components/ProjectFiles';
 import WelcomeDemo from './components/WelcomeDemo';
 import DemoProgress from './components/DemoProgress';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Terreng 3D (MapLibre + three.js) lastes først når fanen åpnes
 const Terrain3D = lazy(() => import('./components/Terrain3D'));
@@ -423,10 +424,12 @@ export default function App() {
             <Gallery photos={photos} onBack={() => setView('photos')} onOpen={setViewerId} onShowOnMap={(id) => { setSelection({ type: 'item', id }); zoomToItem(id); }} />
           )}
           {view === 'terrain3d' && (
-            <Suspense fallback={<div className="empty-state">Laster 3D …</div>}>
-              <Terrain3D items={mapItems} photos={mapItems.filter((i): i is PhotoItem => i.kind === 'photo' || i.kind === 'pano')} dxf={dxf} settings={settings}
-                onOpenPhoto={setViewerId} />
-            </Suspense>
+            <ErrorBoundary label="Terreng 3D" action={{ label: 'Tilbake til kartet', onClick: () => setView('map') }}>
+              <Suspense fallback={<div className="empty-state">Laster 3D …</div>}>
+                <Terrain3D items={mapItems} photos={mapItems.filter((i): i is PhotoItem => i.kind === 'photo' || i.kind === 'pano')} dxf={dxf} settings={settings}
+                  onOpenPhoto={setViewerId} />
+              </Suspense>
+            </ErrorBoundary>
           )}
           {view === 'files' && (
             <ProjectFiles project={project} onZoomTo={zoomToItem} onOpenViewer={setViewerId}
