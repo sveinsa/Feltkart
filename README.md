@@ -191,3 +191,6 @@ Knappen **Nullstill demo** (Innstillinger, Prosjektfiler og Google Disk-dialogen
 ## Demo: Disk-mapper og velkomstboks (v 3.1)
 - Før demodata lastes automatisk vises en velkomstboks («Velkommen til demo av Feltkart») med valgene **Ja** og **Nei**. Ved Nei starter Feltkart tomt, og demoen kan hentes senere med «Last demodata».
 - Mappestrukturen til venstre følger nå mappene i demomappen på Google Disk (f.eks. *01 Foto, 02 Innmåling, 03 Prosjektert, 04 Ortofoto*, inkl. undermapper). Disse blir også standardmapper for nye opplastinger av tilsvarende type, og de tomme startmappene (Bilder, 360-bilder …) fjernes hvis de ikke inneholder egne filer.
+
+## Mapperekkefølge og nullstilling (v 3.3)
+Nummererte mapper (01 Foto, 02 Innmåling …) vises alltid i nummerrekkefølge øverst; øvrige mapper kommer etterpå i opprettelsesrekkefølge. Nederst i menyen til venstre ligger en rød **Nullstill demo**-knapp (med bekreftelse). Etter nullstilling spør Feltkart på nytt om demodata skal lastes ned.

@@ -32,6 +32,14 @@ const DEFAULT_SETTINGS: Omit<Settings, 'defaultFolders'> = {
   basemapId: 'kv-topo',
 };
 
+/** Mapperekkefølge: nummererte mapper (01 …, 02 …) først i nummerrekkefølge, deretter øvrige i opprettelsesrekkefølge. */
+export function compareFolders(a: Folder, b: Folder): number {
+  const na = /^\s*\d/.test(a.name), nb = /^\s*\d/.test(b.name);
+  if (na && nb) return a.name.localeCompare(b.name, 'nb', { numeric: true });
+  if (na !== nb) return na ? -1 : 1;
+  return a.createdAt - b.createdAt;
+}
+
 export function descendantFolderIds(folders: Folder[], id: string): string[] {
   const out = [id];
   for (let i = 0; i < out.length; i++) for (const f of folders) if (f.parentId === out[i]) out.push(f.id);

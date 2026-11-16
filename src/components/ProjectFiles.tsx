@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Folder, Item } from '../types';
 import type { Project } from '../state';
-import { descendantFolderIds } from '../state';
+import { compareFolders, descendantFolderIds } from '../state';
 import ResetDemoButton from './ResetDemoButton';
 import { IconGoogle, IconFolder, IconFolderOpen, IconPin, IconTrash, IconUpload, KIND_ICON } from './icons';
 
@@ -40,7 +40,7 @@ export default function ProjectFiles({ project, onZoomTo, onOpenViewer, onUpload
     const walk = (parent: string | null, depth: number) => {
       folders
         .filter((f) => f.parentId === parent)
-        .sort((a, b) => a.createdAt - b.createdAt)
+        .sort(compareFolders)
         .forEach((f) => { out.push({ f, depth }); walk(f.id, depth + 1); });
     };
     walk(null, 0);

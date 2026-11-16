@@ -20,7 +20,7 @@ import { hasDemoKey, loadDemoData } from './lib/demoLoad';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
 import {
-  IconArea, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconUpload,
+  IconArea, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconTrash, IconUpload,
 } from './components/icons';
 
 type View = 'map' | 'photos' | 'gallery' | 'files' | 'settings';
@@ -43,6 +43,7 @@ export default function App() {
   const [demo, setDemo] = useState<{ busy: boolean; msg: string; error: string | null }>({ busy: false, msg: '', error: null });
   const demoStarted = useRef(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
@@ -271,6 +272,7 @@ export default function App() {
           <button title="Last opp" onClick={() => setUpload({ files: [] })}><IconUpload size={20} /></button>
           <button title="Google Disk (beta)" className="rail-google" onClick={() => setSyncOpen(true)}><IconGoogle size={20} /><span className="rail-beta">beta</span></button>
           <div className="rail-spacer" />
+          <button className="rail-reset" title="Nullstill demo – slett alt innhold" onClick={() => setResetOpen(true)}><IconTrash size={19} /><span className="rail-beta warn">nullstill</span></button>
           <button className={view === 'settings' ? 'on' : ''} title="Innstillinger" onClick={() => setView('settings')}><IconSettings size={20} /></button>
         </nav>
 
@@ -422,6 +424,21 @@ export default function App() {
           {view === 'settings' && <SettingsView project={project} />}
         </main>
       </div>
+
+      {resetOpen && (
+        <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && setResetOpen(false)}>
+          <div className="modal welcome">
+            <div className="modal-body welcome-body">
+              <h2>Nullstille demo?</h2>
+              <p>Alt innhold i Feltkart slettes (bilder, 360-bilder, ortofoto, DXF og innmålinger). Filer på Google Disk berøres ikke. Etterpå kan du laste ned demodata på nytt.</p>
+              <div className="welcome-actions">
+                <button className="btn danger solid big" onClick={() => { project.resetContent(); setResetOpen(false); setWelcomeOpen(true); showToast('Demo nullstilt'); }}>Ja, nullstill</button>
+                <button className="btn big" onClick={() => setResetOpen(false)} autoFocus>Avbryt</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {welcomeOpen && (
         <WelcomeDemo onYes={() => { setWelcomeOpen(false); void startDemo(); }} onNo={() => setWelcomeOpen(false)} />

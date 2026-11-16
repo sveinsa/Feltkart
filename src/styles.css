@@ -468,3 +468,9 @@ body.picking .modal-back { visibility: hidden; }
 .rail-beta { position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); font-size: 7px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand); background: var(--brand-soft); border-radius: 3px; padding: 0 3px; line-height: 1.4; }
 .rail button.rail-google svg { margin-top: -5px; }
 .topbar .btn svg:first-child { flex: none; }
+
+/* ---------- Nullstill demo i menyen til venstre ---------- */
+.rail button.rail-reset { color: var(--danger, #c0392b); height: 44px; }
+.rail button.rail-reset:hover { background: #fbeceb; color: var(--danger, #c0392b); }
+.rail button.rail-reset svg { margin-top: -6px; }
+.rail-beta.warn { color: var(--danger, #c0392b); background: #fbeceb; bottom: 2px; }

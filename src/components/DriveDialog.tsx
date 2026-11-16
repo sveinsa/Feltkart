@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Project } from '../state';
+import { compareFolders } from '../state';
 import type { Folder } from '../types';
 import {
   DEFAULT_TEMPLATES, countNodes, parseTemplate, resolveTree, treeToText,
@@ -93,7 +94,7 @@ export default function DriveDialog({ project, onClose, onOpenSettings }: Props)
   const fromMapFolders = () => {
     const fs = project.folders;
     const build = (parentId: string): TemplateNode[] =>
-      fs.filter((f) => f.parentId === parentId).sort((a, b) => a.createdAt - b.createdAt).map((f) => ({ name: f.name, children: build(f.id) }));
+      fs.filter((f) => f.parentId === parentId).sort(compareFolders).map((f) => ({ name: f.name, children: build(f.id) }));
     const root = fs.find((f) => f.parentId === null);
     if (!root) return;
     newTemplate(treeToText([{ name: '{prosjektnr} {prosjektnavn}', children: build(root.id) }]), 'Fra kartets mapper');

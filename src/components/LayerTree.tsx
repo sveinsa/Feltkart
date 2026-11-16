@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { DxfItem, Folder, Item, Selection } from '../types';
 import type { Project } from '../state';
-import { descendantFolderIds } from '../state';
+import { compareFolders, descendantFolderIds } from '../state';
 import { IconChevron, IconFolder, IconFolderOpen, IconMore, IconSearch, KIND_ICON, IconExpand, IconCollapse } from './icons';
 
 interface Props {
@@ -42,7 +42,7 @@ export default function LayerTree({ project, selection, onOpenItem }: Props) {
       arr.push(f);
       m.set(f.parentId, arr);
     }
-    for (const arr of m.values()) arr.sort((a, b) => a.createdAt - b.createdAt);
+    for (const arr of m.values()) arr.sort(compareFolders);
     return m;
   }, [folders]);
 
