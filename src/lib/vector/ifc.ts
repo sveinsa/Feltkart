@@ -1,7 +1,7 @@
 // IFC vist som grunnriss i kartet. Leses i nettleseren med web-ifc (WASM) som lastes fra CDN første gang.
 // Hvert objekt tegnes som omrisset (konveks innhylling) av geometrien sett ovenfra, med lag etter IFC-klasse.
 import { Builder, type LL, type XYZ } from './builder';
-import type { ParsedDxf } from '../dxf';
+import type { Mesh3D, ParsedDxf } from '../dxf';
 import { ensureCrs, fromLatLng } from '../crs';
 
 export interface Placement { e: number; n: number; rot: number } // modellens origo i prosjektets koordinatsystem, rotasjon (grader mot klokka)
@@ -103,18 +103,47 @@ export async function parseIfc(
     };
 
     // Rågeometri (transformerte hjørnepunkter per objekt)
-    interface M { eid: number; xyz: Float64Array }
+    interface M { eid: number; xyz: Float64Array; tris: Float32Array[] }
+    const TRI_CAP = 2_500_000; // maks antall trekanter som beholdes for 3D-visning
+    let triTotal = 0;
+    let truncated = false;
+    let rawO: [number, number, number] | null = null; // første punkt – trekanter lagres relativt til dette (Float32 holder da full presisjon)
     const meshes: M[] = [];
     const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
     api.StreamAllMeshes(id, (mesh: any) => {
       const geoms = mesh.geometries;
       const chunks: number[] = [];
+      const tris: Float32Array[] = [];
       for (let g = 0; g < geoms.size(); g++) {
         const pg = geoms.get(g);
         const geo = api.GetGeometry(id, pg.geometryExpressID);
         const verts: Float32Array = api.GetVertexArray(geo.GetVertexData(), geo.GetVertexDataSize());
         const m = pg.flatTransformation as number[];
         const n = verts.length / 6;
+        // Trekanter til 3D-visning (transformert, relativt til første punkt)
+        try {
+          if (triTotal < TRI_CAP) {
+            const idx: Uint32Array = api.GetIndexArray(geo.GetIndexData(), geo.GetIndexDataSize());
+            const nTri = Math.floor(idx.length / 3);
+            const take = Math.min(nTri, TRI_CAP - triTotal);
+            if (take < nTri) truncated = true;
+            const out = new Float32Array(take * 9);
+            for (let t = 0; t < take; t++) {
+              for (let k = 0; k < 3; k++) {
+                const vi = idx[t * 3 + k] * 6;
+                const x = verts[vi], y = verts[vi + 1], z = verts[vi + 2];
+                const X = m[0] * x + m[4] * y + m[8] * z + m[12];
+                const Y = m[1] * x + m[5] * y + m[9] * z + m[13];
+                const Z = m[2] * x + m[6] * y + m[10] * z + m[14];
+                if (!rawO) rawO = [X, Y, Z];
+                const o = t * 9 + k * 3;
+                out[o] = X - rawO[0]; out[o + 1] = Y - rawO[1]; out[o + 2] = Z - rawO[2];
+              }
+            }
+            tris.push(out);
+            triTotal += take;
+          } else truncated = true;
+        } catch { /* ingen trekantdata – grunnriss fungerer likevel */ }
         const step = Math.max(1, Math.floor(n / 20000));
         for (let i = 0; i < n; i += step) {
           const x = verts[i * 6], y = verts[i * 6 + 1], z = verts[i * 6 + 2];
@@ -128,7 +157,7 @@ export async function parseIfc(
         }
         geo.delete?.();
       }
-      if (chunks.length >= 9) meshes.push({ eid: mesh.expressID, xyz: Float64Array.from(chunks) });
+      if (chunks.length >= 9) meshes.push({ eid: mesh.expressID, xyz: Float64Array.from(chunks), tris });
       mesh.delete?.();
     });
     if (!meshes.length) throw new Error('Fant ingen geometri i IFC-filen.');
@@ -202,9 +231,29 @@ export async function parseIfc(
     b.warnings.push(...warn, 'IFC vises som grunnriss (omriss) av hvert objekt. Høyder er fra IFC-modellen.');
 
     onProgress?.('lager grunnriss …');
+    // 3D: trekanter omregnes til prosjektets koordinatsystem (meter relativt til modellens midtpunkt)
+    const [E0, N0] = xf(cx, cy);
+    const partsMap = new Map<string, Float32Array[]>();
+    const toProject = (ch: Float32Array): Float32Array => {
+      const o = new Float32Array(ch.length);
+      const r = rawO ?? [0, 0, 0];
+      for (let i = 0; i < ch.length; i += 3) {
+        const l = local(ch[i] + r[0], ch[i + 1] + r[1], ch[i + 2] + r[2]);
+        const [E, N] = xf(l[0], l[1]);
+        o[i] = E - E0; o[i + 1] = N - N0; o[i + 2] = l[2] + dz;
+      }
+      return o;
+    };
     for (const m of meshes) {
       const name0 = nameOf(m.eid);
       if (SKIP.has(name0)) { b.skip(name0.replace(/^IFC/, 'Ifc')); continue; }
+      if (m.tris.length) {
+        const lay = LABELS[name0] ?? name0.replace(/^IFC/, 'Ifc');
+        const arr = partsMap.get(lay) ?? [];
+        for (const ch of m.tris) arr.push(toProject(ch));
+        partsMap.set(lay, arr);
+        m.tris = []; // frigjør minne
+      }
       const pts: [number, number][] = [];
       let zlo = Infinity, zhi = -Infinity;
       for (let i = 0; i < m.xyz.length; i += 3) {
@@ -232,7 +281,22 @@ export async function parseIfc(
         b.point(layer, 'IFC-objekt', [h[0][0], h[0][1], zs[0]], undefined, attrs);
       }
     }
-    return b.finish(useCrs);
+    const res = b.finish(useCrs);
+    if (partsMap.size) {
+      const parts: Mesh3D['parts'] = [];
+      let triangles = 0;
+      for (const [layer, chunks] of partsMap) {
+        const len = chunks.reduce((a, c) => a + c.length, 0);
+        const positions = new Float32Array(len);
+        let off = 0;
+        for (const c of chunks) { positions.set(c, off); off += c.length; }
+        triangles += len / 9;
+        parts.push({ layer, positions });
+      }
+      res.mesh3d = { crs: useCrs, origin: [E0, N0], parts, triangles, truncated };
+      if (truncated) res.warnings.push(`3D-visningen viser de første ${TRI_CAP.toLocaleString('nb-NO')} trekantene (modellen er stor).`);
+    }
+    return res;
   } finally {
     try { api.CloseModel(id); } catch { /* ignorer */ }
   }

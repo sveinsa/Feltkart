@@ -215,3 +215,11 @@ Norge i bilder er ikke lenger en åpen kartflis-tjeneste hos Kartverket/Geonorge
 
 ## Fremdrift ved demodata (v 3.8)
 Innlasting av demodata viser en statuslinje med prosent og klokke (tid brukt, forventet ca. 1 min 10 s) og en kaffekopp med rykende damp. Fremdriften er reell: skanning, nedlasting (per fil) og behandling (veid etter filstørrelse, siden ortofoto tar lengst tid).
+
+## Terreng 3D (v 4.0)
+Egen fane **Terreng 3D** (MapLibre GL + three.js, lastes først når fanen åpnes):
+- **Terreng** fra åpne høydedata (Mapterhorn – Norge i 1 m, eller AWS Terrain Tiles globalt). Bakgrunn: Esri, OpenStreetMap, Kartverket eller egen. Overdrivelse av høyder 1–5×.
+- **Ortofoto** (droneortofoto) drapes på terrenget. Slå av «Vis terreng i 3D» for å se det flatt.
+- **IFC-modeller** vises som ekte 3D (trekanter), farget etter objekttype. Modellen må ha georeferanse (som for kartvisning). Svært store modeller kuttes ved 2,5 mill. trekanter.
+- **Dronefoto og 360-bilder** vises som 3D-bobler i riktig posisjon og høyde (fra bildets GPS-høyde), med stolpe ned til bakken. Klikk en boble for å åpne bildet. Datofilteret i kartet gjelder også her.
+- Krever at nettleseren har WebGL. Kjør `npm install` på nytt etter oppdatering (ny avhengighet: `maplibre-gl`).

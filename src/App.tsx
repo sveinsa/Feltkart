@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Item, PhotoItem, Selection, Tool } from './types';
 import { useProject } from './state';
 import MapView, { type FitRequest } from './components/MapView';
@@ -11,6 +11,9 @@ import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/
 import ProjectFiles from './components/ProjectFiles';
 import WelcomeDemo from './components/WelcomeDemo';
 import DemoProgress from './components/DemoProgress';
+
+// Terreng 3D (MapLibre + three.js) lastes først når fanen åpnes
+const Terrain3D = lazy(() => import('./components/Terrain3D'));
 import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
@@ -24,7 +27,7 @@ import {
   IconArea, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconTrash, IconUpload,
 } from './components/icons';
 
-type View = 'map' | 'photos' | 'gallery' | 'files' | 'settings';
+type View = 'map' | 'photos' | 'gallery' | 'files' | 'terrain3d' | 'settings';
 type Panel = 'tree' | 'basemap' | null;
 
 export default function App() {
@@ -252,6 +255,7 @@ export default function App() {
           <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')}>Kart</button>
           <button className={view === 'photos' || view === 'gallery' ? 'on' : ''} onClick={() => setView('photos')}>Bilder</button>
           <button className={view === 'files' ? 'on' : ''} onClick={() => setView('files')}>Prosjektfiler</button>
+          <button className={view === 'terrain3d' ? 'on' : ''} onClick={() => setView('terrain3d')}>Terreng 3D <span className="beta-tag">beta</span></button>
           <button className={view === 'settings' ? 'on' : ''} onClick={() => setView('settings')}>Innstillinger</button>
         </nav>
         <div className="topbar-right">
@@ -417,6 +421,12 @@ export default function App() {
 
           {view === 'gallery' && (
             <Gallery photos={photos} onBack={() => setView('photos')} onOpen={setViewerId} onShowOnMap={(id) => { setSelection({ type: 'item', id }); zoomToItem(id); }} />
+          )}
+          {view === 'terrain3d' && (
+            <Suspense fallback={<div className="empty-state">Laster 3D …</div>}>
+              <Terrain3D items={mapItems} photos={mapItems.filter((i): i is PhotoItem => i.kind === 'photo' || i.kind === 'pano')} dxf={dxf} settings={settings}
+                onOpenPhoto={setViewerId} />
+            </Suspense>
           )}
           {view === 'files' && (
             <ProjectFiles project={project} onZoomTo={zoomToItem} onOpenViewer={setViewerId}

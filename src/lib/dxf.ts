@@ -25,6 +25,15 @@ export interface DxfLayer {
   count: number;
 }
 
+/** Ekte 3D-geometri (trekanter) fra IFC. Koordinater er meter relativt til `origin` (Ø, N) i koordinatsystemet `crs`; Z er absolutt høyde. */
+export interface Mesh3D {
+  crs: string;
+  origin: [number, number];
+  parts: { layer: string; positions: Float32Array }[];
+  triangles: number;
+  truncated: boolean;
+}
+
 export interface ParsedDxf {
   features: DxfFeature[];
   layers: DxfLayer[];
@@ -33,6 +42,8 @@ export interface ParsedDxf {
   skipped: Record<string, number>;
   /** Koordinatsystemet filen faktisk ble lest i (kan avvike fra det brukeren valgte hvis filen oppgir sitt eget) */
   crs?: string;
+  /** 3D-geometri (bare IFC) til bruk i fanen Terreng 3D */
+  mesh3d?: Mesh3D;
 }
 
 type P3 = [number, number, number];
