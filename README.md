@@ -209,3 +209,6 @@ Nedlastingen går også parallelt (4 filer om gangen), både fra nettstedet og f
 
 ## Svart bakgrunn i ortofoto (v 3.6)
 Ortofoto uten alfakanal (f.eks. JPEG-komprimert GeoTIFF/COG uten gjennomsiktighet) har svart bakgrunn utenfor flyområdet. Feltkart gjør nå svart bakgrunn som henger sammen med bildekanten gjennomsiktig ved innlasting (mørke områder inne i bildet beholdes). Det virker også for demo-ortofotoet. Last det opp på nytt (eller bruk Nullstill demo og last demodata) for at det skal gjelde.
+
+## Bakgrunnskart: «Norge i bilder» (v 3.7)
+Norge i bilder er ikke lenger en åpen kartflis-tjeneste hos Kartverket/Geonorge (den krever nå pålogging), så den er tatt ut. Ortofoto-bakgrunn er nå **Esri verdensbilder**. Har du tilgang til en annen tjeneste, legg inn en XYZ-adresse (`.../{z}/{x}/{y}.jpg`) under Innstillinger → Egen bakgrunn (ortofoto). Den vises da under «Ortofoto» i bakgrunnsvelgeren.

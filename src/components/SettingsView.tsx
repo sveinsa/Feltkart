@@ -21,10 +21,13 @@ export default function SettingsView({ project }: { project: Project }) {
     clientId: s.google?.clientId ?? '',
     apiKey: s.google?.apiKey ?? '',
     appId: s.google?.appId ?? '',
+    bmName: s.customBasemap?.name ?? '',
+    bmUrl: s.customBasemap?.url ?? '',
+    bmZoom: s.customBasemap?.maxNativeZoom ? String(s.customBasemap.maxNativeZoom) : '',
   });
   const [f, setF] = useState(initial);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { setF(initial()); }, [s.projectName, s.projectCrs, s.google?.clientId, s.google?.apiKey, s.google?.appId]);
+  useEffect(() => { setF(initial()); }, [s.projectName, s.projectCrs, s.google?.clientId, s.google?.apiKey, s.google?.appId, s.customBasemap?.url, s.customBasemap?.name, s.customBasemap?.maxNativeZoom]);
 
   const orig = initial();
   const dirty = (Object.keys(orig) as (keyof typeof orig)[]).some((k) => orig[k] !== f[k]);
@@ -36,6 +39,10 @@ export default function SettingsView({ project }: { project: Project }) {
     project.updateSettings({
       projectCrs: f.crs,
       google: { clientId: f.clientId.trim(), apiKey: f.apiKey.trim(), appId: f.appId.trim() },
+      customBasemap: f.bmUrl.trim()
+        ? { name: f.bmName.trim() || 'Egen bakgrunn', url: f.bmUrl.trim(), maxNativeZoom: Number(f.bmZoom) > 0 ? Math.min(22, Number(f.bmZoom)) : undefined }
+        : undefined,
+      ...(!f.bmUrl.trim() && s.basemapId === 'custom' ? { basemapId: 'esri' } : {}),
     });
     setSaved(true);
   };
@@ -71,6 +78,25 @@ export default function SettingsView({ project }: { project: Project }) {
             <span className="muted small" style={{ display: 'block' }}>Sletter alt innhold i Feltkart (bilder, ortofoto, DXF og innmålinger). Filer på Google Disk berøres ikke. Etterpå kan du laste demodata på nytt.</span>
           </div>
           <ResetDemoButton project={project} />
+        </div>
+      </div>
+
+      <h3>Egen bakgrunn (ortofoto)</h3>
+      <div className="card">
+        <p className="muted small" style={{ marginTop: 0 }}>
+          «Norge i bilder» er ikke lenger åpent tilgjengelig, så Feltkart bruker Esri-ortofoto som standard. Har du tilgang til en annen bildetjeneste (f.eks. fra Norkart eller kommunen), kan du lime inn adressen her. Bruk en XYZ-adresse med <code>{'{z}'}</code>, <code>{'{x}'}</code> og <code>{'{y}'}</code>. Den vises under «Ortofoto» i bakgrunnsvelgeren.
+        </p>
+        <div className="field">
+          <label>Navn</label>
+          <input value={f.bmName} onChange={(e) => set('bmName', e.target.value)} placeholder="F.eks. Kommunens ortofoto" />
+        </div>
+        <div className="field">
+          <label>Adresse (URL)</label>
+          <input value={f.bmUrl} onChange={(e) => set('bmUrl', e.target.value)} placeholder="https://eksempel.no/tiles/{z}/{x}/{y}.jpg" />
+        </div>
+        <div className="field">
+          <label>Høyeste zoom-nivå i tjenesten (valgfritt)</label>
+          <input value={f.bmZoom} onChange={(e) => set('bmZoom', e.target.value.replace(/\D/g, ''))} placeholder="19" />
         </div>
       </div>
 

@@ -224,7 +224,7 @@ export default function App() {
 
   if (!ready || !settings) return <div className="loading">Laster prosjekt …</div>;
 
-  const basemap = basemapById(settings.basemapId);
+  const basemap = basemapById(settings.basemapId, settings.customBasemap);
   const visibleOrthos = items.filter((i) => i.kind === 'ortho' && !i.hidden).length;
   const layerCount = (basemap.url ? 1 : 0) + visibleOrthos;
   const coordText = coord ? formatProjected(settings.projectCrs, coord.lat, coord.lng) : null;
@@ -312,6 +312,7 @@ export default function App() {
               items={mapItems}
               dxf={dxf}
               basemapId={settings.basemapId}
+              customBasemap={settings.customBasemap}
               projectCrs={settings.projectCrs}
               selection={selection}
               tool={tool}

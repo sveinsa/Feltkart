@@ -1,6 +1,6 @@
 import type { OrthoItem } from '../types';
 import type { Project } from '../state';
-import { BASEMAPS } from '../lib/basemaps';
+import { BASEMAPS, customToBasemap } from '../lib/basemaps';
 
 interface Props {
   project: Project;
@@ -8,8 +8,10 @@ interface Props {
 }
 
 export default function BasemapPicker({ project, onZoomTo }: Props) {
-  const current = project.settings?.basemapId;
+  const current = project.settings?.basemapId === 'nib' ? 'esri' : project.settings?.basemapId;
   const orthos = project.items.filter((i): i is OrthoItem => i.kind === 'ortho');
+  const custom = customToBasemap(project.settings?.customBasemap);
+  const all = custom ? [...BASEMAPS, custom] : BASEMAPS;
   const groups: Array<'Kart' | 'Ortofoto' | 'Ingen'> = ['Kart', 'Ortofoto', 'Ingen'];
 
   return (
@@ -18,7 +20,7 @@ export default function BasemapPicker({ project, onZoomTo }: Props) {
         <div key={g} className="bm-group">
           {g !== 'Ingen' && <h4>{g}</h4>}
           <div className="bm-options">
-            {BASEMAPS.filter((b) => b.group === g).map((b) => (
+            {all.filter((b) => b.group === g).map((b) => (
               <label key={b.id} className={`bm-option${current === b.id ? ' on' : ''}`}>
                 <input type="radio" name="basemap" checked={current === b.id} onChange={() => project.updateSettings({ basemapId: b.id })} />
                 <span className={`bm-thumb bm-${b.id}`} />

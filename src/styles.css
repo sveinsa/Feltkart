@@ -127,7 +127,7 @@ button { cursor: pointer; }
 .bm-kv-topo { background: linear-gradient(135deg, #f3efe2 40%, #cfe6c2 40% 60%, #bcd8f0 60%); }
 .bm-kv-gra { background: linear-gradient(135deg, #f1f1f1 40%, #d9d9d9 40% 60%, #c4c4c4 60%); }
 .bm-osm { background: linear-gradient(135deg, #f2efe9 45%, #aad3df 45% 60%, #c8e6b4 60%); }
-.bm-nib, .bm-esri { background: linear-gradient(135deg, #556b3e 30%, #8a8f7a 30% 55%, #6f7d5a 55% 75%, #b4ab92 75%); }
+.bm-custom, .bm-esri { background: linear-gradient(135deg, #556b3e 30%, #8a8f7a 30% 55%, #6f7d5a 55% 75%, #b4ab92 75%); }
 .bm-none { background: repeating-linear-gradient(45deg, #fff 0 5px, #eceef1 5px 10px); }
 .ortho-row { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .ortho-name { display: flex; align-items: center; gap: 8px; cursor: pointer; }

@@ -67,6 +67,8 @@ export interface Settings {
   /** Eldre speilede Disk-mapper er ryddet bort (gjøres én gang) */
   foldersCleaned?: boolean;
   basemapId: string;
+  /** Egen bakgrunn (XYZ-URL) som vises under Ortofoto i bakgrunnsvelgeren */
+  customBasemap?: { name: string; url: string; maxNativeZoom?: number };
   /** Standardmapper per type. «survey» = innmålinger (KOF/SOSI/LandXML), opprettes ved behov. */
   defaultFolders: Record<ItemKind, string> & { survey?: string };
   /** Mappemaler for Google Disk (innrykket tekst) */

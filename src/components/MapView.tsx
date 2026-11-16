@@ -17,6 +17,7 @@ interface Props {
   items: Item[];
   dxf: Record<string, DxfState>;
   basemapId: string;
+  customBasemap?: { name: string; url: string; maxNativeZoom?: number };
   projectCrs: string;
   selection: Selection;
   tool: Tool;
@@ -113,14 +114,14 @@ export default function MapView(props: Props) {
     const map = mapRef.current!;
     baseRef.current?.remove();
     baseRef.current = null;
-    const b = basemapById(props.basemapId);
+    const b = basemapById(props.basemapId, props.customBasemap);
     if (b.url) {
       baseRef.current = L.tileLayer(b.url, {
         maxZoom: 22, maxNativeZoom: b.maxNativeZoom ?? 18, attribution: b.attribution,
       }).addTo(map);
     }
     map.getContainer().classList.toggle('dark-base', !!b.dark);
-  }, [props.basemapId]);
+  }, [props.basemapId, props.customBasemap?.url, props.customBasemap?.maxNativeZoom]);
 
   // ---------- Droneortofoto ----------
   useEffect(() => {
