@@ -156,6 +156,42 @@ button { cursor: pointer; }
 .coord-bar { position: absolute; left: 10px; bottom: 10px; z-index: 800; display: flex; gap: 12px; background: rgba(255, 255, 255, 0.92); padding: 5px 10px; border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
 .measure-box { position: absolute; left: 50%; transform: translateX(-50%); top: 12px; z-index: 850; background: #1f2328; color: #fff; padding: 8px 14px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; box-shadow: var(--shadow); pointer-events: none; }
 .measure-box span { font-size: 11.5px; color: #c9ccd1; }
+
+/* ---------- Måling (felles for kart og Terreng 3D) ---------- */
+.mp { position: absolute; left: 50%; transform: translateX(-50%); top: 12px; z-index: 860; width: min(340px, calc(100% - 24px)); background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; }
+.mp-head { display: flex; align-items: center; gap: 6px; padding: 8px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.mp-tabs { flex: 1; display: flex; background: #fff; border: 1px solid var(--line-2); border-radius: 7px; overflow: hidden; }
+.mp-tabs button { flex: 1; border: 0; background: none; padding: 6px 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: var(--ink-2); font-weight: 600; }
+.mp-tabs button + button { border-left: 1px solid var(--line-2); }
+.mp-tabs button:hover:not(.on) { background: var(--bg); }
+.mp-tabs button.on { background: #ef6c1a; color: #fff; }
+.mp-body { padding: 10px 14px 6px; display: flex; flex-direction: column; gap: 2px; }
+.mp-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 3px 0; }
+.mp-label { color: var(--muted); }
+.mp-val { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+.mp-val small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.mp-row.strong .mp-label { color: var(--ink); font-weight: 600; }
+.mp-row.strong .mp-val { font-size: 20px; color: #c2540c; }
+.mp-hint { color: var(--muted); font-size: 12px; padding: 4px 0; }
+.mp-warn { margin: 6px 0; padding: 7px 9px; background: #fff4e5; border: 1px solid #ffd8a8; color: #8a4b00; border-radius: 6px; font-size: 12px; }
+.mp-note { margin: 6px 0 2px; color: var(--muted); font-size: 11.5px; }
+.mp-segs { margin-top: 4px; font-size: 12px; }
+.mp-segs summary { cursor: pointer; color: var(--ink-2); }
+.mp-segs ol { margin: 4px 0 0; padding-left: 22px; max-height: 120px; overflow: auto; font-variant-numeric: tabular-nums; }
+.mp-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 6px; }
+.mp-actions .btn { padding: 5px 10px; }
+.mp-actions .btn:disabled { opacity: 0.45; cursor: default; }
+.mp-foot { padding: 0 14px 10px; font-size: 11px; color: var(--muted); line-height: 1.45; }
+.measure-label { background: none; border: 0; pointer-events: none; }
+.measure-label span { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap; font: 600 11.5px/1 var(--font); color: #1f2328; background: rgba(255, 255, 255, 0.93); border: 1px solid rgba(239, 108, 26, 0.75); border-radius: 4px; padding: 2px 5px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); font-variant-numeric: tabular-nums; }
+.measure-label.total span { background: #ef6c1a; color: #fff; border-color: #fff; transform: translate(-50%, calc(-100% - 10px)); }
+.measure-label.area span { transform: translate(-50%, -50%); font-size: 13px; padding: 3px 7px; }
+.measure-label.live span { transform: translate(14px, -26px); background: #1f2328; color: #fff; border-color: transparent; }
+.tb-btn.wide span { font-weight: 500; }
+@media (max-width: 900px) {
+  .map-toolbar { flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 64px); }
+  .mp { top: auto; bottom: 44px; }
+}
 .map-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 800; background: #fff; border-radius: 10px; box-shadow: var(--shadow); padding: 20px 24px; display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 360px; text-align: center; }
 .map-empty strong { font-size: 15px; }
 .map-empty span { color: var(--muted); }
@@ -500,7 +536,10 @@ body.picking .modal-back { visibility: hidden; }
    (og inline-stil i Terrain3D.tsx) kollapser kartet til 0 px høyde og ser ut som en hvit side. */
 .t3d .t3d-map .t3d-canvas { position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; }
 .t3d-canvas .maplibregl-canvas { outline: none; }
-.t3d-toggle { position: absolute; left: 12px; top: 12px; z-index: 5; border: 1px solid var(--line-2); background: #fff; border-radius: 6px; padding: 6px 12px; font-weight: 500; box-shadow: var(--shadow); }
+.t3d-topbar { position: absolute; left: 12px; top: 12px; z-index: 5; display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; right: 60px; pointer-events: none; }
+.t3d-topbar > * { pointer-events: auto; }
+.t3d-toggle { height: 34px; border: 1px solid var(--line-2); background: #fff; border-radius: 6px; padding: 0 12px; font-weight: 500; box-shadow: var(--shadow); }
+.t3d-topbar .tb-btn:disabled { opacity: 0.5; cursor: default; }
 .t3d-loading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #fff; padding: 14px 20px; border-radius: 10px; box-shadow: var(--shadow); z-index: 5; }
 .t3d-panel { width: 330px; flex: none; overflow: auto; background: var(--panel-2); border-right: 1px solid var(--line); padding: 14px 16px 30px; display: flex; flex-direction: column; gap: 4px; }
 .t3d-panel h2 { margin: 0 0 6px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
@@ -516,6 +555,26 @@ body.picking .modal-back { visibility: hidden; }
 .t3d-problems { position: absolute; left: 12px; right: 60px; bottom: 34px; z-index: 5; background: #fff7f5; border: 1px solid #efc2bb; color: var(--danger); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; max-height: 40%; overflow: auto; }
 .t3d-problems .btn { align-self: flex-start; padding: 3px 10px; font-size: 12px; }
 .t3d-notice { position: absolute; left: 12px; right: 60px; top: 52px; z-index: 5; background: #fff; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; box-shadow: var(--shadow); }
+/* Tegnforklaring: vanlig foto (ramme) og 360-bilde (kule) */
+.t3d-key { flex: none; display: inline-grid; place-items: center; width: 26px; height: 20px; color: #fff; font-size: 8.5px; font-weight: 700; letter-spacing: -0.02em; }
+.t3d-key.k-photo { background: linear-gradient(#bfe0f5 52%, #7cb342 52%); border: 2px solid #fff; outline: 2px solid #5fa83a; border-radius: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
+.t3d-key.k-pano { width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #4f9d7a, #0f5a3c 72%); border: 2px solid #fff; box-shadow: 0 0 0 1.5px #0f5a3c, 0 1px 3px rgba(0, 0, 0, 0.3); }
+.t3d-hover { position: absolute; z-index: 7; pointer-events: none; display: flex; align-items: center; gap: 8px; max-width: 290px; padding: 6px 10px 6px 6px; background: #fff; border-radius: 8px; border-left: 5px solid #5fa83a; box-shadow: var(--shadow); }
+.t3d-hover.h-pano { border-left-color: #0f5a3c; }
+.t3d-hover img { width: 76px; height: 56px; object-fit: cover; border-radius: 4px; background: #e9ecef; flex: none; }
+.t3d-hover div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.t3d-hover b { font-size: 12px; }
+.t3d-hover.h-photo b { color: #3f7a24; }
+.t3d-hover.h-pano b { color: #0f5a3c; }
+.t3d-hover span { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Måling i Terreng 3D */
+.t3d .mp { left: auto; right: 56px; transform: none; }
+.t3d-live { position: absolute; z-index: 6; pointer-events: none; background: #1f2328; color: #fff; font: 600 11.5px/1 var(--font); padding: 4px 7px; border-radius: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
+.m3-label { pointer-events: none; white-space: nowrap; font: 600 11.5px/1 var(--font); color: #1f2328; background: rgba(255, 255, 255, 0.94); border: 1px solid rgba(239, 108, 26, 0.75); border-radius: 4px; padding: 2px 5px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); font-variant-numeric: tabular-nums; }
+.m3-label.total { background: #ef6c1a; color: #fff; border-color: #fff; }
+.m3-label.area { font-size: 13px; padding: 3px 7px; background: #ef6c1a; color: #fff; border-color: #fff; }
+@media (max-width: 900px) { .t3d .mp { top: auto; bottom: 40px; right: 12px; } }
 .t3d-tech { margin-top: 14px; font-size: 12px; color: var(--muted); }
 .t3d-tech summary { cursor: pointer; }
 .t3d-tech pre { margin: 6px 0 0; white-space: pre-wrap; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; user-select: text; }

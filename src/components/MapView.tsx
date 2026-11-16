@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { DxfItem, Item, OrthoItem, PhotoItem, Selection, Tool } from '../types';
 import type { DxfState } from '../state';
 import { basemapById } from '../lib/basemaps';
-import { fromLatLng, fmt } from '../lib/crs';
+import { crsName, pointsToMeters, toLatLng } from '../lib/crs';
+import { formatAreaShort, formatLengthShort, pathLength, ringArea, summarize } from '../lib/measure';
+import type { MeasureMode, MPt } from '../lib/measure';
 import { markerHtml } from './icons';
+import MeasurePanel from './MeasurePanel';
 
 export interface FitRequest {
   seq: number;
@@ -24,10 +27,34 @@ interface Props {
   fit: FitRequest | null;
   onSelect: (s: Selection) => void;
   onPlace: (lat: number, lng: number) => void;
+  onTool: (t: Tool) => void;
   onMouseCoord: (ll: { lat: number; lng: number } | null) => void;
 }
 
 type DxfLayers = { key: string; groups: Map<string, L.LayerGroup>; added: Set<string> };
+
+const ORANGE = '#ef6c1a';
+
+interface MeasureState {
+  pts: L.LatLng[];
+  finished: boolean;
+  /** Musepekerens posisjon (til strek under arbeid) */
+  cursor: L.LatLng | null;
+  /** Faste punkter, linjer og etiketter */
+  group: L.LayerGroup;
+  /** Strek fra siste punkt til musepekeren */
+  live: L.LayerGroup;
+}
+
+/** Punktene i kartet → meter i et projisert koordinatsystem */
+function toMeters(pts: L.LatLng[], projectCrs: string): { crs: string; mpts: MPt[] } {
+  const r = pointsToMeters(projectCrs, pts);
+  return { crs: r.crs, mpts: r.pts };
+}
+
+function labelIcon(text: string, cls = ''): L.DivIcon {
+  return L.divIcon({ className: `measure-label ${cls}`.trim(), html: `<span>${text}</span>`, iconSize: [0, 0] });
+}
 
 /** Trenger vi det store bildet? Ja når ortofotoet vises bredere enn forhåndsbildet (2048 px). */
 function needsHiRes(map: L.Map, b: L.LatLngBounds): boolean {
@@ -48,8 +75,9 @@ export default function MapView(props: Props) {
   const dxfLayers = useRef(new Map<string, DxfLayers>());
   const dxfRenderer = useRef<L.Canvas | null>(null);
   const highlight = useRef<L.LayerGroup | null>(null);
-  const measure = useRef<{ pts: L.LatLng[]; group: L.LayerGroup; finished: boolean } | null>(null);
-  const [measureText, setMeasureText] = useState<string | null>(null);
+  const measure = useRef<MeasureState | null>(null);
+  const liveFrame = useRef(0);
+  const [measureVer, setMeasureVer] = useState(0);
 
   // ---------- Opprett kart ----------
   useEffect(() => {
@@ -65,40 +93,42 @@ export default function MapView(props: Props) {
     dxfRenderer.current = L.canvas({ pane: 'dxfPane', padding: 0.5, tolerance: 5 });
     photoGroup.current = L.layerGroup().addTo(map);
     highlight.current = L.layerGroup().addTo(map);
-    measure.current = { pts: [], group: L.layerGroup().addTo(map), finished: false };
+    measure.current = { pts: [], finished: false, cursor: null, group: L.layerGroup().addTo(map), live: L.layerGroup().addTo(map) };
 
     const updateTextVis = () => map.getContainer().classList.toggle('show-dxf-text', map.getZoom() >= 18);
     map.on('zoomend', updateTextVis);
     updateTextVis();
+    // Etikettene på målingen avhenger av hvor lange strekene er på skjermen
+    map.on('zoomend', () => { if (measure.current?.pts.length) drawMeasure(); });
 
-    map.on('mousemove', (e: L.LeafletMouseEvent) => propsRef.current.onMouseCoord(e.latlng));
-    map.on('mouseout', () => propsRef.current.onMouseCoord(null));
+    map.on('mousemove', (e: L.LeafletMouseEvent) => { propsRef.current.onMouseCoord(e.latlng); liveMove(e.latlng); });
+    map.on('mouseout', () => {
+      propsRef.current.onMouseCoord(null);
+      if (measure.current) { measure.current.cursor = null; drawLive(); }
+    });
     map.on('click', (e: L.LeafletMouseEvent) => {
       const p = propsRef.current;
       if (p.tool === 'place') { p.onPlace(e.latlng.lat, e.latlng.lng); return; }
       if (p.tool === 'distance' || p.tool === 'area') { addMeasurePoint(e.latlng); return; }
       p.onSelect({ type: 'point', lat: e.latlng.lat, lng: e.latlng.lng });
     });
+    // Dobbeltklikk gir to klikk først (det andre er et duplikat) og avslutter deretter målingen
     map.on('dblclick', () => {
-      const p = propsRef.current;
-      const m = measure.current!;
-      if ((p.tool === 'distance' || p.tool === 'area') && m.pts.length) {
-        // Dobbeltklikk gir to klikk først – fjern det dupliserte punktet og lås målingen
-        m.pts.pop();
-        const last = m.pts.pop();
-        if (last) addMeasurePoint(last);
-        m.finished = true;
-      }
+      const t = propsRef.current.tool;
+      if (t === 'distance' || t === 'area') finishMeasure(true);
     });
+    // Høyreklikk angrer siste punkt
     map.on('contextmenu', () => {
-      const p = propsRef.current;
-      if (p.tool === 'distance' || p.tool === 'area') clearMeasure();
+      const t = propsRef.current.tool;
+      if (t === 'distance' || t === 'area') undoMeasurePoint();
     });
 
     const ro = new ResizeObserver(() => map.invalidateSize());
     ro.observe(el.current!);
     return () => {
       ro.disconnect();
+      cancelAnimationFrame(liveFrame.current);
+      liveFrame.current = 0;
       map.remove();
       mapRef.current = null;
       baseRef.current = null;
@@ -283,10 +313,32 @@ export default function MapView(props: Props) {
     const measuring = props.tool === 'distance' || props.tool === 'area';
     if (measuring) map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
     map.getContainer().classList.toggle('tool-crosshair', props.tool !== 'select');
+    const m = measure.current!;
     if (!measuring) clearMeasure();
-    else { clearMeasure(); setMeasureText(props.tool === 'distance' ? 'Klikk i kartet for å måle avstand' : 'Klikk i kartet for å måle areal'); }
+    else {
+      // Bytter man mellom avstand og areal beholdes punktene, slik at samme punkter kan måles begge veier
+      m.finished = false;
+      drawMeasure();
+      drawLive();
+      setMeasureVer((v) => v + 1);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.tool]);
+
+  // ---------- Tastatur under måling ----------
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = propsRef.current.tool;
+      if (t !== 'distance' && t !== 'area') return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(el.tagName))) return;
+      if (e.key === 'Enter') { e.preventDefault(); finishMeasure(false); }
+      else if (e.key === 'Backspace' || e.key === 'Delete' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z')) { e.preventDefault(); undoMeasurePoint(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---------- Zoom-forespørsler ----------
   useEffect(() => {
@@ -302,45 +354,142 @@ export default function MapView(props: Props) {
     if (!m) return;
     m.pts = [];
     m.finished = false;
+    m.cursor = null;
     m.group.clearLayers();
-    setMeasureText(null);
+    m.live.clearLayers();
+    setMeasureVer((v) => v + 1);
   }
 
   function addMeasurePoint(ll: L.LatLng) {
-    const m = measure.current!;
-    const { tool, projectCrs } = propsRef.current;
+    const m = measure.current;
+    if (!m) return;
     if (m.finished) { m.pts = []; m.finished = false; }
     m.pts.push(ll);
-    m.group.clearLayers();
-    const style = { color: '#ef6c1a', weight: 3, pane: 'measurePane', interactive: false, dashArray: '6 5' };
-    const xy = m.pts.map((p) => fromLatLng(projectCrs === 'EPSG:4326' ? 'EPSG:25833' : projectCrs, p.lat, p.lng));
-    let label = '';
-    if (tool === 'area' && m.pts.length >= 3) {
-      L.polygon(m.pts, { ...style, fillColor: '#ef6c1a', fillOpacity: 0.15 }).addTo(m.group);
-      let a = 0, per = 0;
-      for (let i = 0, j = xy.length - 1; i < xy.length; j = i++) {
-        a += (xy[j][0] + xy[i][0]) * (xy[j][1] - xy[i][1]);
-        per += Math.hypot(xy[i][0] - xy[j][0], xy[i][1] - xy[j][1]);
-      }
-      label = `Areal: ${fmt.m2(Math.abs(a / 2))} · Omkrets: ${fmt.m(per)}`;
-    } else {
-      L.polyline(m.pts, style).addTo(m.group);
-      let d = 0;
-      for (let i = 1; i < xy.length; i++) d += Math.hypot(xy[i][0] - xy[i - 1][0], xy[i][1] - xy[i - 1][1]);
-      label = tool === 'area' ? 'Legg til minst tre punkter' : `Avstand: ${fmt.m(d)}`;
-    }
-    for (const p of m.pts) L.circleMarker(p, { radius: 4, color: '#fff', weight: 2, fillColor: '#ef6c1a', fillOpacity: 1, pane: 'measurePane', interactive: false }).addTo(m.group);
-    setMeasureText(label);
+    m.cursor = ll;
+    drawMeasure();
+    drawLive();
+    setMeasureVer((v) => v + 1);
   }
+
+  function undoMeasurePoint() {
+    const m = measure.current;
+    if (!m || !m.pts.length) return;
+    m.pts.pop();
+    m.finished = false;
+    drawMeasure();
+    drawLive();
+    setMeasureVer((v) => v + 1);
+  }
+
+  /** Avslutter målingen. `dedupe`: dobbeltklikk gir et ekstra punkt på samme sted som må fjernes. */
+  function finishMeasure(dedupe: boolean) {
+    const m = measure.current;
+    const map = mapRef.current;
+    if (!m || !map || m.finished || !m.pts.length) return;
+    if (dedupe && m.pts.length >= 2) {
+      const a = map.latLngToContainerPoint(m.pts[m.pts.length - 1]);
+      const b = map.latLngToContainerPoint(m.pts[m.pts.length - 2]);
+      if (a.distanceTo(b) < 5) m.pts.pop();
+    }
+    const need = propsRef.current.tool === 'area' ? 3 : 2;
+    if (m.pts.length >= need) { m.finished = true; m.live.clearLayers(); }
+    drawMeasure();
+    setMeasureVer((v) => v + 1);
+  }
+
+  /** Tegner punkter, linjer og etiketter for det som er målt så langt */
+  function drawMeasure() {
+    const map = mapRef.current;
+    const m = measure.current;
+    if (!map || !m) return;
+    m.group.clearLayers();
+    const n = m.pts.length;
+    if (!n) return;
+    const p = propsRef.current;
+    const mode: MeasureMode = p.tool === 'area' ? 'area' : 'distance';
+    const { crs, mpts } = toMeters(m.pts, p.projectCrs);
+    const s = summarize(mode, mpts);
+    const base = { pane: 'measurePane', interactive: false } as const;
+    // Hvit kontur under den oransje streken gjør målingen synlig på alle bakgrunner
+    if (mode === 'area' && n >= 3) {
+      L.polygon(m.pts, { ...base, color: '#fff', weight: 7, opacity: 0.9, fill: false }).addTo(m.group);
+      L.polygon(m.pts, { ...base, color: ORANGE, weight: 3.5, fillColor: ORANGE, fillOpacity: 0.18 }).addTo(m.group);
+    } else if (n >= 2) {
+      L.polyline(m.pts, { ...base, color: '#fff', weight: 7, opacity: 0.9 }).addTo(m.group);
+      L.polyline(m.pts, { ...base, color: ORANGE, weight: 3.5 }).addTo(m.group);
+    }
+    for (const pt of m.pts) {
+      L.circleMarker(pt, { ...base, radius: 5, color: '#fff', weight: 2, fillColor: ORANGE, fillOpacity: 1 }).addTo(m.group);
+    }
+    // Lengde på hver delstrekning (hoppes over når strekningen er for kort til å få plass)
+    s.segments.forEach((len, i) => {
+      const a = m.pts[i], b = m.pts[(i + 1) % n];
+      if (map.latLngToContainerPoint(a).distanceTo(map.latLngToContainerPoint(b)) < 56) return;
+      L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], { ...base, keyboard: false, icon: labelIcon(formatLengthShort(len)) }).addTo(m.group);
+    });
+    if (mode === 'distance' && s.segments.length >= 2) {
+      L.marker(m.pts[n - 1], { ...base, keyboard: false, icon: labelIcon(`Σ ${formatLengthShort(s.horizontal)}`, 'total') }).addTo(m.group);
+    }
+    if (s.area !== null && s.centroid) {
+      const [lat, lng] = toLatLng(crs, s.centroid.x, s.centroid.y);
+      L.marker([lat, lng], { ...base, keyboard: false, icon: labelIcon(formatAreaShort(s.area), 'total area') }).addTo(m.group);
+    }
+  }
+
+  /** Stiplet strek fra siste punkt til musepekeren, med lengden på strekningen under arbeid */
+  function drawLive() {
+    const m = measure.current;
+    if (!m) return;
+    m.live.clearLayers();
+    if (m.finished || !m.cursor || !m.pts.length) return;
+    const p = propsRef.current;
+    if (p.tool !== 'distance' && p.tool !== 'area') return;
+    const last = m.pts[m.pts.length - 1];
+    const dash = { pane: 'measurePane', interactive: false, color: ORANGE, weight: 2.5, dashArray: '6 6' } as const;
+    L.polyline([last, m.cursor], dash).addTo(m.live);
+    if (p.tool === 'area' && m.pts.length >= 2) L.polyline([m.cursor, m.pts[0]], { ...dash, opacity: 0.45 }).addTo(m.live);
+    const { mpts } = toMeters([...m.pts, m.cursor], p.projectCrs);
+    const k = mpts.length;
+    let text = formatLengthShort(Math.hypot(mpts[k - 1].x - mpts[k - 2].x, mpts[k - 1].y - mpts[k - 2].y));
+    if (p.tool === 'distance' && k >= 3) text += ` · Σ ${formatLengthShort(pathLength(mpts))}`;
+    if (p.tool === 'area' && k >= 3) text += ` · ${formatAreaShort(ringArea(mpts))}`;
+    L.marker(m.cursor, { pane: 'measurePane', interactive: false, keyboard: false, icon: labelIcon(text, 'live') }).addTo(m.live);
+  }
+
+  function liveMove(ll: L.LatLng) {
+    const m = measure.current;
+    const t = propsRef.current.tool;
+    if (!m || (t !== 'distance' && t !== 'area')) return;
+    m.cursor = ll;
+    if (!m.pts.length || m.finished || liveFrame.current) return;
+    liveFrame.current = requestAnimationFrame(() => { liveFrame.current = 0; drawLive(); });
+  }
+
+  const measuring = props.tool === 'distance' || props.tool === 'area';
+  const measureMode: MeasureMode = props.tool === 'area' ? 'area' : 'distance';
+  const measureView = useMemo(() => {
+    const m = measure.current;
+    if (!measuring || !m) return null;
+    const { crs, mpts } = toMeters(m.pts, props.projectCrs);
+    return { summary: summarize(measureMode, mpts), crs, finished: m.finished };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measuring, measureMode, measureVer, props.projectCrs]);
 
   return (
     <div className="map-wrap">
       <div ref={el} className="map" />
-      {measureText && (
-        <div className="measure-box">
-          <strong>{measureText}</strong>
-          <span>Dobbeltklikk for å avslutte · høyreklikk for å starte på nytt</span>
-        </div>
+      {measureView && (
+        <MeasurePanel
+          mode={measureMode}
+          summary={measureView.summary}
+          crsLabel={crsName(measureView.crs)}
+          finished={measureView.finished}
+          onMode={(mm) => props.onTool(mm)}
+          onUndo={undoMeasurePoint}
+          onFinish={() => finishMeasure(false)}
+          onClear={clearMeasure}
+          onClose={() => props.onTool('select')}
+        />
       )}
       {props.tool === 'place' && (
         <div className="measure-box"><strong>Klikk i kartet der bildet ble tatt</strong><span>Esc for å avbryte</span></div>

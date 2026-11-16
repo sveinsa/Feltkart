@@ -77,6 +77,25 @@ export function transform(from: string, to: string, x: number, y: number): [numb
   return [a, b];
 }
 
+/**
+ * Koordinatsystem som brukes til å måle avstand og areal. Prosjektets eget system brukes når det er et
+ * metersystem; er prosjektet satt til grader (WGS84) velges UTM-sonen ut fra lengdegraden.
+ */
+export function measureCrs(projectCrs: string, lng: number): string {
+  if (projectCrs && projectCrs !== 'EPSG:4326') return projectCrs;
+  const zone = Math.floor((lng + 180) / 6) + 1;
+  return `EPSG:258${zone >= 31 && zone <= 36 ? zone : 33}`;
+}
+
+/** Punkter (bredde/lengde, evt. høyde) → meter i målekoordinatsystemet, klare for målefunksjonene i measure.ts */
+export function pointsToMeters(
+  projectCrs: string,
+  pts: { lat: number; lng: number; z?: number | null }[],
+): { crs: string; pts: { x: number; y: number; z?: number | null }[] } {
+  const crs = measureCrs(projectCrs, pts[0]?.lng ?? 10);
+  return { crs, pts: pts.map((p) => { const [x, y] = fromLatLng(crs, p.lat, p.lng); return { x, y, z: p.z }; }) };
+}
+
 const nf2 = new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const nf6 = new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
 

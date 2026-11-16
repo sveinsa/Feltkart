@@ -111,12 +111,15 @@ src/
   lib/
     db.ts              Lagring i nettleseren (IndexedDB)
     crs.ts             Koordinatsystemer (EUREF89 UTM 32/33/35, NTM 5–30) med proj4
+    measure.ts         Måling: lengde, areal, stigning og formatering (felles for kart og 3D)
     photos.ts          EXIF og gjenkjenning av 360-bilder
     dxf.ts             DXF → kartgeometri (inkl. blokker, buer, høyder)
     ortho.ts           GeoTIFF → reprojisert bilde (Web Mercator)
     basemaps.ts        Bakgrunnskart
   components/
     MapView.tsx        Leaflet-kartet, markører, DXF-lag, måling
+    MeasurePanel.tsx   Målepanel (felles for kart og Terreng 3D)
+    Terrain3D.tsx      Terreng 3D (MapLibre + three.js): terreng, ortofoto, IFC, bilder, måling
     LayerTree.tsx      Mappestruktur med avkrysning
     InfoPanel.tsx      Objektinformasjon
     UploadDialog.tsx   Opplasting
@@ -221,7 +224,7 @@ Egen fane **Terreng 3D** (MapLibre GL + three.js, lastes først når fanen åpne
 - **Terreng** fra åpne høydedata (Mapterhorn – Norge i 1 m, eller AWS Terrain Tiles globalt). Bakgrunn: Esri, OpenStreetMap, Kartverket eller egen. Overdrivelse av høyder 1–5×.
 - **Ortofoto** (droneortofoto) drapes på terrenget. Slå av «Vis terreng i 3D» for å se det flatt.
 - **IFC-modeller** vises som ekte 3D (trekanter), farget etter objekttype. Modellen må ha georeferanse (som for kartvisning). Svært store modeller kuttes ved 2,5 mill. trekanter.
-- **Dronefoto og 360-bilder** vises som 3D-bobler i riktig posisjon og høyde (fra bildets GPS-høyde), med stolpe ned til bakken. Klikk en boble for å åpne bildet. Datofilteret i kartet gjelder også her.
+- **Dronefoto og 360-bilder** vises i riktig posisjon og høyde (fra bildets GPS-høyde), med stolpe ned til bakken. Vanlige bilder er rammer med «FOTO»-merke, 360-bilder er kuler med «360°»-merke (se v 4.2). Klikk et bilde for å åpne det. Datofilteret i kartet gjelder også her.
 - Krever at nettleseren har WebGL. Kjør `npm install` på nytt etter oppdatering (ny avhengighet: `maplibre-gl`).
 
 ### Rettelser i v 4.1 (hvit side i Terreng 3D)
@@ -231,3 +234,22 @@ Egen fane **Terreng 3D** (MapLibre GL + three.js, lastes først når fanen åpne
 - **Riktig høyde på bobler og IFC:** I MapLibre 4.x er matrisen til egne lag ikke senket med terrenghøyden i kartsenteret, og `queryTerrainElevation` gir høyde relativt til senteret. Begge deler er justert, så alt tegnes i høyde over havet.
 - **Mapterhorn** leses nå via sin offisielle TileJSON (`https://tiles.mapterhorn.com/tilejson.json`). Svarer den ikke, byttes det automatisk til AWS Terrain Tiles, og du får beskjed.
 - **Teknisk info** nederst i panelet (versjon, WebGL, størrelse på kartvinduet, antall bobler og IFC-deler) hjelper når noe ikke ser riktig ut.
+
+## Måling og tydeligere bilder i 3D (v 4.2)
+
+### Måling i kartet og i Terreng 3D
+Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme målepanel brukes i både kartet og Terreng 3D (i 3D ligger knappene øverst i vinduet).
+- **Avstand / lengde:** Klikk punkt for punkt. Hver delstrekning får en etikett på linjen, og samlet lengde («Σ») står ved siste punkt. Mens du måler, følger en stiplet strek og en etikett pekeren, så du ser lengden før du klikker.
+- **Areal innenfor et polygon:** Klikk hjørnene. Du får areal i m², og i dekar (daa) og hektar (ha) fra 1 000 m², pluss omkrets. Krysser polygonet seg selv, vises en advarsel, siden arealet da ikke er pålitelig.
+- **Panelet** har Angre, Fullfør, Nullstill og Kopier (kopierer resultatet som tekst). Du kan bytte mellom Avstand og Areal uten å miste punktene.
+- **Snarveier:** Enter fullfører, Backspace angrer siste punkt, Esc avslutter målingen, dobbeltklikk fullfører. I kartet angrer også høyreklikk siste punkt. Bilder og DXF-punkter i kartet kan klikkes som målepunkter mens du måler.
+- **I Terreng 3D** måles det direkte på terrenget (strekene legges langs bakken). I tillegg vises **skrå lengde**, **høydeforskjell** og **stigning** i prosent. Høydene leses av terrengmodellen når du klikker og er derfor omtrentlige. Er terrenget slått av, vises bare horisontale mål.
+- **Regnet i prosjektets koordinatsystem** (står nederst i panelet). Er prosjektet i lengde/bredde (EPSG:4326), regnes det i UTM-sonen der målingen ligger. Avstander i UTM/NTM har små avvik fra målt avstand på bakken, slik som i all kartprogramvare. Skrå lengde er rette linjer mellom punktene du klikker, ikke terrengets krumning mellom dem.
+- Målingen ryddes bort når du velger et annet verktøy eller bytter fane.
+
+### Tydeligere forskjell på foto og 360-bilde i 3D
+- **Vanlig foto** er en stående **bilderamme** med miniatyren av bildet og et grønt «FOTO»-merke.
+- **360-bilde** er en **kule** med selve panoramabildet på utsiden, en hvit ring rundt og et mørkegrønt «360°»-merke.
+- Merkelappene og rammene vender alltid mot kameraet, så de kan leses uansett fra hvilken side du ser.
+- **Bilder i 3D**-panelet har egne avkrysningsbokser for «Vanlige bilder (rammer)» og «360-bilder (kuler)» med antall, og små tegnforklaringsikoner som ser ut som objektene i 3D. Størrelsen kan justeres.
+- Holder du musen over et bilde, vises et lite kort med miniatyr, typen («Vanlig foto» eller «360-bilde») og filnavnet.

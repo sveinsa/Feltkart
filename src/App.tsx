@@ -189,6 +189,11 @@ export default function App() {
     setTool('select');
   }, [items, placingId, project, showToast]);
 
+  // Måling og andre kartverktøy avsluttes når man forlater kartet (kartet ligger skjult under de andre fanene)
+  useEffect(() => {
+    if (view !== 'map' && view !== 'photos') { setTool('select'); setPlacingId(null); }
+  }, [view]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || viewerId || upload) return;
@@ -234,9 +239,9 @@ export default function App() {
   const layerCount = (basemap.url ? 1 : 0) + visibleOrthos;
   const coordText = coord ? formatProjected(settings.projectCrs, coord.lat, coord.lng) : null;
 
-  const toolBtn = (t: Tool, Icon: typeof IconPointer, title: string) => (
-    <button className={`tb-btn${tool === t ? ' on' : ''}`} title={title} onClick={() => { setTool(t); setPlacingId(null); }}>
-      <Icon size={18} />
+  const toolBtn = (t: Tool, Icon: typeof IconPointer, title: string, label?: string) => (
+    <button className={`tb-btn${label ? ' wide' : ''}${tool === t ? ' on' : ''}`} title={title} onClick={() => { setTool(tool === t && label ? 'select' : t); setPlacingId(null); }}>
+      <Icon size={18} />{label && <span>{label}</span>}
     </button>
   );
 
@@ -325,14 +330,15 @@ export default function App() {
               fit={fit}
               onSelect={setSelection}
               onPlace={onPlace}
+              onTool={(t) => { setTool(t); setPlacingId(null); }}
               onMouseCoord={setCoord}
             />
 
             <div className="map-toolbar">
               <div className="tb-group">
                 {toolBtn('select', IconPointer, 'Velg / objektinformasjon')}
-                {toolBtn('distance', IconRuler, 'Mål avstand')}
-                {toolBtn('area', IconArea, 'Mål areal')}
+                {toolBtn('distance', IconRuler, 'Mål avstand / lengde', 'Avstand')}
+                {toolBtn('area', IconArea, 'Mål areal innenfor et polygon', 'Areal')}
                 <button className="tb-btn" title="Zoom til alt innhold" onClick={zoomToAll}><IconExtent size={18} /></button>
               </div>
               {photos.length > 0 && (
