@@ -7,6 +7,7 @@ import {
 } from '../lib/google';
 import { isWorldFile } from '../lib/jp2';
 import { usePickerOpen } from '../lib/usePickerOpen';
+import { startJob } from '../lib/transfer';
 import { googleConfig } from './DriveDialog';
 import ResetDemoButton from './ResetDemoButton';
 import { DEMO_FOLDER_URL } from '../lib/demo';
@@ -58,11 +59,24 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
   const notOnDrive = useMemo(() => project.items.filter((i) => !i.driveId && i.kind !== 'ortho'), [project.items]);
   const orthoNotOnDrive = project.items.filter((i) => i.kind === 'ortho' && !i.driveId).length;
 
-  const run = async (fn: () => Promise<void>) => {
+  /** Hjelpere en oppgave bruker for å melde fra om fremdrift og resultat. Fremdriften vises også utenfor dialogen (statusfeltet). */
+  interface RunCtx { report: (m: string, pct?: number | null) => void; ok: (m: string) => void; err: (m: string) => void }
+  const run = async (fn: (c: RunCtx) => Promise<void>, title?: string) => {
     setError(null);
     setOkMsg(null);
     setBusy(true);
-    try { await fn(); } catch (e: any) { setError(String(e?.message ?? e)); }
+    const job = title ? startJob(title) : null;
+    let okText = '', errText = '';
+    const c: RunCtx = {
+      report: (m, p) => { setMsg(m); job?.update(m, p); },
+      ok: (m) => { okText = m; setOkMsg(m); },
+      err: (m) => { errText = m; setError(m); },
+    };
+    try { await fn(c); } catch (e: any) { errText = String(e?.message ?? e); setError(errText); }
+    if (job) {
+      if (errText && !okText) job.fail(errText);
+      else job.done([okText, errText].filter(Boolean).join(' – ') || undefined, { keep: !!errText });
+    }
     setBusy(false);
     setMsg('');
     setSignedIn(isSignedIn());
@@ -85,14 +99,15 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
   });
 
   // ---------- Hent fra mappen ----------
-  const scan = () => run(async () => {
+  const scan = () => run(async (c) => {
     if (!folder) throw new Error('Koble til en mappe først.');
-    const list = await listFolderFiles(cfg, folder.id, (n, d) => setMsg(`Skanner … ${n} filer i ${d} mapper`));
+    const list = await listFolderFiles(cfg, folder.id, (n, d) => c.report(`Skanner … ${n} filer i ${d} mapper`, null));
     const usable = list.filter((f) => supported(f.name, f.mimeType));
     setFound(usable);
     setSel(new Set(usable.filter((f) => !imported.has(f.id) && !isWorldFile({ name: f.name } as File)).map((f) => f.id)));
-    if (!usable.length) setOkMsg(`Fant ${list.length} filer, men ingen bilder, DXF eller ortofoto.`);
-  });
+    if (!usable.length) c.ok(`Fant ${list.length} filer, men ingen bilder, DXF eller ortofoto.`);
+    else c.ok(`Fant ${usable.length} filer.`);
+  }, 'Skanner Google Disk-mappen');
 
   const pickManually = () => run(async () => {
     const picked = await pickFiles(cfg, folder?.id);
@@ -102,46 +117,49 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
   });
 
   /** Henter valgte Disk-filer og legger dem i kartet. */
-  const importList = async (chosen: DriveFileInfo[], pool: DriveFileInfo[], c: typeof cfg, doStream: boolean) => {
+  const importList = async (chosen: DriveFileInfo[], pool: DriveFileInfo[], gc: typeof cfg, doStream: boolean, c: RunCtx) => {
     // world files følger med JP2-filer i samme mappe
     const extras = pool.filter((f) => isWorldFile({ name: f.name } as File) && !chosen.includes(f) &&
       chosen.some((x) => x.path.join('/') === f.path.join('/') && x.name.replace(/\.[^.]+$/, '').toLowerCase() === f.name.replace(/\.[^.]+$/, '').toLowerCase()));
     const all = [...chosen, ...extras];
     const files: File[] = [];
-    const meta = new Map<File, { driveId?: string; folderId?: string }>();
+    const meta = new Map<File, { driveId?: string; folderId?: string; modifiedAt?: number; modifiedBy?: string; description?: string }>();
     const errs: string[] = [];
     for (let i = 0; i < all.length; i++) {
       const d = all[i];
-      setMsg(`Henter ${i + 1} av ${all.length}: ${d.name} (${sizeFmt(d.size)}) …`);
+      c.report(`Henter ${i + 1} av ${all.length}: ${d.name} (${sizeFmt(d.size)}) …`, 2 + (48 * i) / all.length);
       try {
-        const blob = await fetchDriveBlob(c, d.id, d.name);
+        const blob = await fetchDriveBlob(gc, d.id, d.name);
         const f = new File([blob], d.name, { type: d.mimeType });
         files.push(f);
-        meta.set(f, { driveId: d.id, folderId: mirror && d.path.length ? project.ensureFolderPath(d.path) : undefined });
+        meta.set(f, {
+          driveId: d.id, folderId: mirror && d.path.length ? project.ensureFolderPath(d.path) : undefined,
+          modifiedAt: d.modifiedTime ? Date.parse(d.modifiedTime) || undefined : undefined, modifiedBy: d.modifiedBy, description: d.description,
+        });
       } catch (e: any) { errs.push(String(e?.message ?? e)); }
     }
     if (files.length) {
-      const r = await project.upload(files, 'auto', settings.projectCrs, setMsg, { meta, stream: doStream });
+      const r = await project.upload(files, 'auto', settings.projectCrs, (m, p) => c.report(m, p === undefined ? undefined : 50 + p * 0.48), { meta, stream: doStream });
       errs.push(...r.failed.map((x) => `${x.name}: ${x.reason}`));
-      setOkMsg(`${r.added.length} element(er) hentet fra Google Disk${doStream ? ' (bilder strømmes fra Disk)' : ''}.`);
+      c.ok(`${r.added.length} element(er) hentet fra Google Disk${doStream ? ' (bilder strømmes fra Disk)' : ''}.`);
       setSel(new Set());
       onImported(r.added.length, r.bounds);
     }
-    if (errs.length) setError(errs.join(' '));
+    if (errs.length) c.err(errs.join(' '));
   };
 
-  const importSelected = () => run(async () => {
+  const importSelected = () => run(async (c) => {
     if (!found) return;
-    await importList(found.filter((f) => sel.has(f.id)), found, cfg, stream);
-  });
+    await importList(found.filter((f) => sel.has(f.id)), found, cfg, stream, c);
+  }, 'Henter filer fra Google Disk');
 
   // ---------- Demodata (offentlig delt mappe) ----------
-  const loadDemo = () => run(async () => {
-    const r = await loadDemoData(project, cfg, setMsg, { replace: true });
-    if (r.message) setError(r.message);
-    if (r.added) { setOkMsg(`${r.added} element(er) hentet fra demomappen.`); onImported(r.added, r.bounds); }
-    else if (!r.message) setOkMsg('Demodataene ligger allerede i kartet.');
-  });
+  const loadDemo = () => run(async (c) => {
+    const r = await loadDemoData(project, cfg, c.report, { replace: true });
+    if (r.message) c.err(r.message);
+    if (r.added) { c.ok(`${r.added} element(er) hentet fra demomappen.`); onImported(r.added, r.bounds); }
+    else if (!r.message) c.ok('Demodataene ligger allerede i kartet.');
+  }, 'Laster demodata');
 
   // ---------- Last opp til mappen ----------
   const pathOf = (folderId: string): string[] => {
@@ -151,7 +169,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
     return out;
   };
 
-  const uploadNow = () => run(async () => {
+  const uploadNow = () => run(async (c) => {
     if (!folder) throw new Error('Koble til en mappe først.');
     const cache = new Map<string, string>();
     const jobs: { blob: Blob; name: string; path: string[]; item?: Item; file?: File }[] = [];
@@ -166,7 +184,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
     const uploadedLocal = new Map<File, string>();
     const itemUpdates: Item[] = [];
     for (const j of jobs) {
-      setMsg(`Laster opp ${++done} av ${jobs.length}: ${j.name} …`);
+      c.report(`Laster opp ${++done} av ${jobs.length}: ${j.name} …`, (90 * (done - 1)) / jobs.length);
       try {
         const parent = await ensureDrivePath(cfg, folder.id, j.path, cache);
         if (skipExisting) {
@@ -178,7 +196,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
             continue;
           }
         }
-        const id = await uploadDriveFile(cfg, j.blob, j.name, parent, (p) => setMsg(`Laster opp ${done} av ${jobs.length}: ${j.name} (${Math.round(p * 100)} %)`));
+        const id = await uploadDriveFile(cfg, j.blob, j.name, parent, (p) => c.report(`Laster opp ${done} av ${jobs.length}: ${j.name} (${Math.round(p * 100)} %)`, (90 * (done - 1 + p)) / jobs.length));
         if (j.item) itemUpdates.push({ ...j.item, driveId: id });
         if (j.file) uploadedLocal.set(j.file, id);
       } catch (e: any) { errs.push(String(e?.message ?? e)); }
@@ -188,14 +206,14 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
       const files = [...uploadedLocal.keys()].filter((f) => supported(f.name, f.type));
       const meta = new Map(files.map((f) => [f, { driveId: uploadedLocal.get(f)! }] as const));
       // world files uten id følger med
-      const r = await project.upload(files, 'auto', settings.projectCrs, setMsg, { meta });
+      const r = await project.upload(files, 'auto', settings.projectCrs, (m, p) => c.report(m, p === undefined ? undefined : 90 + p * 0.1), { meta });
       r.failed.forEach((x) => errs.push(`${x.name}: ${x.reason}`));
       onImported(r.added.length, r.bounds);
     }
     setLocal([]);
-    setOkMsg(`${jobs.length - errs.length - skipped} fil(er) lastet opp${skipped ? `, ${skipped} fantes fra før` : ''}.`);
-    if (errs.length) setError(errs.join(' '));
-  });
+    c.ok(`${jobs.length - errs.length - skipped} fil(er) lastet opp${skipped ? `, ${skipped} fantes fra før` : ''}.`);
+    if (errs.length) c.err(errs.join(' '));
+  }, 'Laster opp til Google Disk');
 
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const visibleFound = (found ?? []).filter((f) => !isWorldFile({ name: f.name } as File));
@@ -206,7 +224,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
       <div className="modal sync">
         <div className="modal-head">
           <h2 className="g-title"><IconGoogle size={20} /> Google Disk-mappe <span className="beta-tag dark">beta</span></h2>
-          <button className="icon-btn" onClick={onClose} disabled={busy} aria-label="Lukk"><IconClose /></button>
+          <button className="icon-btn" onClick={onClose} aria-label={busy ? 'Skjul (fortsetter i bakgrunnen)' : 'Lukk'}><IconClose /></button>
         </div>
 
         <div className="modal-body">
@@ -226,7 +244,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
             <button className="btn primary" onClick={loadDemo} disabled={busy}>Last demodata</button>
           </div>
           <div className="reset-line"><ResetDemoButton project={project} onDone={() => { setOkMsg(''); }} /></div>
-          {busy && msg && <p className="muted small" style={{ margin: '-4px 0 10px' }}>{msg}</p>}
+          {busy && <p className="muted small" style={{ margin: '-4px 0 10px' }}>{msg} <em>Du kan skjule dialogen. Fremdriften vises nederst i alle visninger.</em></p>}
           {error && <p className="error small" style={{ margin: '-4px 0 10px' }}>{error}</p>}
           {okMsg && <div className="success" style={{ margin: '-4px 0 10px' }}>{okMsg}</div>}
 
@@ -342,7 +360,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
               ? <>Logget inn hos Google · <button className="link-btn" onClick={() => { signOut(); setSignedIn(false); }}>Logg ut</button></>
               : <button className="link-btn" onClick={() => run(async () => { await getAccessToken(cfg); })}>Logg inn med Google</button>)}
           </span>
-          <button className="btn" onClick={onClose} disabled={busy}>Lukk</button>
+          <button className="btn" onClick={onClose}>{busy ? 'Skjul – fortsetter i bakgrunnen' : 'Lukk'}</button>
         </div>
       </div>
     </div>

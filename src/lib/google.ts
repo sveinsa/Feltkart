@@ -99,7 +99,20 @@ export async function getAccessToken(cfg: GoogleConfig, forcePrompt = false): Pr
   });
 }
 
+let userName: string | null = null;
+/** Navnet til innlogget Google-bruker (hentes første gang etter innlogging). Brukes som «Endret av». */
+export async function fetchGoogleUser(): Promise<string | null> {
+  if (userName) return userName;
+  if (!token || token.expires <= Date.now()) return null;
+  try {
+    const r = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName)', { headers: { Authorization: `Bearer ${token.value}` } });
+    if (r.ok) userName = (await r.json())?.user?.displayName ?? null;
+  } catch { /* uten navn */ }
+  return userName;
+}
+
 export function signOut() {
+  userName = null;
   if (token && window.google?.accounts?.oauth2) window.google.accounts.oauth2.revoke(token.value, () => {});
   token = null;
 }
@@ -160,6 +173,8 @@ export interface PickedFile {
   name: string;
   mimeType: string;
   sizeBytes?: number;
+  lastEditedUtc?: number;
+  description?: string;
 }
 
 /** Åpner Google sin filvelger med flervalg (bla i mapper og merk flere filer). */
@@ -185,7 +200,7 @@ export async function pickFiles(cfg: GoogleConfig, parentId?: string): Promise<P
       .setCallback((data: any) => {
         if (data.action === g.picker.Action.PICKED) {
           notifyPicker(false);
-          resolve(data.docs.map((d: any) => ({ id: d.id, name: d.name, mimeType: d.mimeType, sizeBytes: d.sizeBytes })));
+          resolve(data.docs.map((d: any) => ({ id: d.id, name: d.name, mimeType: d.mimeType, sizeBytes: d.sizeBytes, lastEditedUtc: Number(d.lastEditedUtc) || undefined, description: d.description || undefined })));
         } else if (data.action === g.picker.Action.CANCEL) {
           notifyPicker(false);
           resolve([]);
@@ -208,7 +223,7 @@ export async function downloadDriveFile(cfg: GoogleConfig, f: PickedFile): Promi
     if (res.status === 401) token = null;
     throw new Error(`Kunne ikke hente ${f.name} (${res.status}).`);
   }
-  return new File([await res.blob()], f.name, { type: f.mimeType });
+  return new File([await res.blob()], f.name, { type: f.mimeType, ...(f.lastEditedUtc ? { lastModified: f.lastEditedUtc } : {}) });
 }
 
 async function drive(path: string, access: string, init: RequestInit = {}, attempt = 0): Promise<any> {
@@ -320,6 +335,10 @@ export interface DriveFileInfo {
   mimeType: string;
   size: number;
   path: string[]; // undermapper under den koblede mappen
+  /** Fra Google Disk: siste endring (ISO), beskrivelse og hvem som endret filen sist */
+  modifiedTime?: string;
+  description?: string;
+  modifiedBy?: string;
 }
 
 /** Henter en fil fra Disk som Blob (brukes både ved import og for å strømme originaler). */
@@ -367,12 +386,12 @@ export async function listFolderFiles(
     do {
       const query = `'${q(cur.id)}' in parents and trashed = false`;
       const r = await drive(
-        `?q=${encodeURIComponent(query)}&fields=${encodeURIComponent('nextPageToken,files(id,name,mimeType,size)')}&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`,
+        `?q=${encodeURIComponent(query)}&fields=${encodeURIComponent('nextPageToken,files(id,name,mimeType,size,modifiedTime,description,lastModifyingUser(displayName))')}&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`,
         access,
       );
       for (const f of r.files ?? []) {
         if (f.mimeType === FOLDER_MIME) queue.push({ id: f.id, path: [...cur.path, f.name] });
-        else out.push({ id: f.id, name: f.name, mimeType: f.mimeType, size: Number(f.size) || 0, path: cur.path });
+        else out.push({ id: f.id, name: f.name, mimeType: f.mimeType, size: Number(f.size) || 0, path: cur.path, modifiedTime: f.modifiedTime, description: f.description || undefined, modifiedBy: f.lastModifyingUser?.displayName || undefined });
       }
       pageToken = r.nextPageToken ?? '';
       onProgress?.(out.length, folders);

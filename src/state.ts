@@ -6,11 +6,12 @@ import { processOrtho, isOrthoFile } from './lib/ortho';
 import { isWorldFile } from './lib/jp2';
 import type { ParsedDxf } from './lib/dxf';
 import { parseVector, vectorFormatOf, FORMAT_LABEL, type Placement } from './lib/vector';
+import { fetchGoogleUser } from './lib/google';
 import type { DxfItem, Folder, Item, ItemKind, OrthoItem, PhotoItem, Settings } from './types';
 
 /** Ekstra info per fil ved import fra Google Disk */
 export interface UploadOptions {
-  meta?: Map<File, { driveId?: string; folderId?: string }>;
+  meta?: Map<File, { driveId?: string; folderId?: string; modifiedAt?: number; modifiedBy?: string; description?: string }>;
   /** Strøm bilder: lagre bare forhåndsvisning her, originalen hentes fra Google Disk ved behov */
   stream?: boolean;
   /** IFC uten georeferanse: modellens origo */
@@ -237,6 +238,16 @@ export function useProject() {
     });
   }, [settings]);
 
+  /** Endrer beskrivelse og/eller versjon. Sist endret og Endret av oppdateres. */
+  const updateMeta = useCallback(async (id: string, patch: { description?: string; version?: string }) => {
+    const it = itemsRef.current.find((i) => i.id === id);
+    if (!it) return;
+    const who = settings?.userName?.trim() || (await fetchGoogleUser()) || it.modifiedBy;
+    const next: Item = { ...it, ...patch, modifiedAt: Date.now(), modifiedBy: who };
+    if (patch.description !== undefined && !patch.description.trim()) delete (next as { description?: string }).description;
+    saveItem(next);
+  }, [settings, saveItem]);
+
   // ---------- Synlighet ----------
   const setVisible = useCallback((ids: string[], visible: boolean) => {
     const set = new Set(ids);
@@ -259,7 +270,7 @@ export function useProject() {
 
   // ---------- Opplasting ----------
   const upload = useCallback(
-    async (files: File[], target: string, crs: string, onProgress: (msg: string) => void, opts: UploadOptions = {}): Promise<UploadResult> => {
+    async (files: File[], target: string, crs: string, onProgress: (msg: string, pct?: number) => void, opts: UploadOptions = {}): Promise<UploadResult> => {
       const res: UploadResult = { added: [], failed: [], messages: [], bounds: null };
       const grow = (b: [[number, number], [number, number]] | null) => {
         if (!b) return;
@@ -285,6 +296,12 @@ export function useProject() {
         return surveyFolderId;
       };
       const driveIdOf = (f: File) => opts.meta?.get(f)?.driveId;
+      // Egenskaper som vises i Prosjektfiler: sist endret (filens egen dato), endret av (innstilt navn eller Google-brukeren), versjon og beskrivelse
+      const who = st.userName?.trim() || (await fetchGoogleUser()) || undefined;
+      const metaOf = (f: File) => {
+        const m = opts.meta?.get(f);
+        return { modifiedAt: m?.modifiedAt ?? (f.lastModified || Date.now()), modifiedBy: m?.modifiedBy ?? who, description: m?.description, version: '1' };
+      };
       let noGps = 0;
 
       // Bilder og ortofoto leses først, slik at DXF/KOF kan plasseres ut fra dem. Vektorfiler leses sist.
@@ -308,14 +325,16 @@ export function useProject() {
         const f = files[i];
         if (isWorldFile(f)) continue; // brukes sammen med JP2-filen med samme navn
         const prefix = `(${i + 1}/${files.length}) ${f.name}: `;
+        const subOf = (m: string) => { const r = /(\d+) %/.exec(m); return r ? Math.min(1, Number(r[1]) / 100) : 0; };
+        const rep = (m: string) => onProgress(prefix + m, Math.min(99, ((i + subOf(m)) / files.length) * 100));
         try {
           const vf = vectorFormatOf(f.name);
           if (vf) {
-            onProgress(prefix + `leser ${FORMAT_LABEL[vf]} …`);
-            const parsed = await parseVector(f, vf, crs, { detect: true, placement: opts.placement, reference: reference(), onProgress: (m) => onProgress(prefix + m) }); // valider før lagring
+            rep(`leser ${FORMAT_LABEL[vf]} …`);
+            const parsed = await parseVector(f, vf, crs, { detect: true, placement: opts.placement, reference: reference(), onProgress: rep }); // valider før lagring
             const useCrs = parsed.crs ?? crs;
             const item: DxfItem = {
-              id: uid(), kind: 'dxf', name: f.name, folderId: vf === 'kof' || vf === 'sosi' || vf === 'landxml' ? surveyFolderFor(f) : folderFor('dxf', f), createdAt: Date.now(), driveId: driveIdOf(f),
+              id: uid(), kind: 'dxf', name: f.name, folderId: vf === 'kof' || vf === 'sosi' || vf === 'landxml' ? surveyFolderFor(f) : folderFor('dxf', f), createdAt: Date.now(), driveId: driveIdOf(f), ...metaOf(f),
               crs: useCrs, blob: f, hiddenLayers: [], format: vf,
               placement: vf === 'ifc' && opts.placement ? opts.placement : undefined,
             };
@@ -327,9 +346,9 @@ export function useProject() {
             if (useCrs !== crs) res.messages.push(`${f.name}: leste koordinatsystemet fra filen (${useCrs}).`);
             parsed.warnings.forEach((w) => res.messages.push(`${f.name}: ${w}`));
           } else if (isOrthoFile(f)) {
-            const o = await processOrtho(f, crs, (m) => onProgress(prefix + m), sidecars.get(baseName(f.name)));
+            const o = await processOrtho(f, crs, rep, sidecars.get(baseName(f.name)));
             const item: OrthoItem = {
-              id: uid(), kind: 'ortho', name: f.name, folderId: folderFor('ortho', f), createdAt: Date.now(), driveId: driveIdOf(f),
+              id: uid(), kind: 'ortho', name: f.name, folderId: folderFor('ortho', f), createdAt: Date.now(), driveId: driveIdOf(f), ...metaOf(f),
               crs: o.crs, image: o.image, preview: o.preview, bounds: o.bounds, opacity: 1, resolution: o.resolution, sourceSize: o.sourceSize,
             };
             saveItem(item);
@@ -338,12 +357,12 @@ export function useProject() {
             addRef(o.bounds);
             if (!o.crsDetected) res.messages.push(`${f.name}: fant ikke koordinatsystem i filen, brukte ${crs}.`);
           } else if (isImageFile(f)) {
-            onProgress(prefix + 'leser bilde …');
+            rep('leser bilde …');
             const p = await readPhoto(f);
             const driveId = driveIdOf(f);
             const streamed = !!(opts.stream && driveId);
-            if (streamed) { onProgress(prefix + 'lager forhåndsvisning …'); p.blob = await makePreview(f, p.kind === 'pano' ? 4096 : 1600); }
-            const item: PhotoItem = { ...p, id: uid(), name: f.name, folderId: folderFor(p.kind, f), createdAt: Date.now(), driveId, previewOnly: streamed || undefined };
+            if (streamed) { rep('lager forhåndsvisning …'); p.blob = await makePreview(f, p.kind === 'pano' ? 4096 : 1600); }
+            const item: PhotoItem = { ...p, id: uid(), name: f.name, folderId: folderFor(p.kind, f), createdAt: Date.now(), driveId, previewOnly: streamed || undefined, ...metaOf(f) };
             saveItem(item);
             res.added.push(item);
             if (item.lat === null) noGps++;
@@ -369,7 +388,7 @@ export function useProject() {
     ready, folders, items, settings, dxf, storageError,
     saveItem, saveItems, deleteItem, updateSettings,
     addFolder, ensureFolderPath, renameFolder, deleteFolder, resetContent,
-    setVisible, setFolderVisible, toggleDxfLayer, upload,
+    setVisible, setFolderVisible, toggleDxfLayer, updateMeta, upload,
   };
 }
 

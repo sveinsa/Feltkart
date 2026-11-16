@@ -18,6 +18,11 @@ interface BaseItem {
   driveId?: string;
   /** Bare forhåndsvisning er lagret i nettleseren. Originalen hentes fra Google Disk ved behov. */
   previewOnly?: boolean;
+  /** Egenskaper som vises i Prosjektfiler. Mangler på eldre elementer (da brukes opprettelsestidspunktet og versjon 1). */
+  modifiedAt?: number; // sist endret (ms siden 1970): filens egen dato ved opplasting, ellers siste redigering her
+  modifiedBy?: string; // navn på den som endret filen sist
+  version?: string; // fritekst, f.eks. «1», «2» eller «B»
+  description?: string;
 }
 
 export interface PhotoItem extends BaseItem {
@@ -78,6 +83,8 @@ export interface Settings {
   /** Sist opprettede prosjektmappe på Google Disk */
   drive?: { id: string; url: string; name: string; createdAt: string };
   projectNumber?: string;
+  /** Navnet som vises som «Endret av» på filer brukeren laster opp eller redigerer */
+  userName?: string;
   /** Mappen på Google Disk som er koblet til prosjektet (hente fra / laste opp til) */
   driveFolder?: { id: string; name: string; url: string };
   /** 'file' = bare filer appen oppretter/velges (drive.file). 'full' = kan lese og skrive i hele mapper (drive). */

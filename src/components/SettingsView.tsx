@@ -17,6 +17,7 @@ export default function SettingsView({ project }: { project: Project }) {
 
   const initial = () => ({
     name: s.projectName,
+    userName: s.userName ?? '',
     crs: s.projectCrs,
     clientId: s.google?.clientId ?? '',
     apiKey: s.google?.apiKey ?? '',
@@ -27,7 +28,7 @@ export default function SettingsView({ project }: { project: Project }) {
   });
   const [f, setF] = useState(initial);
   const [saved, setSaved] = useState(false);
-  useEffect(() => { setF(initial()); }, [s.projectName, s.projectCrs, s.google?.clientId, s.google?.apiKey, s.google?.appId, s.customBasemap?.url, s.customBasemap?.name, s.customBasemap?.maxNativeZoom]);
+  useEffect(() => { setF(initial()); }, [s.projectName, s.userName, s.projectCrs, s.google?.clientId, s.google?.apiKey, s.google?.appId, s.customBasemap?.url, s.customBasemap?.name, s.customBasemap?.maxNativeZoom]);
 
   const orig = initial();
   const dirty = (Object.keys(orig) as (keyof typeof orig)[]).some((k) => orig[k] !== f[k]);
@@ -37,6 +38,7 @@ export default function SettingsView({ project }: { project: Project }) {
     const name = f.name.trim();
     if (name && name !== s.projectName && root) project.renameFolder(root.id, name);
     project.updateSettings({
+      userName: f.userName.trim() || undefined,
       projectCrs: f.crs,
       google: { clientId: f.clientId.trim(), apiKey: f.apiKey.trim(), appId: f.appId.trim() },
       customBasemap: f.bmUrl.trim()
@@ -54,6 +56,11 @@ export default function SettingsView({ project }: { project: Project }) {
         <div className="field">
           <label>Prosjektnavn</label>
           <input value={f.name} onChange={(e) => set('name', e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Ditt navn</label>
+          <input value={f.userName} onChange={(e) => set('userName', e.target.value)} placeholder="Fornavn Etternavn" />
+          <p className="muted small">Vises som «Endret av» i Prosjektfiler for filer du laster opp eller redigerer. Filer hentet fra Google Disk får navnet til den som endret dem der.</p>
         </div>
         <div className="field">
           <label>Prosjektets koordinatsystem</label>

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { startJob } from '../lib/transfer';
 import type { Project, UploadResult } from '../state';
 import { CRS_LIST } from '../lib/crs';
 import { IconClose, IconFolder, IconUpload, KIND_ICON } from './icons';
@@ -13,7 +14,8 @@ interface Props {
   project: Project;
   initialFiles?: File[];
   onClose: () => void;
-  onDone: (r: UploadResult) => void;
+  /** `background` er sant når dialogen er skjult mens opplastingen pågikk */
+  onDone: (r: UploadResult, background: boolean) => void;
 }
 
 function kindOf(f: File): 'dxf' | 'ortho' | 'photo' | 'world' | null {
@@ -36,6 +38,7 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
   const [result, setResult] = useState<UploadResult | null>(null);
   const [drag, setDrag] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const closed = useRef(false); // dialogen er lukket/skjult mens opplastingen fortsatt pågår
   const cfg = googleConfig(project);
   const [fetching, setFetching] = useState(false);
   const [driveMsg, setDriveMsg] = useState<string | null>(null);
@@ -53,39 +56,55 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
     setDriveErr(null);
     setDriveMsg(null);
     setFetching(true);
+    let job: ReturnType<typeof startJob> | null = null;
     try {
       const picked = await pickFiles(cfg, project.settings?.driveFolder?.id);
       const got: File[] = [];
       const errs: string[] = [];
+      if (picked.length) job = startJob('Henter filer fra Google Disk');
       for (let i = 0; i < picked.length; i++) {
-        setDriveMsg(`Henter ${i + 1} av ${picked.length}: ${picked[i].name} …`);
+        const m = `Henter ${i + 1} av ${picked.length}: ${picked[i].name} …`;
+        setDriveMsg(m);
+        job?.update(m, (100 * i) / picked.length);
         try { got.push(await downloadDriveFile(cfg, picked[i])); } catch (e: any) { errs.push(String(e?.message ?? e)); }
       }
       if (got.length) add(got);
       setDriveMsg(got.length ? `${got.length} fil(er) hentet fra Google Disk.` : null);
       if (errs.length) setDriveErr(errs.join(' '));
+      if (job) { if (!got.length && errs.length) job.fail(errs.join(' ')); else job.done(`${got.length} fil(er) hentet. Trykk «Last opp» for å legge dem i kartet.`, { keep: errs.length > 0 }); }
     } catch (e: any) {
       setDriveErr(String(e?.message ?? e));
+      job?.fail(String(e?.message ?? e));
     }
     setFetching(false);
   }
+
+  const hide = () => { if (busy) closed.current = true; onClose(); };
 
   async function start() {
     setBusy(true);
     const e = parseFloat(pe.replace(',', '.')), n = parseFloat(pn.replace(',', '.')), rot = parseFloat(pr.replace(',', '.')) || 0;
     const placement = hasIfc && Number.isFinite(e) && Number.isFinite(n) ? { e, n, rot } : undefined;
-    const r = await project.upload(files, target, crs, setProgress, { placement });
-    setBusy(false);
-    setResult(r);
-    onDone(r);
+    const job = startJob(`Laster opp ${files.length === 1 ? files[0].name : `${files.length} filer`}`);
+    try {
+      const r = await project.upload(files, target, crs, (m, p) => { setProgress(m); job.update(m, p); }, { placement });
+      const bad = r.failed.length;
+      job.done(`${r.added.length} fil(er) lagt til${bad ? `, ${bad} feilet: ${r.failed.map((x) => `${x.name} (${x.reason})`).join('; ')}` : ''}.`, { keep: bad > 0 });
+      setBusy(false);
+      setResult(r);
+      onDone(r, closed.current);
+    } catch (err: any) {
+      job.fail(String(err?.message ?? err));
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="modal-back" style={pickerOpen ? { display: 'none' } : undefined} onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <div className="modal-back" style={pickerOpen ? { display: 'none' } : undefined} onMouseDown={(e) => e.target === e.currentTarget && !busy && !fetching && onClose()}>
       <div className="modal upload">
         <div className="modal-head">
           <h2>Last opp</h2>
-          <button className="icon-btn" onClick={onClose} disabled={busy} aria-label="Lukk"><IconClose /></button>
+          <button className="icon-btn" onClick={hide} disabled={fetching} aria-label={busy ? 'Skjul (fortsetter i bakgrunnen)' : 'Lukk'}><IconClose /></button>
         </div>
 
         {result ? (
@@ -167,8 +186,8 @@ export default function UploadDialog({ project, initialFiles = [], onClose, onDo
             <p className="muted small">360-bilder kjennes igjen automatisk (2:1-format eller panorama-metadata). Posisjon og dato leses fra bildene.</p>
 
             <div className="modal-foot">
-              <span className="muted small progress">{busy ? progress : ''}</span>
-              <button className="btn" onClick={onClose} disabled={busy}>Avbryt</button>
+              <span className="muted small progress">{busy ? `${progress} · du kan skjule dialogen, fremdriften vises nederst i alle visninger` : ''}</span>
+              <button className="btn" onClick={hide} disabled={fetching}>{busy ? 'Skjul – fortsetter i bakgrunnen' : 'Avbryt'}</button>
               <button className="btn primary" onClick={start} disabled={busy || fetching || startable === 0}>
                 {busy ? 'Laster opp …' : `Last opp ${startable || ''} fil(er)`}
               </button>

@@ -17,6 +17,9 @@ export interface DxfFeature {
   block?: string;
   /** Egenskaper fra kildefilen (SOSI-attributter, IFC-navn, kode osv.) */
   attrs?: Record<string, string>;
+  /** Egen fyllfarge (IFC-farge). `color` er da omrisset. */
+  fill?: string;
+  fillOpacity?: number;
 }
 
 export interface DxfLayer {
@@ -29,7 +32,8 @@ export interface DxfLayer {
 export interface Mesh3D {
   crs: string;
   origin: [number, number];
-  parts: { layer: string; positions: Float32Array }[];
+  /** `color` (0xRRGGBB) og `opacity` kommer fra IFC-filens overflatestiler. Mangler de, brukes standardfarge for laget. */
+  parts: { layer: string; positions: Float32Array; color?: number; opacity?: number }[];
   triangles: number;
   truncated: boolean;
 }

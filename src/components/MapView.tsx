@@ -266,7 +266,7 @@ export default function MapView(props: Props) {
           if (f.geom === 'line') {
             layer = L.polyline(f.latlngs, { renderer, color: f.color, weight: 1.6, opacity: 0.95, bubblingMouseEvents: false });
           } else if (f.geom === 'polygon') {
-            layer = L.polygon(f.latlngs, { renderer, color: f.color, weight: 1.6, opacity: 0.95, fill: true, fillOpacity: 0.06, bubblingMouseEvents: false });
+            layer = L.polygon(f.latlngs, { renderer, color: f.color, weight: f.fill ? 1 : 1.6, opacity: 0.95, fill: true, fillColor: f.fill ?? f.color, fillOpacity: f.fill ? (f.fillOpacity ?? 0.85) : 0.06, bubblingMouseEvents: false });
           } else if (f.geom === 'point') {
             layer = L.circleMarker(f.latlngs[0], { renderer, radius: 3, color: f.color, weight: 1.5, fillOpacity: 0.8, bubblingMouseEvents: false });
           } else {

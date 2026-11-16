@@ -15,6 +15,7 @@ import type { DxfItem, Item, OrthoItem, PhotoItem, Settings } from '../types';
 import type { Mesh3D, ParsedDxf } from '../lib/dxf';
 import { BASEMAPS, basemapById, customToBasemap } from '../lib/basemaps';
 import { crsName, pointsToMeters, toLatLng } from '../lib/crs';
+import { colorFor, hexCss } from '../lib/ifcColors';
 import { formatAreaShort, formatLengthShort, isDoubleClick, isTouchEvent, pathLength, ringArea, summarize } from '../lib/measure';
 import type { ClickMemo, MeasureMode } from '../lib/measure';
 import MeasurePanel from './MeasurePanel';
@@ -49,12 +50,7 @@ const TERRAINS: Record<'mapterhorn' | 'aws', TerrainDef> = {
 };
 type TerrainKey = keyof typeof TERRAINS;
 
-const LAYER_COLORS: Record<string, string> = {
-  Vegger: '#d9d4c7', 'Dekker og plater': '#b9bcc0', Tak: '#b5524a', Bjelker: '#8a8f98', Søyler: '#8a8f98', Vinduer: '#8cc7e8', Glassfasader: '#8cc7e8',
-  Dører: '#9b6b43', Trapper: '#a7a39a', Rekkverk: '#6e7378', Fundamenter: '#9d9a94', Peler: '#9d9a94', Rør: '#3d7ea6', Ledninger: '#3d7ea6',
-  Kummer: '#4f6b8a', 'Terreng og geografi': '#8fa77a', Veg: '#555a60', Overbygning: '#555a60', Anleggsobjekter: '#c08a3e', Masseforflytning: '#b89a6b',
-};
-const colorFor = (layer: string) => LAYER_COLORS[layer] ?? '#c9ccd1';
+
 
 const CUSTOM_ID = 'feltkart-three';
 const MEASURE_SRC = 'feltkart-measure';
@@ -196,6 +192,9 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
   const [orthoOn, setOrthoOn] = useState<Record<string, boolean>>({});
   const [orthoOpacity, setOrthoOpacity] = useState<Record<string, number>>({});
   const [ifcOn, setIfcOn] = useState<Record<string, boolean>>({});
+  const [ifcOwnColors, setIfcOwnColors] = useState(true); // bruk fargene fra IFC-filen (ellers standardfarger per klasse)
+  const [ifcEdges, setIfcEdges] = useState(true); // kantlinjer som viser detaljene i modellen
+  const [ifcLayerOn, setIfcLayerOn] = useState<Record<string, boolean>>({}); // `${id}|${lag}`; mangler = følger lagvalget i kartet
   const [showPhotos, setShowPhotos] = useState(true); // vanlige bilder (rammer)
   const [showPanos, setShowPanos] = useState(true); // 360-bilder (kuler)
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -744,7 +743,9 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
   }, [ready, orthos, orthoOn, orthoOpacity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- IFC og bildebobler (three.js) ----------
-  const ifcKey = ifcs.filter(ifcVisible).map((d) => `${d.id}:${meshOf(d) ? 1 : 0}`).join(',');
+  const layerShown = (d: DxfItem, layer: string) => ifcLayerOn[`${d.id}|${layer}`] ?? !d.hiddenLayers.includes(layer);
+  const ifcKey = ifcs.filter(ifcVisible).map((d) => `${d.id}:${meshOf(d) ? 1 : 0}:${d.hiddenLayers.join('+')}`).join(',')
+    + `|${ifcOwnColors ? 1 : 0}${ifcEdges ? 1 : 0}|${Object.entries(ifcLayerOn).map(([k, v]) => `${k}=${v ? 1 : 0}`).join(',')}`;
   const photoKey = photos.filter((p) => p.lat !== null && (p.kind === 'pano' ? showPanos : showPhotos)).map((p) => p.id).join(',');
   useEffect(() => {
     const c = ctxRef.current;
@@ -775,23 +776,39 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       };
 
       // IFC-deler
-      for (const { m } of shownIfc) {
+      for (const { d, m } of shownIfc) {
         const [e0, n0] = m.origin;
         const toXY = (e: number, n: number) => { const [la, ln] = toLatLng(m.crs, e, n); return sceneXY(ln, la); };
         const p0 = toXY(e0, n0), pe = toXY(e0 + 100, n0), pn = toXY(e0, n0 + 100);
         const ax = (pe[0] - p0[0]) / 100, ay = (pe[1] - p0[1]) / 100;
         const bx = (pn[0] - p0[0]) / 100, by = (pn[1] - p0[1]) / 100;
+        const totalTris = m.parts.reduce((n, p) => n + p.positions.length / 9, 0);
         for (const part of m.parts) {
+          if (!layerShown(d, part.layer)) continue;
           const geo = new THREE.BufferGeometry();
           geo.setAttribute('position', new THREE.BufferAttribute(part.positions, 3));
           geo.computeVertexNormals();
+          const own = ifcOwnColors && part.color !== undefined;
           const glass = /Vinduer|Glass/.test(part.layer);
-          const mat = new THREE.MeshLambertMaterial({ color: colorFor(part.layer), side: THREE.DoubleSide, transparent: glass, opacity: glass ? 0.55 : 1 });
+          const opacity = own ? (part.opacity ?? 1) : glass ? 0.55 : 1;
+          const mat = new THREE.MeshLambertMaterial({
+            color: own ? part.color! : colorFor(part.layer), side: THREE.DoubleSide, transparent: opacity < 1, opacity, depthWrite: opacity >= 1,
+            polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, // flatene legges litt bak, slik at kantlinjene ikke flimrer
+          });
           const mesh = new THREE.Mesh(geo, mat);
           mesh.matrixAutoUpdate = false;
           mesh.matrix.set(ax, bx, 0, p0[0], ay, by, 0, p0[1], 0, 0, 1, 0, 0, 0, 0, 1);
           mesh.frustumCulled = false;
           c.root.add(mesh);
+          // Kantlinjer: viser detaljer (vinduer, dører, fuger) som ellers flyter sammen i like farger. Hoppes over i svært store modeller.
+          if (ifcEdges && totalTris <= 400_000 && opacity >= 0.3) {
+            const eg = new THREE.EdgesGeometry(geo, 28);
+            const lines = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: 0x20252b, transparent: true, opacity: 0.5 }));
+            lines.matrixAutoUpdate = false;
+            lines.matrix.copy(mesh.matrix);
+            lines.frustumCulled = false;
+            c.root.add(lines);
+          }
         }
       }
 
@@ -1076,13 +1093,51 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
           <section>
             <h4>IFC-modeller</h4>
             {ifcs.length === 0 && <p className="muted small">Ingen IFC-modeller er lastet opp. Last opp en .ifc-fil (med georeferanse) for å se den i 3D.</p>}
-            {ifcs.map((d) => (
-              <label key={d.id} className="t3d-check" title={d.name}>
-                <input type="checkbox" className="chk" checked={ifcVisible(d)} onChange={(e) => setIfcOn((s) => ({ ...s, [d.id]: e.target.checked }))} />
-                <span className="t3d-name">{d.name}</span>
-                <span className="muted small">{ifcState(d)}</span>
-              </label>
-            ))}
+            {ifcs.map((d) => {
+              const m = meshOf(d);
+              const layers: { layer: string; color: number | undefined; tris: number }[] = [];
+              if (m) {
+                for (const p of m.parts) {
+                  const e = layers.find((x) => x.layer === p.layer);
+                  if (e) { e.tris += p.positions.length / 9; if (e.color === undefined) e.color = p.color; }
+                  else layers.push({ layer: p.layer, color: p.color, tris: p.positions.length / 9 });
+                }
+                layers.sort((a, b) => a.layer.localeCompare(b.layer, 'nb'));
+              }
+              return (
+                <div key={d.id}>
+                  <label className="t3d-check" title={d.name}>
+                    <input type="checkbox" className="chk" checked={ifcVisible(d)} onChange={(e) => setIfcOn((s) => ({ ...s, [d.id]: e.target.checked }))} />
+                    <span className="t3d-name">{d.name}</span>
+                    <span className="muted small">{ifcState(d)}</span>
+                  </label>
+                  {ifcVisible(d) && layers.length > 0 && (
+                    <div className="t3d-sub">
+                      {layers.map((l) => (
+                        <label key={l.layer} className="t3d-layer">
+                          <input type="checkbox" className="chk" checked={layerShown(d, l.layer)} onChange={(e) => setIfcLayerOn((s) => ({ ...s, [`${d.id}|${l.layer}`]: e.target.checked }))} />
+                          <span className="t3d-chip" style={{ background: l.color !== undefined && ifcOwnColors ? hexCss(l.color) : colorFor(l.layer) }} aria-hidden="true" />
+                          <span className="t3d-name">{l.layer}</span>
+                          <span className="muted small">{Math.round(l.tris).toLocaleString('nb-NO')}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {ifcs.length > 0 && (
+              <>
+                <label className="t3d-check" title="Bruker fargene som ligger i IFC-filen (overflatestiler). Av = standardfarger per type objekt.">
+                  <input type="checkbox" className="chk" checked={ifcOwnColors} onChange={(e) => setIfcOwnColors(e.target.checked)} />
+                  <span className="t3d-name">Farger fra IFC-filen</span>
+                </label>
+                <label className="t3d-check" title="Tegner tynne kantlinjer langs knekk i modellen, slik at detaljer synes tydeligere. Hoppes over i svært store modeller.">
+                  <input type="checkbox" className="chk" checked={ifcEdges} onChange={(e) => setIfcEdges(e.target.checked)} />
+                  <span className="t3d-name">Kantlinjer (detaljer)</span>
+                </label>
+              </>
+            )}
           </section>
 
           <section>

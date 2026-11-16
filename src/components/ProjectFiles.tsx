@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { FORMAT_LABEL } from '../lib/vector';
 import type { Folder, Item } from '../types';
 import type { Project } from '../state';
 import { compareFolders, descendantFolderIds } from '../state';
@@ -14,7 +15,17 @@ interface Props {
 }
 
 const KIND_LABEL: Record<string, string> = { photo: 'Bilde', pano: '360-bilde', dxf: 'Prosjektert / innmåling', ortho: 'Ortofoto' };
-const dateFmt = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'medium' });
+const dateFmt = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'medium', timeStyle: 'short' });
+
+type SortKey = 'name' | 'type' | 'modified' | 'version' | 'desc' | 'by' | 'folder' | 'size';
+
+/** Filtype slik den vises i tabellen: filformatet for prosjekterte data og innmåling (IFC, DXF, KOF …) */
+const typeLabel = (it: Item) => (it.kind === 'dxf' ? `${FORMAT_LABEL[it.format ?? 'dxf']}${it.format === 'kof' || it.format === 'sosi' || it.format === 'landxml' ? ' (innmåling)' : ''}` : KIND_LABEL[it.kind]);
+/** Egenskapene Prosjektfiler viser. Eldre elementer mangler noen av dem, og får da fornuftige standardverdier. */
+const modifiedOf = (it: Item) => it.modifiedAt ?? it.createdAt;
+const versionOf = (it: Item) => it.version ?? '1';
+const descOf = (it: Item) => it.description ?? ((it.kind === 'photo' || it.kind === 'pano') ? it.note ?? '' : '');
+const byOf = (it: Item) => it.modifiedBy ?? '';
 
 function sizeOf(it: Item): number {
   if (it.kind === 'ortho') return it.image.size;
@@ -33,6 +44,9 @@ export default function ProjectFiles({ project, onZoomTo, onOpenViewer, onUpload
   const [sel, setSel] = useState<string | null>(null); // null = alle
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 });
+  const [edit, setEdit] = useState<{ id: string; field: 'desc' | 'version' } | null>(null);
+  const [draft, setDraft] = useState('');
 
   // Flat mappeliste med innrykk
   const rows = useMemo(() => {
@@ -59,8 +73,53 @@ export default function ProjectFiles({ project, onZoomTo, onOpenViewer, onUpload
     return items
       .filter((i) => !ids || ids.has(i.folderId))
       .filter((i) => !query || i.name.toLowerCase().includes(query))
-      .sort((a, b) => a.name.localeCompare(b.name, 'nb', { numeric: true }));
-  }, [items, folders, sel, q]);
+      .sort((a, b) => {
+        const txt = (x: string, y: string) => x.localeCompare(y, 'nb', { numeric: true });
+        let c = 0;
+        switch (sort.key) {
+          case 'type': c = txt(typeLabel(a), typeLabel(b)); break;
+          case 'modified': c = modifiedOf(a) - modifiedOf(b); break;
+          case 'version': c = txt(versionOf(a), versionOf(b)); break;
+          case 'desc': c = txt(descOf(a), descOf(b)); break;
+          case 'by': c = txt(byOf(a), byOf(b)); break;
+          case 'folder': c = txt(folderName(a.folderId), folderName(b.folderId)); break;
+          case 'size': c = sizeOf(a) - sizeOf(b); break;
+          default: c = txt(a.name, b.name);
+        }
+        return (c || txt(a.name, b.name)) * sort.dir;
+      });
+  }, [items, folders, sel, q, sort]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const head = (key: SortKey, label: string) => (
+    <th className="sortable" onClick={() => setSort((s0) => (s0.key === key ? { key, dir: s0.dir === 1 ? -1 : 1 } : { key, dir: key === 'modified' ? -1 : 1 }))}
+      aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} title="Klikk for å sortere">
+      {label}{sort.key === key && <span className="arr">{sort.dir === 1 ? '▲' : '▼'}</span>}
+    </th>
+  );
+
+  // Beskrivelse og versjon kan redigeres direkte i tabellen (klikk, skriv, Enter for å lagre, Esc for å avbryte)
+  const commit = () => {
+    if (!edit) return;
+    const it = items.find((i) => i.id === edit.id);
+    const next = draft.trim();
+    if (it && next !== (edit.field === 'desc' ? descOf(it) : versionOf(it)) && (edit.field === 'desc' || next)) {
+      void project.updateMeta(edit.id, edit.field === 'desc' ? { description: next } : { version: next });
+    }
+    setEdit(null);
+  };
+  const editCell = (it: Item, field: 'desc' | 'version', value: string, placeholder: string) => {
+    if (edit?.id === it.id && edit.field === field) {
+      return (
+        <input autoFocus value={draft} maxLength={field === 'desc' ? 500 : 12} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit(); else if (e.key === 'Escape') setEdit(null); }} />
+      );
+    }
+    return (
+      <span className={`ed${value ? '' : ' empty'}`} title={value || 'Klikk for å redigere'} onClick={() => { setDraft(value); setEdit({ id: it.id, field }); }}>
+        {value || placeholder}
+      </span>
+    );
+  };
 
   return (
     <div className="pfiles">
@@ -85,26 +144,37 @@ export default function ProjectFiles({ project, onZoomTo, onOpenViewer, onUpload
           <button className="btn primary" onClick={onUpload}><IconUpload size={16} /> Last opp</button>
         </div>
 
+        {list.length > 0 && !project.settings?.userName?.trim() && items.some((i) => !i.modifiedBy) && (
+          <p className="muted small pf-hint">«Endret av» står tomt for filer som ikke kommer fra Google Disk. Skriv inn navnet ditt under Innstillinger, så blir det brukt på nye opplastinger og endringer.</p>
+        )}
+
         {list.length === 0 ? (
           <div className="empty-state">Ingen filer her ennå. Last opp filer eller hent fra Google Disk.</div>
         ) : (
+          <div className="pf-table-wrap">
           <table className="pf-table">
             <thead>
-              <tr><th></th><th>Navn</th><th>Type</th><th>Mappe</th><th>Størrelse</th><th>Dato</th><th>I kartet</th><th></th></tr>
+              <tr>
+                <th></th>
+                {head('name', 'Navn')}{head('type', 'Type')}{head('modified', 'Sist endret')}{head('version', 'Versjon')}{head('desc', 'Beskrivelse')}{head('by', 'Endret av')}
+                {head('folder', 'Mappe')}{head('size', 'Størrelse')}<th>I kartet</th><th></th>
+              </tr>
             </thead>
             <tbody>
               {list.map((it) => {
                 const Icon = KIND_ICON[it.kind];
                 const isPhoto = it.kind === 'photo' || it.kind === 'pano';
-                const date = isPhoto ? it.takenAt : new Date(it.createdAt).toISOString();
                 return (
                   <tr key={it.id} className={it.hidden ? 'dim' : ''}>
                     <td className="pf-ico">{isPhoto ? <img src={it.thumb} alt="" /> : <Icon size={18} />}</td>
                     <td className="pf-name" title={it.name} onClick={() => (isPhoto ? onOpenViewer(it.id) : onZoomTo(it.id))}>{it.name}</td>
-                    <td>{KIND_LABEL[it.kind]}</td>
+                    <td>{typeLabel(it)}</td>
+                    <td className="muted pf-date" title={`Lastet inn i Feltkart ${dateFmt.format(new Date(it.createdAt))}${isPhoto ? ` · Tatt ${dateFmt.format(new Date(it.takenAt))}` : ''}`}>{dateFmt.format(new Date(modifiedOf(it)))}</td>
+                    <td className="pf-ver">{editCell(it, 'version', versionOf(it), '1')}</td>
+                    <td className="pf-desc">{editCell(it, 'desc', descOf(it), 'Legg til beskrivelse')}</td>
+                    <td className="muted pf-by">{byOf(it) || '–'}</td>
                     <td className="muted">{folderName(it.folderId)}</td>
                     <td className="muted">{fmtSize(sizeOf(it))}</td>
-                    <td className="muted">{dateFmt.format(new Date(date))}</td>
                     <td><input type="checkbox" className="chk" checked={!it.hidden} onChange={(e) => project.setVisible([it.id], e.target.checked)} title="Vis i kartet" /></td>
                     <td className="pf-actions">
                       <button className="icon-btn" title="Vis i kart" onClick={() => onZoomTo(it.id)}><IconPin size={16} /></button>
@@ -119,6 +189,7 @@ export default function ProjectFiles({ project, onZoomTo, onOpenViewer, onUpload
               })}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>

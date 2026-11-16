@@ -482,7 +482,7 @@ body.picking .modal-back { visibility: hidden; }
 .pf-name { cursor: pointer; font-weight: 500; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pf-name:hover { color: var(--brand); text-decoration: underline; }
 .pf-actions { white-space: nowrap; text-align: right; }
-@media (max-width: 900px) { .pf-folders { display: none; } .pf-table th:nth-child(n+4), .pf-table td:nth-child(n+4):not(.pf-actions) { display: none; } }
+@media (max-width: 900px) { .pf-folders { display: none; } .pf-table th:nth-child(n+5), .pf-table td:nth-child(n+5):not(.pf-actions) { display: none; } }
 
 /* ---------- Nullstill demo ---------- */
 .reset-row { display: flex; align-items: center; gap: 14px; justify-content: space-between; }
@@ -590,3 +590,35 @@ body.picking .modal-back { visibility: hidden; }
 .eb-box p { margin: 0; color: var(--ink-2); }
 .eb-report { margin: 0; padding: 10px 12px; background: #f6f7f8; border: 1px solid var(--line); border-radius: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; user-select: text; }
 .eb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- Status for nedlasting/opplasting (vises i alle visninger) ---------- */
+.xfer-stack { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 1500; display: flex; flex-direction: column; gap: 8px; width: min(380px, calc(100vw - 24px)); pointer-events: none; }
+.xfer-card { pointer-events: auto; background: #fff; border: 1px solid var(--line-2); border-left: 4px solid var(--brand); border-radius: 10px; box-shadow: var(--shadow); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.xfer-card.error { border-left-color: #c0392b; }
+.xfer-card.done { border-left-color: var(--brand-2); }
+.xfer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+.xfer-msg { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xfer-msg.wrap { white-space: normal; word-break: break-word; max-height: 120px; overflow: auto; }
+.xfer-msg.error { color: #a93226; }
+.dp-bar.indeterminate .dp-fill { width: 35%; transition: none; animation: dp-slide 1.3s ease-in-out infinite; }
+@keyframes dp-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+
+/* ---------- Prosjektfiler: egenskapskolonner ---------- */
+.pf-table-wrap { overflow-x: auto; border-radius: 8px; }
+.pf-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.pf-table th.sortable:hover { color: var(--brand); }
+.pf-table th .arr { font-size: 10px; margin-left: 3px; }
+.pf-table td { font-size: 13px; }
+.pf-ver { width: 70px; white-space: nowrap; }
+.pf-date, .pf-by { white-space: nowrap; }
+.pf-desc { min-width: 180px; max-width: 320px; }
+.pf-desc .ed, .pf-ver .ed { display: block; cursor: text; min-height: 18px; border-radius: 4px; padding: 1px 4px; margin: -1px -4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-desc .ed:hover, .pf-ver .ed:hover { background: var(--bg); outline: 1px dashed var(--line-2); }
+.pf-desc .ed.empty, .pf-ver .ed.empty { color: var(--muted); font-style: italic; }
+.pf-desc input, .pf-ver input { width: 100%; font: inherit; border: 1px solid var(--brand); border-radius: 4px; padding: 2px 5px; box-sizing: border-box; }
+.pf-hint { margin: -6px 0 10px; }
+
+/* ---------- Terreng 3D: IFC-valg ---------- */
+.t3d-sub { margin: 2px 0 0 22px; display: flex; flex-direction: column; gap: 3px; }
+.t3d-layer { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.t3d-chip { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.25); flex: none; }

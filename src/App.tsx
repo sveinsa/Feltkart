@@ -10,7 +10,8 @@ import MediaViewer from './components/MediaViewer';
 import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/PhotosPanel';
 import ProjectFiles from './components/ProjectFiles';
 import WelcomeDemo from './components/WelcomeDemo';
-import DemoProgress from './components/DemoProgress';
+import TransferStatus from './components/TransferStatus';
+import { startJob } from './lib/transfer';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Terreng 3D (MapLibre + three.js) lastes først når fanen åpnes
@@ -71,12 +72,19 @@ export default function App() {
   // ---------- Demodata fra Google Disk (lastes automatisk når kartet er tomt) ----------
   const startDemo = useCallback(async () => {
     setDemo({ busy: true, msg: 'Starter …', pct: 1, startedAt: Date.now(), error: null });
+    const job = startJob('Laster demodata', 'Starter …'); // fremdriften vises i statusfeltet i alle visninger
     try {
-      const r = await loadDemoData(project, googleConfig(project), (msg, pct) => setDemo((d) => ({ ...d, msg, pct: pct !== undefined ? Math.max(d.pct, pct) : d.pct })), { replace: true });
+      const r = await loadDemoData(project, googleConfig(project), (msg, pct) => {
+        setDemo((d) => ({ ...d, msg, pct: pct !== undefined ? Math.max(d.pct, pct) : d.pct }));
+        job.update(msg, pct);
+      }, { replace: true });
       setDemo((d) => ({ ...d, busy: false, msg: '', error: r.message || null }));
-      if (r.added) { showToast(`${r.added} demoelement(er) lastet inn`); if (r.bounds) fitTo(r.bounds, 19); }
+      if (r.added) { job.done(`${r.added} demoelement(er) lastet inn.${r.message ? ' ' + r.message : ''}`, { keep: !!r.message }); showToast(`${r.added} demoelement(er) lastet inn`); if (r.bounds) fitTo(r.bounds, 19); }
+      else if (r.message) job.fail(r.message);
+      else job.done();
     } catch (e: any) {
       setDemo((d) => ({ ...d, busy: false, msg: '', error: String(e?.message ?? e) }));
+      job.fail(String(e?.message ?? e));
     }
   }, [project, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -409,12 +417,6 @@ export default function App() {
               ) : <span className="muted">{crsName(settings.projectCrs)}</span>}
             </div>
 
-            {demo.busy && (
-              <div className="map-empty demo-progress-box">
-                <DemoProgress pct={demo.pct} msg={demo.msg} startedAt={demo.startedAt} />
-              </div>
-            )}
-
             {items.length === 0 && !demo.busy && (
               <div className="map-empty">
                 <strong>Kom i gang</strong>
@@ -469,8 +471,9 @@ export default function App() {
           project={project}
           initialFiles={upload.files}
           onClose={() => setUpload(null)}
-          onDone={(r) => {
-            setView('map');
+          onDone={(r, background) => {
+            // Ble dialogen skjult underveis, blir brukeren værende i visningen hen har byttet til
+            if (!background) setView('map');
             // Zoom til det som ble lagt til
             if (r.bounds) fitTo(r.bounds, 19);
           }}
@@ -496,6 +499,7 @@ export default function App() {
           loadOriginal={(p) => fetchDriveBlob(googleConfig(project), p.driveId!, p.name)} />
       )}
 
+      <TransferStatus />
       {globalDrag && !upload && <div className="global-drop">Slipp filene for å laste opp</div>}
       {project.storageError && <div className="banner">{project.storageError}</div>}
       {toast && <div className="toast">{toast}</div>}

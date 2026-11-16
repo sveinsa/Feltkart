@@ -3,6 +3,7 @@
 import { Builder, type LL, type XYZ } from './builder';
 import type { Mesh3D, ParsedDxf } from '../dxf';
 import { ensureCrs, fromLatLng } from '../crs';
+import { colorFor, darken, hexCss, hexNum } from '../ifcColors';
 
 export interface Placement { e: number; n: number; rot: number } // modellens origo i prosjektets koordinatsystem, rotasjon (grader mot klokka)
 
@@ -102,24 +103,39 @@ export async function parseIfc(
       return 'IFCPRODUCT';
     };
 
-    // Rågeometri (transformerte hjørnepunkter per objekt)
-    interface M { eid: number; xyz: Float64Array; tris: Float32Array[] }
+    // Rågeometri: per objekt en liste «biter» (én per del-geometri), hver med egen farge fra IFC-filens overflatestiler
+    interface Piece { xyz: Float64Array; tris: Float32Array[]; rgb: number | null; alpha: number }
+    interface M { eid: number; pieces: Piece[] }
     const TRI_CAP = 2_500_000; // maks antall trekanter som beholdes for 3D-visning
     let triTotal = 0;
     let truncated = false;
     let rawO: [number, number, number] | null = null; // første punkt – trekanter lagres relativt til dette (Float32 holder da full presisjon)
     const meshes: M[] = [];
+    let pieceCount = 0;
     const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    // web-ifc gir fargen som {x,y,z,w} = rød, grønn, blå, alfa (0–1). Nyere versjoner kan bruke {r,g,b,a}.
+    // Hvit (1,1,1) betyr at modellen ikke har noen farge her, og da brukes standardfargen for klassen.
+    const readColor = (c: any): { rgb: number | null; alpha: number } => {
+      if (!c) return { rgb: null, alpha: 1 };
+      const r = Number(c.x ?? c.r), g = Number(c.y ?? c.g), b = Number(c.z ?? c.b), a = Number(c.w ?? c.a ?? 1);
+      if (![r, g, b].every((v) => Number.isFinite(v))) return { rgb: null, alpha: 1 };
+      const q = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)));
+      const alpha = Number.isFinite(a) ? Math.max(0, Math.min(1, a)) : 1;
+      const white = q(r) >= 253 && q(g) >= 253 && q(b) >= 253;
+      return { rgb: white && alpha >= 0.99 ? null : (q(r) << 16) | (q(g) << 8) | q(b), alpha };
+    };
     api.StreamAllMeshes(id, (mesh: any) => {
       const geoms = mesh.geometries;
-      const chunks: number[] = [];
-      const tris: Float32Array[] = [];
+      const pieces: Piece[] = [];
       for (let g = 0; g < geoms.size(); g++) {
         const pg = geoms.get(g);
         const geo = api.GetGeometry(id, pg.geometryExpressID);
         const verts: Float32Array = api.GetVertexArray(geo.GetVertexData(), geo.GetVertexDataSize());
         const m = pg.flatTransformation as number[];
         const n = verts.length / 6;
+        const { rgb, alpha } = readColor(pg.color);
+        const chunks: number[] = [];
+        const tris: Float32Array[] = [];
         // Trekanter til 3D-visning (transformert, relativt til første punkt)
         try {
           if (triTotal < TRI_CAP) {
@@ -156,8 +172,9 @@ export async function parseIfc(
           if (Z < min[2]) min[2] = Z; if (Z > max[2]) max[2] = Z;
         }
         geo.delete?.();
+        if (chunks.length >= 9) { pieces.push({ xyz: Float64Array.from(chunks), tris, rgb, alpha }); pieceCount++; }
       }
-      if (chunks.length >= 9) meshes.push({ eid: mesh.expressID, xyz: Float64Array.from(chunks), tris });
+      if (pieces.length) meshes.push({ eid: mesh.expressID, pieces });
       mesh.delete?.();
     });
     if (!meshes.length) throw new Error('Fant ingen geometri i IFC-filen.');
@@ -228,12 +245,17 @@ export async function parseIfc(
 
     ensureCrs(useCrs);
     const b = new Builder(mkLl(useCrs));
-    b.warnings.push(...warn, 'IFC vises som grunnriss (omriss) av hvert objekt. Høyder er fra IFC-modellen.');
+    // Grunnriss: ett omriss per del-geometri (med egen farge) så lenge modellen ikke er enorm, ellers ett per objekt
+    const detailed = pieceCount <= 40000;
+    b.warnings.push(...warn, detailed
+      ? 'IFC vises som grunnriss (omriss) av hver del, med fargene fra modellen. Høyder er fra IFC-modellen.'
+      : 'IFC vises som grunnriss (omriss) av hvert objekt. Høyder er fra IFC-modellen.');
 
     onProgress?.('lager grunnriss …');
     // 3D: trekanter omregnes til prosjektets koordinatsystem (meter relativt til modellens midtpunkt)
     const [E0, N0] = xf(cx, cy);
-    const partsMap = new Map<string, Float32Array[]>();
+    interface PartAcc { layer: string; color?: number; opacity?: number; chunks: Float32Array[] }
+    const partsMap = new Map<string, PartAcc>();
     const toProject = (ch: Float32Array): Float32Array => {
       const o = new Float32Array(ch.length);
       const r = rawO ?? [0, 0, 0];
@@ -244,24 +266,42 @@ export async function parseIfc(
       }
       return o;
     };
+
+    // Egenskaper (property sets) leses bare for modeller av moderat størrelse – oppslaget er tregt i store filer
+    const wantProps = meshes.length <= 1500;
+    const t0 = Date.now();
+    let propsStopped = false;
+    const psetAttrs = (eid: number): Record<string, string> => {
+      const out: Record<string, string> = {};
+      if (!wantProps || propsStopped) return out;
+      if (Date.now() - t0 > 6000) { propsStopped = true; return out; }
+      try {
+        const sets = api.properties?.getPropertySets?.(id, eid, true);
+        if (!Array.isArray(sets)) return out;
+        let n = 0;
+        for (const ps of sets) {
+          const pn = String(val(ps?.Name) ?? '').trim();
+          const props = ps?.HasProperties ?? ps?.Quantities ?? [];
+          if (!Array.isArray(props)) continue;
+          for (const pr of props) {
+            const k = val(pr?.Name);
+            let v = val(pr?.NominalValue);
+            if (v === undefined || v === null) v = val(pr?.LengthValue ?? pr?.AreaValue ?? pr?.VolumeValue ?? pr?.CountValue ?? pr?.WeightValue);
+            if (!k || v === undefined || v === null || v === '' || typeof v === 'object') continue;
+            const txt = typeof v === 'number' ? String(Math.round(v * 1000) / 1000) : String(v).replace(/^\.T\.$/, 'Ja').replace(/^\.F\.$/, 'Nei');
+            out[`${pn ? pn + ': ' : ''}${String(k)}`] = txt;
+            if (++n >= 40) return out;
+          }
+        }
+      } catch { /* ingen egenskaper */ }
+      return out;
+    };
+
+    interface Out2D { zhi: number; layer: string; h: [number, number][]; zs: [number, number]; attrs: Record<string, string>; rgb: number; alpha: number }
+    const out2d: Out2D[] = [];
     for (const m of meshes) {
       const name0 = nameOf(m.eid);
       if (SKIP.has(name0)) { b.skip(name0.replace(/^IFC/, 'Ifc')); continue; }
-      if (m.tris.length) {
-        const lay = LABELS[name0] ?? name0.replace(/^IFC/, 'Ifc');
-        const arr = partsMap.get(lay) ?? [];
-        for (const ch of m.tris) arr.push(toProject(ch));
-        partsMap.set(lay, arr);
-        m.tris = []; // frigjør minne
-      }
-      const pts: [number, number][] = [];
-      let zlo = Infinity, zhi = -Infinity;
-      for (let i = 0; i < m.xyz.length; i += 3) {
-        const l = local(m.xyz[i], m.xyz[i + 1], m.xyz[i + 2]);
-        pts.push(xf(l[0], l[1]));
-        if (l[2] < zlo) zlo = l[2]; if (l[2] > zhi) zhi = l[2];
-      }
-      const h = hull(pts);
       const layer = LABELS[name0] ?? name0.replace(/^IFC/, 'Ifc');
       const attrs: Record<string, string> = { Klasse: name0.replace(/^IFC/, 'Ifc') };
       try {
@@ -269,29 +309,73 @@ export async function parseIfc(
         const nm = val(line?.Name); if (nm) attrs.Navn = String(nm);
         const gid = val(line?.GlobalId); if (gid) attrs.GlobalId = String(gid);
         const desc = val(line?.Description); if (desc) attrs.Beskrivelse = String(desc);
+        const ot = val(line?.ObjectType); if (ot) attrs.Objekttype = String(ot);
+        const pt = val(line?.PredefinedType); if (pt && String(pt) !== 'NOTDEFINED') attrs.Type = String(pt);
+        const tg = val(line?.Tag); if (tg) attrs.Tag = String(tg);
       } catch { /* ignorer */ }
-      const zs: [number, number] = [zlo + dz, zhi + dz];
-      if (h.length >= 3) {
-        b.polygon(layer, 'IFC-objekt', h.map((p) => [p[0], p[1], NaN] as XYZ), attrs);
-        const f = b.features[b.features.length - 1];
-        if (f) f.z = zs;
-      } else if (h.length === 2) {
-        b.line(layer, 'IFC-objekt', h.map((p) => [p[0], p[1], zs[0]] as XYZ), attrs);
-      } else if (h.length === 1) {
-        b.point(layer, 'IFC-objekt', [h[0][0], h[0][1], zs[0]], undefined, attrs);
+      Object.assign(attrs, psetAttrs(m.eid));
+
+      // 3D-deler grupperes etter lag, farge og gjennomsiktighet (få materialer – rask tegning)
+      for (const pc of m.pieces) {
+        if (!pc.tris.length) continue;
+        const key = `${layer}|${pc.rgb ?? 'x'}|${Math.round(pc.alpha * 20)}`;
+        let acc = partsMap.get(key);
+        if (!acc) { acc = { layer, color: pc.rgb ?? undefined, opacity: pc.alpha < 0.99 ? pc.alpha : undefined, chunks: [] }; partsMap.set(key, acc); }
+        for (const ch of pc.tris) acc.chunks.push(toProject(ch));
+        pc.tris = []; // frigjør minne
+      }
+
+      // Grunnriss
+      const groups: { pieces: Piece[] }[] = detailed ? m.pieces.map((pc) => ({ pieces: [pc] })) : [{ pieces: m.pieces }];
+      for (const grp of groups) {
+        const pts: [number, number][] = [];
+        let zlo = Infinity, zhi = -Infinity;
+        for (const pc of grp.pieces) {
+          for (let i = 0; i < pc.xyz.length; i += 3) {
+            const l = local(pc.xyz[i], pc.xyz[i + 1], pc.xyz[i + 2]);
+            pts.push(xf(l[0], l[1]));
+            if (l[2] < zlo) zlo = l[2]; if (l[2] > zhi) zhi = l[2];
+          }
+        }
+        const first = grp.pieces.find((pc) => pc.rgb !== null) ?? grp.pieces[0];
+        out2d.push({
+          zhi: zhi + dz, layer, h: hull(pts), zs: [zlo + dz, zhi + dz], attrs,
+          rgb: first.rgb ?? hexNum(colorFor(layer)), alpha: first.alpha,
+        });
       }
     }
+    // Lave deler tegnes først, slik at høyere deler (tak, motorer) havner oppå
+    out2d.sort((p, q) => p.zhi - q.zhi);
+    for (const o of out2d) {
+      if (o.h.length >= 3) {
+        b.polygon(o.layer, 'IFC-objekt', o.h.map((p) => [p[0], p[1], NaN] as XYZ), o.attrs);
+        const f = b.features[b.features.length - 1];
+        if (f) {
+          f.z = o.zs;
+          f.fill = hexCss(o.rgb);
+          f.color = hexCss(darken(o.rgb));
+          f.fillOpacity = o.alpha < 0.99 ? Math.max(0.2, o.alpha * 0.85) : 0.85;
+        }
+      } else if (o.h.length === 2) {
+        b.line(o.layer, 'IFC-objekt', o.h.map((p) => [p[0], p[1], o.zs[0]] as XYZ), o.attrs);
+      } else if (o.h.length === 1) {
+        b.point(o.layer, 'IFC-objekt', [o.h[0][0], o.h[0][1], o.zs[0]], undefined, o.attrs);
+      }
+    }
+    if (propsStopped) b.warnings.push('Egenskapene (property sets) ble bare lest for deler av modellen, fordi lesingen tok for lang tid.');
+    else if (!wantProps) b.warnings.push('Modellen er stor. Egenskaper fra property sets er ikke lest (navn, type og tag vises).');
+
     const res = b.finish(useCrs);
     if (partsMap.size) {
       const parts: Mesh3D['parts'] = [];
       let triangles = 0;
-      for (const [layer, chunks] of partsMap) {
-        const len = chunks.reduce((a, c) => a + c.length, 0);
+      for (const acc of partsMap.values()) {
+        const len = acc.chunks.reduce((a, c) => a + c.length, 0);
         const positions = new Float32Array(len);
         let off = 0;
-        for (const c of chunks) { positions.set(c, off); off += c.length; }
+        for (const c of acc.chunks) { positions.set(c, off); off += c.length; }
         triangles += len / 9;
-        parts.push({ layer, positions });
+        parts.push({ layer: acc.layer, positions, color: acc.color, opacity: acc.opacity });
       }
       res.mesh3d = { crs: useCrs, origin: [E0, N0], parts, triangles, truncated };
       if (truncated) res.warnings.push(`3D-visningen viser de første ${TRI_CAP.toLocaleString('nb-NO')} trekantene (modellen er stor).`);

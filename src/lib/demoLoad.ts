@@ -18,7 +18,7 @@ export interface DemoResult {
   message: string;
 }
 
-interface DemoFile { id: string; name: string; mimeType: string; path: string[]; url?: string }
+interface DemoFile { id: string; name: string; mimeType: string; path: string[]; url?: string; modifiedTime?: string; description?: string; modifiedBy?: string }
 
 /** Demodata som ligger i selve nettstedet (public/demo/manifest.json). Gir null hvis den ikke finnes. */
 let manifestPromise: Promise<(DemoFile[] & { alsoFromDrive?: boolean }) | null> | null = null;
@@ -94,7 +94,7 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
   const extras = usable.filter((f) => isWorldFile({ name: f.name } as File) && todo.some((x) => x.path.join('/') === f.path.join('/') && stem(x.name) === stem(f.name)));
   const all = [...todo, ...extras];
   const files: File[] = [];
-  const meta = new Map<File, { driveId?: string; folderId?: string }>();
+  const meta = new Map<File, { driveId?: string; folderId?: string; modifiedAt?: number; modifiedBy?: string; description?: string }>();
   const errCount = new Map<string, number>();
   let failed = 0;
   let done = 0;
@@ -112,7 +112,7 @@ export async function loadDemoData(project: Project, cfg: GoogleConfig, onProgre
       }
       const f = new File([blob], d.name, { type: d.mimeType });
       files.push(f);
-      meta.set(f, { driveId: d.id });
+      meta.set(f, { driveId: d.id, modifiedAt: d.modifiedTime ? Date.parse(d.modifiedTime) || undefined : undefined, modifiedBy: d.modifiedBy, description: d.description });
     } catch (e: any) {
       const m = String(e?.message ?? e);
       errCount.set(m, (errCount.get(m) ?? 0) + 1);
