@@ -484,7 +484,7 @@ body.picking .modal-back { visibility: hidden; }
 @keyframes dp-shine { to { transform: translateX(100%); } }
 .dp-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .dp-msg { font-size: 11.5px; color: var(--muted); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
-.demo-progress-box { max-width: 420px; }
+.demo-progress-box { max-width: 420px; width: 400px; }
 .demo-banner.demo-progress-box { border-radius: 14px; padding: 12px 20px; top: 14px; max-width: 420px; }
 .coffee { color: var(--brand); overflow: visible; flex: none; }
 .coffee .steam { fill: none; stroke: #9aa7a0; stroke-width: 1.8; stroke-linecap: round; opacity: 0; animation: steam 2.4s infinite ease-in-out; }

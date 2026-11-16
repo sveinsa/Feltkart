@@ -399,7 +399,7 @@ export default function App() {
             </div>
 
             {demo.busy && (
-              <div className={items.length === 0 ? 'map-empty demo-progress-box' : 'demo-banner demo-progress-box'}>
+              <div className="map-empty demo-progress-box">
                 <DemoProgress pct={demo.pct} msg={demo.msg} startedAt={demo.startedAt} />
               </div>
             )}
