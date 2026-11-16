@@ -176,3 +176,6 @@ Standardmappene er Bilder, 360-bilder, Prosjektert (DXF/IFC), Innmålinger og Or
 ## Skarphet og hastighet på ortofoto
 
 Ortofoto lagres i nettleseren med opptil 6144 piksler på lengste side (4096 på enheter med lite minne). Det lages også et lite forhåndsbilde (maks 2048 px) som vises når kartet er zoomet langt ut, og det store bildet tas i bruk når du zoomer inn. Det gjør panorering rask selv med skarpt bilde. JPEG 2000-filer avkodes opp til 64 millioner piksler. Er ortofotoet større enn dette, nedskaleres det, og i en produksjonsløsning bør det leveres som flisbelagt kart (tiles) fra serveren. Ortofoto som allerede er lastet inn beholder oppløsningen fra da det ble lastet inn, og må lastes inn på nytt for å bli skarpere eller få forhåndsbilde.
+
+## Ortofoto – hastighet (v 2.8)
+GeoTIFF avkodes nå med flere arbeidstråder (geotiff `Pool`), og fremdriften viser sekunder. Komprimerte TIFF-er er tregest; hvis det fortsatt tar lang tid, eksporter fra drone-programvaren som *tiled GeoTIFF med overviews (COG)* – da bruker Feltkart de innebygde oversiktsbildene og lastingen går på noen sekunder.

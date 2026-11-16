@@ -362,7 +362,9 @@ body.picking .modal-back { visibility: hidden; }
 .info-preview { position: relative; background: #111; }
 .info-preview-img { display: block; width: 100%; border: 0; padding: 0; background: #111; position: relative; cursor: zoom-in; }
 .info-preview-img img { display: block; width: 100%; height: min(52vh, 560px); object-fit: contain; background-size: cover; background-position: center; background-color: #111; }
-.info-open { position: absolute; left: 12px; bottom: 12px; background: rgba(0, 0, 0, 0.65); color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; opacity: 0; transition: opacity 0.12s; }
+.info-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 12px; background: var(--panel); border-bottom: 1px solid var(--line-2); }
+.info-actions .btn { flex: 1 1 auto; justify-content: center; padding: 9px 14px; font-size: 14px; }
+.info-open { position: absolute; left: 12px; bottom: 12px; background: rgba(0, 0, 0, 0.65); color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; opacity: 0.9; transition: opacity 0.12s; }
 .info-preview-img:hover .info-open { opacity: 1; }
 .info-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.85); color: #111; display: grid; place-items: center; cursor: pointer; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
 .info-nav:hover { background: #fff; }

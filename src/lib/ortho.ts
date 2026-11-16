@@ -1,6 +1,8 @@
 // Leser georeferert ortofoto (GeoTIFF eller JPEG 2000 fra drone, f.eks. fra DJI Terra, Pix4D, Metashape)
 // og reprojiserer det til Web Mercator slik at det ligger nøyaktig i kartet.
-import { fromBlob } from 'geotiff';
+import * as GeoTIFF from 'geotiff';
+
+const fromBlob = GeoTIFF.fromBlob;
 import { ensureCrs, transform } from './crs';
 import { decodeJp2, inspectJp2, isJp2 } from './jp2';
 
@@ -66,8 +68,33 @@ async function readTiff(file: File, fallbackCrs: string, maxSize: number, onProg
     src = image;
   }
 
-  onProgress?.(`Laster piksler (${sw}×${sh}) …`);
-  const raw: any = await src.readRGB({ width: sw, height: sh, interleave: true, enableAlpha: true } as any);
+  // Avkoding (komprimerte TIFF-er) er tung. Bruk flere arbeidstråder (Pool) slik at siden ikke fryser og det går raskere.
+  const t0 = Date.now();
+  const base = `Laster piksler (${sw}×${sh})`;
+  onProgress?.(`${base} …`);
+  const tick = window.setInterval(() => onProgress?.(`${base} … ${Math.round((Date.now() - t0) / 1000)} s`), 1000);
+  let raw: any;
+  try {
+    let pool: any = null;
+    try {
+      const PoolCtor = (GeoTIFF as any).Pool;
+      const threads = Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));
+      pool = PoolCtor ? new PoolCtor(threads) : null;
+    } catch {
+      pool = null;
+    }
+    const opts: any = { width: sw, height: sh, interleave: true, enableAlpha: true, resampleMethod: 'nearest' };
+    try {
+      raw = await src.readRGB(pool ? { ...opts, pool } : opts);
+    } catch (e) {
+      if (!pool) throw e;
+      raw = await src.readRGB(opts); // arbeidstråder feilet – prøv uten
+    } finally {
+      try { pool?.destroy?.(); } catch { /* ignorer */ }
+    }
+  } finally {
+    window.clearInterval(tick);
+  }
   const channels = Math.round(raw.length / (sw * sh));
   return { raw, channels, sw, sh, bbox, crs, crsDetected: !!detected, noData: image.getGDALNoData(), sourceSize: [w, h] };
 }

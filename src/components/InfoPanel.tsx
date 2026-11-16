@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DxfItem, OrthoItem, PhotoItem, Selection } from '../types';
 import type { Project } from '../state';
 import { crsName, CRS_LIST, formatProjected, fmt } from '../lib/crs';
-import { IconChevron, IconClose, IconPin, IconTrash } from './icons';
+import { IconChevron, IconClose, IconExpand, IconPano, IconPin, IconTrash } from './icons';
 import { FORMAT_LABEL } from '../lib/vector';
 import { useMemo } from 'react';
 
@@ -47,11 +47,17 @@ function PhotoPreview({ p, index, total, onPrev, onNext, onOpen }: {
     <div className="info-preview">
       <button className="info-preview-img" onClick={onOpen} title={p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne i fullskjerm'}>
         <img src={url} alt={p.name} style={{ backgroundImage: `url(${p.thumb})` }} />
-        <span className="info-open">{p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne i fullskjerm'}</span>
+        <span className="info-open">{p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne fullskjerm'}</span>
       </button>
       {onPrev && <button className="info-nav prev" onClick={onPrev} aria-label="Forrige bilde" title="Forrige (←)"><IconChevron size={22} style={{ transform: 'rotate(180deg)' }} /></button>}
       {onNext && <button className="info-nav next" onClick={onNext} aria-label="Neste bilde" title="Neste (→)"><IconChevron size={22} /></button>}
       <span className="info-count">{index + 1} / {total}</span>
+      <div className="info-actions">
+        {p.kind === 'pano' && (
+          <button className="btn primary" onClick={onOpen}><IconPano size={18} /> Åpne i 360-visning</button>
+        )}
+        <button className={p.kind === 'pano' ? 'btn' : 'btn primary'} onClick={onOpen}><IconExpand size={18} /> Åpne fullskjerm</button>
+      </div>
     </div>
   );
 }
