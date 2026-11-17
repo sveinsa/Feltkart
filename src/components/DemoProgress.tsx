@@ -33,7 +33,7 @@ export default function DemoProgress({ pct, msg, startedAt }: { pct: number; msg
       </div>
       <div className="dp-meta">
         <span>{p} %</span>
-        <span>⏱ {fmt(elapsed)} · ca. 1 min 10 s totalt</span>
+        <span>⏱ {fmt(elapsed)} · antatt tid ca. 60 sekunder</span>
       </div>
       {msg && <span className="dp-msg">{msg}</span>}
     </div>

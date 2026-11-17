@@ -15,7 +15,7 @@ export default function WelcomeDemo({ onYes, onNo }: { onYes: () => void; onNo: 
             <button className="btn primary big" onClick={onYes} autoFocus><IconFolder size={18} /> Ja, last ned demodata</button>
             <button className="btn big" onClick={onNo}>Nei</button>
           </div>
-          <span className="muted small">(Tar ca. 1 minutt å laste fra en litt treg Google Disk)</span>
+          <span className="muted small">(Antatt tid: ca. 60 sekunder, siden filene hentes fra en litt treg Google Disk)</span>
         </div>
       </div>
     </div>

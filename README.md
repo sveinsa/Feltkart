@@ -301,3 +301,6 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 
 ## Terreng 3D uten høydeoverdrivelse (v 4.8)
 - Glideren **Overdrivelse av høyder** er fjernet fra Terreng 3D. Terrenget vises alltid i riktig høydemålestokk (1×), så målinger og IFC-modeller står riktig i forhold til terrenget.
+
+## Info om ventetid ved demodata (v 4.9)
+- Velkomstboksen og fremdriftsvinduet for demodata oppgir nå antatt tid: **ca. 60 sekunder**.
