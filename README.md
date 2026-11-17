@@ -324,3 +324,7 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 ## Antatt tid også i statusvinduet for demodata (v 5.0)
 - Statusvinduet «Laster demodata» viser nå alltid teksten **«Antatt tid for nedlasting er ca. 60 sekunder.»**, også når demodata lastes fra Prosjektfiler/Google Disk-dialogen (tidligere sto den bare ved oppstartsspørsmålet).
 - Versjonsnummeret er nå 5.0.
+
+## Sjekk ny versjon og Nullstill demodata i menyen (v 5.1)
+- Knappen nederst i venstre meny heter nå **Nullstill demodata** (tidligere «nullstill»).
+- Ny knapp **Sjekk ny versjon Feltkart** over den: gjør det samme som Ctrl + Shift + R. Hurtigbufferen tømmes og siden hentes på nytt, så du får nyeste publiserte versjon av Feltkart. Bilder, målinger og innstillinger beholdes. Nytt versjonsnummer vises når oppdateringen er publisert på GitHub; knappen kan ikke hente en versjon som ikke er publisert ennå.

@@ -11,6 +11,7 @@ import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/
 import ProjectFiles from './components/ProjectFiles';
 import WelcomeDemo from './components/WelcomeDemo';
 import ProjectMenu from './components/ProjectMenu';
+import { hardRefresh } from './lib/refresh';
 import { isDefaultProject } from './lib/projects';
 import TransferStatus from './components/TransferStatus';
 import { startJob } from './lib/transfer';
@@ -28,7 +29,7 @@ import { hasDemoSource, loadDemoData } from './lib/demoLoad';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
 import {
-  IconArea, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRuler, IconSettings, IconTrash, IconUpload,
+  IconArea, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRefresh, IconRuler, IconSettings, IconTrash, IconUpload,
 } from './components/icons';
 
 type View = 'map' | 'photos' | 'gallery' | 'files' | 'terrain3d' | 'settings';
@@ -291,7 +292,8 @@ export default function App() {
           <button title="Last opp" onClick={() => setUpload({ files: [] })}><IconUpload size={20} /></button>
           <button title="Google Disk (beta)" className="rail-google" onClick={() => setSyncOpen(true)}><IconGoogle size={20} /><span className="rail-beta">beta</span></button>
           <div className="rail-spacer" />
-          <button className="rail-reset" title="Nullstill demo – slett alt innhold" onClick={() => setResetOpen(true)}><IconTrash size={19} /><span className="rail-beta warn">nullstill</span></button>
+          <button className="rail-text rail-update" title="Sjekk ny versjon Feltkart – gjør det samme som Ctrl + Shift + R. Dine data beholdes." onClick={() => { showToast('Sjekker ny versjon av Feltkart …'); void hardRefresh(); }}><IconRefresh size={18} /><span>Sjekk ny versjon Feltkart</span></button>
+          <button className="rail-text rail-reset" title="Nullstill demodata – slett alt innhold" onClick={() => setResetOpen(true)}><IconTrash size={18} /><span>Nullstill demodata</span></button>
           <button className={view === 'settings' ? 'on' : ''} title="Innstillinger" onClick={() => setView('settings')}><IconSettings size={20} /></button>
         </nav>
 

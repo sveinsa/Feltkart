@@ -552,11 +552,13 @@ body.picking .modal-back { visibility: hidden; }
 .rail button.rail-google svg { margin-top: -5px; }
 .topbar .btn svg:first-child { flex: none; }
 
-/* ---------- Nullstill demo i menyen til venstre ---------- */
-.rail button.rail-reset { color: var(--danger, #c0392b); height: 44px; }
+/* ---------- Oppdater og Nullstill demodata i menyen til venstre ---------- */
+.rail button.rail-text { width: 44px; height: auto; min-height: 46px; padding: 4px 1px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.rail button.rail-text span { font-size: 8.5px; line-height: 1.1; font-weight: 600; text-align: center; word-break: break-word; }
+.rail button.rail-reset { color: var(--danger, #c0392b); }
 .rail button.rail-reset:hover { background: #fbeceb; color: var(--danger, #c0392b); }
-.rail button.rail-reset svg { margin-top: -6px; }
-.rail-beta.warn { color: var(--danger, #c0392b); background: #fbeceb; bottom: 2px; }
+.rail button.rail-update { color: var(--brand); }
+.rail button.rail-update:hover { background: var(--brand-soft); color: var(--brand); }
 
 /* ---------- Fremdrift demodata + kaffekopp ---------- */
 .dp { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 280px; }
