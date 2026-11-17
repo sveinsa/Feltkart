@@ -2,14 +2,14 @@
 // Byttes ut med et API mot en server når løsningen skal ha flere brukere – se README.
 import type { Folder, Item, Settings } from '../types';
 
-const DB_NAME = 'feltkart';
+import { dbNameForActive } from './projects';
 const DB_VERSION = 1;
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function open(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(dbNameForActive(), DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains('folders')) db.createObjectStore('folders', { keyPath: 'id' });

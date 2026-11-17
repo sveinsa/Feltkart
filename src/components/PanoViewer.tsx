@@ -10,13 +10,22 @@ export default function PanoViewer({ blob, initialHeading = 0 }: { blob: Blob; i
     const host = el.current!;
     let disposed = false;
     let raf = 0;
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    // Størrelsen kan være 0 de første millisekundene (før layout er ferdig): bruk vindusstørrelsen til ResizeObserver rapporterer
+    const size = () => ({ w: host.clientWidth || window.innerWidth, h: host.clientHeight || Math.max(200, window.innerHeight - 60) });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch (e) {
+      // Nettleseren ga ikke et WebGL-felt (f.eks. for mange åpne, eller WebGL er av)
+      setStatus('Kunne ikke starte 360-visningen (WebGL er ikke tilgjengelig akkurat nå). Lukk og åpne bildet på nytt, eller last siden på nytt.');
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(host.clientWidth, host.clientHeight);
+    renderer.setSize(size().w, size().h);
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, host.clientWidth / host.clientHeight, 1, 1100);
+    const camera = new THREE.PerspectiveCamera(75, size().w / size().h, 1, 1100);
     const geometry = new THREE.SphereGeometry(500, 64, 40);
     geometry.scale(-1, 1, 1);
     const material = new THREE.MeshBasicMaterial({ color: 0x222222 });
@@ -57,7 +66,7 @@ export default function PanoViewer({ blob, initialHeading = 0 }: { blob: Blob; i
     };
     const onMove = (e: PointerEvent) => {
       if (!down) return;
-      const k = fov / host.clientHeight;
+      const k = fov / size().h;
       lon = down.lon - (e.clientX - down.x) * k;
       lat = Math.max(-85, Math.min(85, down.lat + (e.clientY - down.y) * k));
     };
@@ -76,8 +85,8 @@ export default function PanoViewer({ blob, initialHeading = 0 }: { blob: Blob; i
     el2.addEventListener('wheel', onWheel, { passive: false });
 
     const ro = new ResizeObserver(() => {
-      renderer.setSize(host.clientWidth, host.clientHeight);
-      camera.aspect = host.clientWidth / host.clientHeight;
+      renderer.setSize(size().w, size().h);
+      camera.aspect = size().w / size().h;
       camera.updateProjectionMatrix();
     });
     ro.observe(host);
@@ -102,7 +111,8 @@ export default function PanoViewer({ blob, initialHeading = 0 }: { blob: Blob; i
       material.dispose();
       texture?.dispose();
       renderer.dispose();
-      host.removeChild(renderer.domElement);
+      try { renderer.forceContextLoss(); } catch { /* ignorer */ }
+      if (renderer.domElement.parentNode === host) host.removeChild(renderer.domElement);
     };
   }, [blob, initialHeading]);
 

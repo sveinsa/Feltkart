@@ -10,6 +10,8 @@ import MediaViewer from './components/MediaViewer';
 import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/PhotosPanel';
 import ProjectFiles from './components/ProjectFiles';
 import WelcomeDemo from './components/WelcomeDemo';
+import ProjectMenu from './components/ProjectMenu';
+import { isDefaultProject } from './lib/projects';
 import TransferStatus from './components/TransferStatus';
 import { startJob } from './lib/transfer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -92,6 +94,7 @@ export default function App() {
     if (!ready || !settings || demoStarted.current) return;
     // Når prosjektet er tomt ved åpning (og det finnes en API-nøkkel): vis velkomstboks med spørsmål om å laste demodata
     if (items.length > 0) return;
+    if (!isDefaultProject()) return; // demodata hører til første prosjekt (Oppdal Ålma); de andre er tomme
     demoStarted.current = true;
     void hasDemoSource(googleConfig(project)).then((ok) => { if (ok) setWelcomeOpen(true); else demoStarted.current = false; }); // spør først – lastingen starter når brukeren sier ja
   }, [ready, settings, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -273,10 +276,7 @@ export default function App() {
           <button className={view === 'settings' ? 'on' : ''} onClick={() => setView('settings')}>Innstillinger</button>
         </nav>
         <div className="topbar-right">
-          <button className="project-pill" onClick={() => setView('settings')} title="Prosjektinnstillinger">
-            <IconEdit size={14} /> {settings.projectName} <span className="beta-tag">beta</span>
-          </button>
-          <button className="btn" onClick={() => setSyncOpen(true)} title="Hent fra og last opp til Google Disk-mappen"><IconGoogle size={16} /> Google Disk <span className="beta-tag">beta</span></button>
+          <ProjectMenu name={settings.projectName} onSettings={() => setView('settings')} />
           <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp</button>
         </div>
       </header>

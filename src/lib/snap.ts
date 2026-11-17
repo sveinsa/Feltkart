@@ -410,3 +410,15 @@ export function rayFromMatrix(invProj: ArrayLike<number>, x: number, y: number, 
   const l = Math.hypot(dx, dy, dz) || 1;
   return { o: a, d: [dx / l, dy / l, dz / l] };
 }
+
+/** Nærmeste punkt (i skjermpiksler) til markøren, innen `maxPx`. Brukes til å treffe bildebobler selv om klikket bommer litt. */
+export function nearestOnScreen<T extends { p: V3 }>(items: T[], cursor: { x: number; y: number }, project: Project3, maxPx: number): T | null {
+  let best: T | null = null, bd = maxPx;
+  for (const it of items) {
+    const s = project(it.p);
+    if (!s) continue;
+    const d = Math.hypot(s.x - cursor.x, s.y - cursor.y);
+    if (d <= bd) { bd = d; best = it; }
+  }
+  return best;
+}

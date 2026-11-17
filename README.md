@@ -224,7 +224,7 @@ Innlasting av demodata viser en statuslinje med prosent og klokke (tid brukt, fo
 
 ## Terreng 3D (v 4.0)
 Egen fane **Terreng 3D** (MapLibre GL + three.js, lastes først når fanen åpnes):
-- **Terreng** fra åpne høydedata (Mapterhorn – Norge i 1 m, eller AWS Terrain Tiles globalt). Bakgrunn: Esri, OpenStreetMap, Kartverket eller egen. Overdrivelse av høyder 1–5×.
+- **Terreng** fra åpne høydedata (Mapterhorn – Norge i 1 m, eller AWS Terrain Tiles globalt). Bakgrunn: Esri, OpenStreetMap, Kartverket eller egen. (Overdrivelse av høyder er fjernet i v 4.8.)
 - **Ortofoto** (droneortofoto) drapes på terrenget. Slå av «Vis terreng i 3D» for å se det flatt.
 - **IFC-modeller** vises som ekte 3D (trekanter), farget etter objekttype. Modellen må ha georeferanse (som for kartvisning). Svært store modeller kuttes ved 2,5 mill. trekanter.
 - **Dronefoto og 360-bilder** vises i riktig posisjon og høyde (fra bildets GPS-høyde), med stolpe ned til bakken. Vanlige bilder er rammer med «FOTO»-merke, 360-bilder er kuler med «360°»-merke (se v 4.2). Klikk et bilde for å åpne det. Datofilteret i kartet gjelder også her.
@@ -281,3 +281,23 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
   - Bytter du mellom Avstand og Areal, beholdes punktene (også i en ferdig måling). Et nytt klikk i en ferdig måling starter en ny måling og erstatter den lagrede.
   - Målingen lagres i nettleseren på denne maskinen (localStorage), ikke på Google Disk, og er ikke delt med andre.
 - **Målepanelet i 2D-kartet** står nå øverst til venstre, så det ikke lenger kan dekkes av verktøylinjen på smalere skjermer.
+
+## Målehistorikk, flere målinger i kartet og rettelser (v 4.6)
+- **Flere målinger samtidig:** Når du har fullført en måling og klikker igjen, blir den ferdige målingen **stående i kartet** (og i Terreng 3D), og en ny måling starter ved siden av. Slik kan du for eksempel måle flere arealer etter og ved siden av hverandre.
+- **Egen farge per måling:** Hver måling får sin egen farge (oransje, blå, rosa, grønn, lilla, turkis, gul, brun, deretter rundt igjen). Fargen brukes på linjer, flater, punkter og lengde- og arealetiketter, både i kartet og i 3D.
+- **Historikk i målepanelet:** Panelet har nå en liste **Målinger (n)** med fargeprikk, type og verdi for hver måling. Klikk på en rad for å zoome til målingen, og på × for å slette bare den. Når to eller flere arealmålinger er ferdige, vises **Sum areal**, og tilsvarende **Sum lengde** for avstandsmålinger.
+- **Nullstill alle:** Knappen **Nullstill alle** (i listen over målingene, og i boksen nederst når verktøyet er lukket) fjerner alle målingene, også de lagrede kopiene. Den gamle knappen «Nullstill» i bunnen av panelet er erstattet av denne og av × på hver rad.
+- **Lagres løpende:** Alle målingene lagres i nettleseren hver gang noe endres, og er felles for Kart og Terreng 3D. Boksen nederst viser «Lagret: n målinger» med **Åpne** og **Nullstill alle** når verktøyet ikke er i bruk. Målinger lagret av v 4.5 leses fortsatt.
+- **Bytte mellom Avstand og Areal** midt i en måling beholder punktene som før. Er målingen ferdig, blir den stående som den er (med sin egen type), og en ny måling starter.
+- **Midtstilt innlastingsvindu:** Fremdriftsvinduet for demodata, Google Disk og opplasting står nå midt på skjermen i stedet for nederst.
+- **Terreng 3D, bilder og 360:** Det er gjort flere sikringer, men årsaken kunne ikke bekreftes uten en ekte nettleser med GPU: (1) lettere å treffe bildeboblene, siden klikk innen 26 piksler fra en boble åpner bildet; (2) bildevisningen tilpasser bildet til hele vinduet (ingen beskjæring); (3) 360-visningen starter selv om vindustørrelsen ikke er kjent ennå, rydder opp WebGL-kontekst og viser en tydelig melding hvis WebGL ikke er tilgjengelig. Fungerer det fortsatt ikke, send et skjermbilde og teksten i rødt (om den vises), så kan feilen finnes.
+
+## Prosjektvelger (v 4.7)
+- **Nedtrekksmeny for prosjekter:** Prosjektnavnet øverst til høyre er nå en nedtrekksmeny med alle prosjektene, og «Prosjektinnstillinger» nederst. Listen inneholder **Oppdal Ålma** (standardprosjektet, med demodata) og de tomme dummyprosjektene **Prosjekt 1, 2 og 3**.
+- **Egen lagring per prosjekt:** Hvert prosjekt har sin egen database i nettleseren (bilder, filer, innstillinger) og sine egne målinger. Når du bytter prosjekt, lastes siden på nytt med det valgte prosjektet. Oppdal Ålma bruker samme lagring som før, så eksisterende innhold beholdes. Et prosjekt som het «Mitt prosjekt» (uendret navn) får navnet «Oppdal Ålma».
+- Spørsmålet om å laste demodata vises bare i Oppdal Ålma. Navn som endres under Innstillinger vises også i listen.
+- **Google Disk-knappen** er fjernet fra toppfeltet og finnes nå bare i venstre meny.
+- Dummyprosjektene er plassholdere: de kan brukes som tomme prosjekter nå, men det finnes ennå ingen funksjon for å opprette, slette eller dele prosjekter.
+
+## Terreng 3D uten høydeoverdrivelse (v 4.8)
+- Glideren **Overdrivelse av høyder** er fjernet fra Terreng 3D. Terrenget vises alltid i riktig høydemålestokk (1×), så målinger og IFC-modeller står riktig i forhold til terrenget.

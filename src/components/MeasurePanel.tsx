@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { formatLength, summaryRows, summaryText } from '../lib/measure';
-import type { MeasureMode, Summary } from '../lib/measure';
+import { formatLength, historyTotals, summaryRows, summaryText } from '../lib/measure';
+import type { HistoryRow, MeasureMode, Summary } from '../lib/measure';
 import { IconArea, IconClose, IconRuler } from './icons';
 
 interface Props {
@@ -19,11 +19,17 @@ interface Props {
   onSnap?: (on: boolean) => void;
   /** Hva markøren snapper til akkurat nå («Hjørne», «Kant», «Flate») */
   snapState?: string | null;
-  /** Målingen er lagret og blir stående til du trykker Nullstill */
+  /** Målingene er lagret og blir stående til du trykker «Nullstill alle» */
   stored?: boolean;
+  /** Alle målingene i visningen (ferdige og den som pågår), hver med egen farge */
+  history?: HistoryRow[];
+  onDeleteItem?: (id: string) => void;
+  /** Zoom til målingen */
+  onFocusItem?: (id: string) => void;
   onMode: (m: MeasureMode) => void;
   onUndo: () => void;
   onFinish: () => void;
+  /** Nullstill alle: fjerner alle målingene, også de lagrede kopiene */
   onClear: () => void;
   onClose: () => void;
 }
@@ -38,6 +44,8 @@ export default function MeasurePanel(p: Props) {
   const need = mode === 'area' ? 3 : 2;
   const rows = summaryRows(s);
   const has3d = s.segments3d !== null;
+  const hist = p.history ?? [];
+  const totals = historyTotals(hist);
 
   let hint: string;
   if (s.count === 0) hint = 'Klikk for å sette første punkt.';
@@ -106,13 +114,41 @@ export default function MeasurePanel(p: Props) {
         )}
       </div>
 
+      {hist.length > 0 && (
+        <div className="mp-hist" aria-label="Målinger">
+          <div className="mp-hist-head">
+            <b>Målinger ({hist.length})</b>
+            <button className="btn danger" onClick={p.onClear} title="Fjern alle målingene, også de lagrede kopiene">Nullstill alle</button>
+          </div>
+          <ul>
+            {hist.map((h, i) => (
+              <li key={h.id} className={h.active ? 'active' : ''} data-mid={h.id}>
+                <span className="mp-sw" style={{ background: h.color }} />
+                <button className="mp-hist-item" onClick={() => p.onFocusItem?.(h.id)} title="Vis målingen i kartet">
+                  <span className="mp-hist-n">{i + 1}</span>
+                  {h.mode === 'area' ? <IconArea size={14} /> : <IconRuler size={14} />}
+                  <span className="mp-hist-v">{h.value}</span>
+                  {!h.finished && <small>pågår</small>}
+                </button>
+                <button className="icon-btn mp-del" title="Slett denne målingen" aria-label={`Slett måling ${i + 1}`} onClick={() => p.onDeleteItem?.(h.id)}><IconClose size={14} /></button>
+              </li>
+            ))}
+          </ul>
+          {(totals.area || totals.length) && (
+            <div className="mp-hist-sum">
+              {totals.area && <span>Sum areal: <b>{totals.area}</b></span>}
+              {totals.length && <span>Sum lengde: <b>{totals.length}</b></span>}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="mp-actions">
         <button className="btn" disabled={s.count === 0} onClick={p.onUndo} title="Angre siste punkt (Backspace)">Angre</button>
         <button className="btn primary" disabled={finished || s.count < need} onClick={p.onFinish} title="Fullfør målingen (Enter eller dobbeltklikk)">Fullfør</button>
-        <button className="btn" disabled={s.count === 0} onClick={p.onClear} title="Fjern målingen, også den lagrede kopien">Nullstill</button>
         <button className="btn" disabled={rows.length === 0} onClick={copy} title="Kopier resultatet som tekst">{copied ? 'Kopiert' : 'Kopier'}</button>
       </div>
-      <div className="mp-foot">{p.stored !== false && s.count > 0 ? 'Målingen lagres underveis og blir stående til du trykker Nullstill.' : ''}{p.stored !== false && s.count > 0 && <br />}Enter fullfører · {p.rightClickUndo === false ? 'Backspace' : 'Backspace/høyreklikk'} angrer · Esc avslutter<br />Regnet i {p.crsLabel}</div>
+      <div className="mp-foot">{p.stored !== false && s.count > 0 ? 'Målingene lagres underveis og blir stående til du trykker Nullstill alle.' : ''}{p.stored !== false && s.count > 0 && <br />}Enter fullfører · {p.rightClickUndo === false ? 'Backspace' : 'Backspace/høyreklikk'} angrer · Esc avslutter<br />Regnet i {p.crsLabel}</div>
     </div>
   );
 }

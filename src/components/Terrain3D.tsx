@@ -16,13 +16,13 @@ import type { Mesh3D, ParsedDxf } from '../lib/dxf';
 import { BASEMAPS, basemapById, customToBasemap } from '../lib/basemaps';
 import { crsName, pointsToMeters, toLatLng } from '../lib/crs';
 import { colorFor, hexCss } from '../lib/ifcColors';
-import { formatAreaShort, formatLengthShort, isDoubleClick, isTouchEvent, pathLength, ringArea, summarize } from '../lib/measure';
+import { formatAreaShort, formatLengthShort, historyRow, isDoubleClick, isTouchEvent, pathLength, ringArea, summarize } from '../lib/measure';
 import type { ClickMemo, MeasureMode } from '../lib/measure';
 import MeasurePanel from './MeasurePanel';
 import MeasureChip from './MeasureChip';
-import { invert4, mercatorToLngLat, projectWithMatrix, rayFromMatrix, snapAt3d, SNAP_LABEL } from '../lib/snap';
+import { invert4, mercatorToLngLat, nearestOnScreen, projectWithMatrix, rayFromMatrix, snapAt3d, SNAP_LABEL } from '../lib/snap';
 import type { SnapKind, SnapPart } from '../lib/snap';
-import { loadMeasure, loadSnap, onMeasureChanged, saveMeasure, saveSnap } from '../lib/measureStore';
+import { clearAllMeasures, loadMeasures, loadSnap, newMeasureId, onMeasureChanged, pickColor, saveMeasures, saveSnap } from '../lib/measureStore';
 import { IconArea, IconRuler } from './icons';
 
 interface Props {
@@ -61,6 +61,8 @@ const MEASURE_SRC = 'feltkart-measure';
 /** Det nederste målelaget. Bakgrunn og ortofoto legges under det, så målingen alltid ligger oppå. */
 const MEASURE_FIRST = 'feltkart-m-fill';
 const MEASURE_ORANGE = '#ef6c1a';
+/** Hver måling har sin egen farge (egenskapen «c» på hvert objekt) */
+const MEASURE_COLOR = ['coalesce', ['get', 'c'], MEASURE_ORANGE];
 /** Lagene våre legges rett under målingen (og three.js-laget) slik at terreng og bakgrunn tegnes først */
 const beforeCustom = (map: maplibregl.Map) => (map.getLayer(MEASURE_FIRST) ? MEASURE_FIRST : map.getLayer(CUSTOM_ID) ? CUSTOM_ID : undefined);
 
@@ -70,6 +72,9 @@ interface MPoint {
   /** Høyden kommer fra et snappet objekt (IFC) og skal ikke byttes ut med terrenghøyde */
   fix?: boolean;
 }
+
+/** En ferdig måling i historikken (tegnes i sin egen farge) */
+interface HistM { id: string; color: string; mode: MeasureMode; pts: MPoint[] }
 
 /** Målemotoren bor inne i kart-effekten (den trenger kartet), og brukes av knappene i panelet */
 interface MeasureApi {
@@ -81,10 +86,15 @@ interface MeasureApi {
   show: () => void;
   undo: () => void;
   finish: (dedupe?: boolean) => void;
+  /** Nullstill alle: fjerner alle målingene og de lagrede kopiene */
   clear: () => void;
-  /** Bytte mellom avstand og areal: punktene beholdes midt i en måling, men en ferdig måling nullstilles */
+  /** Bytte mellom avstand og areal: punktene beholdes midt i en måling; en ferdig måling blir stående som den er og en ny starter */
   modeChanged: () => void;
-  state: () => { pts: MPoint[]; finished: boolean; mode: MeasureMode };
+  state: () => { pts: MPoint[]; finished: boolean; mode: MeasureMode; id: string; color: string; hist: HistM[] };
+  /** Sletter én måling (den aktive eller en i historikken) */
+  deleteItem: (id: string) => void;
+  /** Zoomer til en måling */
+  focusItem: (id: string) => void;
   /** Strek og etikett fra siste punkt til musepekeren */
   live: (x: number, y: number, lng: number, lat: number, ev?: unknown) => void;
   hideLive: () => void;
@@ -197,7 +207,7 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
   const [panelOpen, setPanelOpen] = useState(true);
 
   const [terrainOn, setTerrainOn] = useState(true);
-  const [exag, setExag] = useState(1);
+  const exag = 1; // høydene vises alltid i riktig målestokk (overdrivelse er fjernet)
   const [terrainSrc, setTerrainSrc] = useState<TerrainKey>('mapterhorn');
   const terrainSrcRef = useRef<TerrainKey>(terrainSrc);
   terrainSrcRef.current = terrainSrc;
@@ -316,22 +326,37 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       const b = new THREE.Vector3(ndcX, ndcY, 1).applyMatrix4(inv);
       raycaster.ray.origin.copy(a);
       raycaster.ray.direction.copy(b.sub(a).normalize());
-      const hits = raycaster.intersectObjects(c.bubbles.map((x) => x.hit), false);
-      if (!hits.length) return null;
-      return c.bubbles.find((x) => x.hit === hits[0].object) ?? null;
+      // Selve bildet/kulen og merkelappen («FOTO» / «360°») kan klikkes
+      const hits = raycaster.intersectObjects(c.bubbles.flatMap((x) => [x.hit, x.tag]), false);
+      if (hits.length) {
+        const o = hits[0].object;
+        const found = c.bubbles.find((x) => x.hit === o || x.tag === o);
+        if (found) return found;
+      }
+      // Bommer strålen (små bobler langt unna): ta boblen som ligger nærmest klikket, innen 26 piksler
+      try {
+        const m = c.proj.elements;
+        if (!m || m.length !== 16) return null;
+        const near = nearestOnScreen(c.bubbles.map((bb) => ({ bb, p: [bb.x, bb.y, bb.z] as [number, number, number] })), { x: px, y: py }, projectWithMatrix(m, w, h), 26);
+        return near ? near.bb : null;
+      } catch { return null; }
     };
 
     // ---------- Måling ----------
     // Linjer, flater og punkter tegnes av MapLibre (draperes automatisk på terrenget). Lengdene vises som HTML-etiketter
     // (Marker) som følger terrenget. Høyder leses av terrengmodellen i det punktet ble satt.
     const mst = {
+      /** Den aktive målingen (under arbeid eller nettopp ferdig); ferdige målinger flyttes til `hist` når en ny starter */
+      id: newMeasureId(),
+      color: pickColor([]),
+      hist: [] as HistM[],
       pts: [] as MPoint[],
       finished: false,
       /** Avstand eller areal. Beholdes når måleverktøyet er av (målingen er lagret og vises fortsatt). */
       mode: 'distance' as MeasureMode,
       snap: null as { kind: SnapKind; scene: [number, number, number] } | null,
       /** 3D-linje gjennom punktene (med ekte høyder), så en måling mellom f.eks. to takhjørner ikke bare ligger på bakken */
-      guide: null as THREE.Line | null,
+      guides: [] as THREE.Line[],
       cursor: null as { lng: number; lat: number; x: number; y: number } | null,
       labels: [] as maplibregl.Marker[],
       fixed: [] as any[],
@@ -351,17 +376,37 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
     const modeOf = (): MeasureMode => measureRef.current ?? mst.mode;
     const persist = () => {
       try {
-        saveMeasure({ mode: modeOf(), finished: mst.finished, pts: mst.pts.map((p) => ({ lat: p.lat, lng: p.lng, z: p.z, fix: p.fix === true })) }, '3d');
+        const q = (pts: MPoint[]) => pts.map((p) => ({ lat: p.lat, lng: p.lng, z: p.z, fix: p.fix === true }));
+        saveMeasures(
+          mst.pts.length ? { mode: modeOf(), finished: mst.finished, id: mst.id, color: mst.color, pts: q(mst.pts) } : null,
+          mst.hist.map((h) => ({ id: h.id, color: h.color, mode: h.mode, pts: q(h.pts) })),
+          '3d',
+        );
       } catch { /* lagring er ikke kritisk */ }
     };
     const loadStored = () => {
       try {
-        const saved = loadMeasure();
-        mst.pts = saved ? saved.pts.map((q) => ({ lng: q.lng, lat: q.lat, z: q.z, fix: q.fix === true })) : [];
-        mst.finished = saved?.finished ?? false;
-        if (saved) mst.mode = saved.mode;
-      } catch { mst.pts = []; mst.finished = false; }
+        const { active, history } = loadMeasures();
+        const mp = (pts: { lng: number; lat: number; z: number | null; fix?: boolean }[]) => pts.map((q) => ({ lng: q.lng, lat: q.lat, z: q.z, fix: q.fix === true }));
+        mst.hist = history.map((h) => ({ id: h.id, color: h.color, mode: h.mode, pts: mp(h.pts) }));
+        mst.pts = active ? mp(active.pts) : [];
+        mst.finished = active?.finished ?? false;
+        if (active) mst.mode = active.mode;
+        const used = mst.hist.map((h) => h.color);
+        // En måling fra en eldre versjon har ingen id eller farge; den får en som ikke er i bruk
+        mst.id = active?.id && !mst.hist.some((h) => h.id === active.id) ? active.id : newMeasureId();
+        mst.color = active?.color && !used.includes(active.color) ? active.color : pickColor(used);
+      } catch { mst.hist = []; mst.pts = []; mst.finished = false; mst.id = newMeasureId(); mst.color = pickColor([]); }
       mst.cursor = null; mst.snap = null; mst.lastClick = null;
+    };
+    /** Flytter en ferdig måling til historikken og gjør klar en ny, tom måling med neste farge */
+    const archiveActive = () => {
+      if (!mst.finished || !mst.pts.length) return;
+      mst.hist.push({ id: mst.id, color: mst.color, mode: mst.mode, pts: mst.pts });
+      mst.pts = [];
+      mst.finished = false;
+      mst.id = newMeasureId();
+      mst.color = pickColor(mst.hist.map((h) => h.color));
     };
     const sceneXYOf = (lng: number, lat: number): [number, number] | null => {
       const o = c.originMerc;
@@ -370,32 +415,36 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       const sc = o.meterInMercatorCoordinateUnits();
       return [(mc.x - o.x) / sc, -(mc.y - o.y) / sc];
     };
-    /** Rød-oransje linje i 3D gjennom punktene når minst ett er snappet til et objekt */
+    /** Linje i 3D gjennom punktene (i målingens farge) når minst ett punkt er snappet til et objekt */
     const updateGuide = () => {
       try {
-        if (mst.guide) {
-          c.scene.remove(mst.guide);
-          (mst.guide.geometry as any)?.dispose?.();
-          (mst.guide.material as any)?.dispose?.();
-          mst.guide = null;
+        for (const g of mst.guides) {
+          c.scene.remove(g);
+          (g.geometry as any)?.dispose?.();
+          (g.material as any)?.dispose?.();
         }
-        const n = mst.pts.length;
-        if (n < 2 || !c.originMerc || !mst.pts.some((p) => p.fix)) return;
-        const arr: number[] = [];
-        const add = (p: MPoint) => {
-          const xy = sceneXYOf(p.lng, p.lat);
-          if (xy) arr.push(xy[0], xy[1], p.z ?? c.baseElev);
-        };
-        mst.pts.forEach(add);
-        if (modeOf() === 'area' && n >= 3) add(mst.pts[0]);
-        if (arr.length < 6) return;
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(arr), 3));
-        const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xef6c1a, depthTest: false, transparent: true, opacity: 0.95 }));
-        line.frustumCulled = false;
-        line.renderOrder = 999;
-        c.scene.add(line);
-        mst.guide = line;
+        mst.guides = [];
+        if (!c.originMerc) return;
+        const items = [...mst.hist.map((h) => ({ pts: h.pts, mode: h.mode, color: h.color })), { pts: mst.pts, mode: modeOf(), color: mst.color }];
+        for (const it of items) {
+          const n = it.pts.length;
+          if (n < 2 || !it.pts.some((p) => p.fix)) continue;
+          const arr: number[] = [];
+          const add = (p: MPoint) => {
+            const xy = sceneXYOf(p.lng, p.lat);
+            if (xy) arr.push(xy[0], xy[1], p.z ?? c.baseElev);
+          };
+          it.pts.forEach(add);
+          if (it.mode === 'area' && n >= 3) add(it.pts[0]);
+          if (arr.length < 6) continue;
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(arr), 3));
+          const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: parseInt(it.color.slice(1), 16), depthTest: false, transparent: true, opacity: 0.95 }));
+          line.frustumCulled = false;
+          line.renderOrder = 999;
+          c.scene.add(line);
+          mst.guides.push(line);
+        }
         map.triggerRepaint();
       } catch (e) { reportRef.current('Måling (3D-linje)', e); }
     };
@@ -414,14 +463,15 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       el.innerHTML = `<b>${SNAP_LABEL[sn.kind]}</b>`;
     };
     const clearLabels = () => { for (const m of mst.labels) m.remove(); mst.labels = []; };
-    const addLabel = (lng: number, lat: number, text: string, cls: string, above = false) => {
+    const addLabel = (lng: number, lat: number, text: string, cls: string, above = false, color = MEASURE_ORANGE) => {
       const el = document.createElement('div');
       el.className = `m3-label ${cls}`;
+      el.style.setProperty('--mc', color);
       el.textContent = text;
       const mk = new maplibregl.Marker({ element: el, anchor: above ? 'bottom' : 'center', offset: above ? [0, -10] : [0, 0] }).setLngLat([lng, lat]).addTo(map);
       mst.labels.push(mk);
     };
-    const feature = (k: string, geometry: any) => ({ type: 'Feature', properties: { k }, geometry });
+    const feature = (k: string, geometry: any, c = mst.color) => ({ type: 'Feature', properties: { k, c }, geometry });
     const setSource = (extra: any[] = []) => {
       const src = map.getSource(MEASURE_SRC) as maplibregl.GeoJSONSource | undefined;
       src?.setData({ type: 'FeatureCollection', features: [...mst.fixed, ...extra] } as any);
@@ -456,36 +506,40 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
         }
       } catch (e) { reportRef.current('Måling', e); }
     };
-    /** Bygger punkter, linjer/flate og etiketter for det som er målt så langt. Kartlaget oppdateres av drawLive. */
+    /** Bygger punkter, linjer/flate og etiketter for én måling */
+    const buildOne = (pts: MPoint[], mode: MeasureMode, color: string) => {
+      const n = pts.length;
+      if (!n) return;
+      const coords = pts.map((p) => [p.lng, p.lat]);
+      if (mode === 'area' && n >= 3) mst.fixed.push(feature('poly', { type: 'Polygon', coordinates: [[...coords, coords[0]]] }, color));
+      else if (n >= 2) mst.fixed.push(feature('line', { type: 'LineString', coordinates: coords }, color));
+      for (const cd of coords) mst.fixed.push(feature('pt', { type: 'Point', coordinates: cd }, color));
+
+      const { crs, pts: mp } = metersOf(pts);
+      const s = summarize(mode, mp);
+      const px = pts.map((p) => map.project([p.lng, p.lat]));
+      s.segments.forEach((len, i) => {
+        const j = (i + 1) % n;
+        // Hopp over strekninger som er for korte på skjermen til å få plass til en etikett
+        if (Math.hypot(px[i].x - px[j].x, px[i].y - px[j].y) < 56) return;
+        addLabel((pts[i].lng + pts[j].lng) / 2, (pts[i].lat + pts[j].lat) / 2, formatLengthShort(len), 'm3-seg', false, color);
+      });
+      if (mode === 'distance' && s.segments.length >= 2) {
+        addLabel(pts[n - 1].lng, pts[n - 1].lat, `Σ ${formatLengthShort(s.horizontal)}`, 'total', true, color);
+      }
+      if (s.area !== null && s.centroid) {
+        const [lat, lng] = toLatLng(crs, s.centroid.x, s.centroid.y);
+        addLabel(lng, lat, formatAreaShort(s.area), 'area', false, color);
+      }
+    };
+    /** Bygger alle målingene: de ferdige i historikken og den som pågår. Kartlaget oppdateres av drawLive. */
     const drawFixed = () => {
       try {
         clearLabels();
         mst.fixed = [];
-        const mode = modeOf();
-        const n = mst.pts.length;
         updateGuide();
-        if (!n) return; // drawLive tømmer kartlaget
-        const coords = mst.pts.map((p) => [p.lng, p.lat]);
-        if (mode === 'area' && n >= 3) mst.fixed.push(feature('poly', { type: 'Polygon', coordinates: [[...coords, coords[0]]] }));
-        else if (n >= 2) mst.fixed.push(feature('line', { type: 'LineString', coordinates: coords }));
-        for (const cd of coords) mst.fixed.push(feature('pt', { type: 'Point', coordinates: cd }));
-
-        const { crs, pts: mp } = metersOf(mst.pts);
-        const s = summarize(mode, mp);
-        const px = mst.pts.map((p) => map.project([p.lng, p.lat]));
-        s.segments.forEach((len, i) => {
-          const j = (i + 1) % n;
-          // Hopp over strekninger som er for korte på skjermen til å få plass til en etikett
-          if (Math.hypot(px[i].x - px[j].x, px[i].y - px[j].y) < 56) return;
-          addLabel((mst.pts[i].lng + mst.pts[j].lng) / 2, (mst.pts[i].lat + mst.pts[j].lat) / 2, formatLengthShort(len), 'm3-seg');
-        });
-        if (mode === 'distance' && s.segments.length >= 2) {
-          addLabel(mst.pts[n - 1].lng, mst.pts[n - 1].lat, `Σ ${formatLengthShort(s.horizontal)}`, 'total', true);
-        }
-        if (s.area !== null && s.centroid) {
-          const [lat, lng] = toLatLng(crs, s.centroid.x, s.centroid.y);
-          addLabel(lng, lat, formatAreaShort(s.area), 'area');
-        }
+        for (const h of mst.hist) buildOne(h.pts, h.mode, h.color);
+        buildOne(mst.pts, modeOf(), mst.color);
       } catch (e) { reportRef.current('Måling', e); }
     };
     const redrawAll = (save = true) => { drawFixed(); drawLive(); if (save) persist(); bump(); };
@@ -503,14 +557,18 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       redrawAll();
     };
     const clearNow = () => {
+      mst.hist = [];
       mst.pts = [];
       mst.finished = false;
+      mst.id = newMeasureId();
+      mst.color = pickColor([]);
       mst.cursor = null;
       mst.lastClick = null;
       mst.snap = null;
       setSnapState(null);
       drawSnapMark();
-      redrawAll(); // uten punkter fjernes også den lagrede målingen
+      clearAllMeasures('3d'); // fjerner også de lagrede kopiene
+      redrawAll(false);
     };
     loadStored();
     const offStore = onMeasureChanged('3d', () => { loadStored(); redrawAll(false); });
@@ -525,7 +583,7 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
           if (second) { finishNow(false); return; }
         }
         // Etter en avsluttet måling starter neste klikk en helt ny måling
-        if (mst.finished) { mst.pts = []; mst.finished = false; }
+        if (mst.finished) { archiveActive(); if (measureRef.current) mst.mode = measureRef.current; }
         const sn = px ? c.measure!.snapAt(px.x, px.y, ev) : null;
         if (sn) mst.pts.push({ lng: sn.lng, lat: sn.lat, z: sn.z, fix: true });
         else mst.pts.push({ lng, lat, z: elevAt(lng, lat) });
@@ -546,12 +604,34 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       clear: clearNow,
       modeChanged() {
         // Målingen er lagret og beholdes når man bytter mellom avstand og areal eller avslutter verktøyet. Bare Nullstill fjerner den.
-        if (measureRef.current) mst.mode = measureRef.current;
+        const t = measureRef.current;
+        // En ferdig måling beholder sin type og blir stående i kartet; et nytt valg gir en ny, tom måling
+        if (t && mst.finished && mst.pts.length && mst.mode !== t) archiveActive();
+        if (t) mst.mode = t;
         if (mst.finished && mst.pts.length < (mst.mode === 'area' ? 3 : 2)) mst.finished = false;
         mst.cursor = null;
         redrawAll();
       },
-      state: () => ({ pts: mst.pts, finished: mst.finished, mode: mst.mode }),
+      state: () => ({ pts: mst.pts, finished: mst.finished, mode: mst.mode, id: mst.id, color: mst.color, hist: mst.hist }),
+      deleteItem(id) {
+        if (mst.id === id) {
+          mst.pts = [];
+          mst.finished = false;
+          mst.cursor = null;
+          mst.lastClick = null;
+        } else {
+          mst.hist = mst.hist.filter((h) => h.id !== id);
+        }
+        redrawAll();
+      },
+      focusItem(id) {
+        const pts = mst.id === id ? mst.pts : mst.hist.find((h) => h.id === id)?.pts;
+        if (!pts || !pts.length) return;
+        try {
+          const lngs = pts.map((p) => p.lng), lats = pts.map((p) => p.lat);
+          map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 90, maxZoom: 20 });
+        } catch { /* ignorer */ }
+      },
       snapAt(x, y, ev) {
         try {
           if (!snapOnRef.current || (ev as { altKey?: boolean } | null | undefined)?.altKey || !c.snapParts.length || !c.originMerc) return null;
@@ -583,7 +663,7 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       redraw() { drawFixed(); },
       fillHeights() {
         let changed = false;
-        for (const p of mst.pts) {
+        for (const p of [...mst.pts, ...mst.hist.flatMap((h) => h.pts)]) {
           if (p.fix) continue; // høyden er fra et snappet objekt
           const z = elevAt(p.lng, p.lat);
           if (!c.terrainOn) { if (p.z !== null) { p.z = null; changed = true; } }
@@ -594,7 +674,8 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       dispose() {
         offStore();
         clearLabels();
-        if (mst.guide) { c.scene.remove(mst.guide); (mst.guide.geometry as any)?.dispose?.(); (mst.guide.material as any)?.dispose?.(); mst.guide = null; }
+        for (const g of mst.guides) { c.scene.remove(g); (g.geometry as any)?.dispose?.(); (g.material as any)?.dispose?.(); }
+        mst.guides = [];
       },
     };
     /** Kartlagene for målingen. Legges rett under three.js-laget; bakgrunn og ortofoto legges under disse. */
@@ -603,11 +684,11 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       const before = map.getLayer(CUSTOM_ID) ? CUSTOM_ID : undefined;
       const isK = (k: string) => ['==', ['get', 'k'], k];
       const round = { 'line-cap': 'round', 'line-join': 'round' };
-      map.addLayer({ id: MEASURE_FIRST, type: 'fill', source: MEASURE_SRC, filter: isK('poly'), paint: { 'fill-color': MEASURE_ORANGE, 'fill-opacity': 0.25 } } as any, before);
+      map.addLayer({ id: MEASURE_FIRST, type: 'fill', source: MEASURE_SRC, filter: isK('poly'), paint: { 'fill-color': MEASURE_COLOR, 'fill-opacity': 0.25 } } as any, before);
       map.addLayer({ id: 'feltkart-m-casing', type: 'line', source: MEASURE_SRC, filter: ['any', isK('line'), isK('poly')], layout: round, paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.9 } } as any, before);
-      map.addLayer({ id: 'feltkart-m-line', type: 'line', source: MEASURE_SRC, filter: ['any', isK('line'), isK('poly')], layout: round, paint: { 'line-color': MEASURE_ORANGE, 'line-width': 3.5 } } as any, before);
-      map.addLayer({ id: 'feltkart-m-live', type: 'line', source: MEASURE_SRC, filter: isK('live'), layout: round, paint: { 'line-color': MEASURE_ORANGE, 'line-width': 2.5, 'line-dasharray': [2, 2] } } as any, before);
-      map.addLayer({ id: 'feltkart-m-pts', type: 'circle', source: MEASURE_SRC, filter: isK('pt'), paint: { 'circle-radius': 6, 'circle-color': MEASURE_ORANGE, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } } as any, before);
+      map.addLayer({ id: 'feltkart-m-line', type: 'line', source: MEASURE_SRC, filter: ['any', isK('line'), isK('poly')], layout: round, paint: { 'line-color': MEASURE_COLOR, 'line-width': 3.5 } } as any, before);
+      map.addLayer({ id: 'feltkart-m-live', type: 'line', source: MEASURE_SRC, filter: isK('live'), layout: round, paint: { 'line-color': MEASURE_COLOR, 'line-width': 2.5, 'line-dasharray': [2, 2] } } as any, before);
+      map.addLayer({ id: 'feltkart-m-pts', type: 'circle', source: MEASURE_SRC, filter: isK('pt'), paint: { 'circle-radius': 6, 'circle-color': MEASURE_COLOR, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } } as any, before);
     };
 
     const layer: maplibregl.CustomLayerInterface = {
@@ -1101,14 +1182,26 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
     const r = pointsToMeters(settings.projectCrs, st.pts);
     return { summary: summarize(measureMode, r.pts), crs: r.crs, finished: st.finished, missingZ: st.pts.some((p) => p.z === null) && terrainOn, snapped: st.pts.some((p) => p.fix) };
   }, [measureMode, measVer, settings.projectCrs, terrainOn]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Lagret måling når verktøyet ikke er i bruk
+  /** Listen over alle målingene (ferdige først, så den som pågår) med farge og verdi */
+  const historyRows = useMemo(() => {
+    const api = ctxRef.current?.measure;
+    if (!api) return [];
+    const st = api.state();
+    const all = [
+      ...st.hist.map((h) => ({ id: h.id, color: h.color, mode: h.mode, pts: h.pts, active: false, finished: true })),
+      ...(st.pts.length ? [{ id: st.id, color: st.color, mode: st.mode, pts: st.pts, active: true, finished: st.finished }] : []),
+    ];
+    return all.map((it) => historyRow(it, summarize(it.mode, pointsToMeters(settings.projectCrs, it.pts).pts)));
+  }, [measVer, settings.projectCrs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Lagrede målinger når verktøyet ikke er i bruk
   const storedView = useMemo(() => {
     const api = ctxRef.current?.measure;
     if (measureMode || !api) return null;
     const st = api.state();
-    if (!st.pts.length) return null;
-    const r = pointsToMeters(settings.projectCrs, st.pts);
-    return { mode: st.mode, summary: summarize(st.mode, r.pts), finished: st.finished };
+    const last = st.pts.length ? { mode: st.mode, pts: st.pts, finished: st.finished } : st.hist.length ? { mode: st.hist[st.hist.length - 1].mode, pts: st.hist[st.hist.length - 1].pts, finished: true } : null;
+    if (!last) return null;
+    const r = pointsToMeters(settings.projectCrs, last.pts);
+    return { mode: last.mode, summary: summarize(last.mode, r.pts), finished: last.finished, count: st.hist.length + (st.pts.length ? 1 : 0) };
   }, [measureMode, measVer, settings.projectCrs]); // eslint-disable-line react-hooks/exhaustive-deps
   const measureNote = (!terrainOn
     ? 'Terreng er slått av, så bare horisontale mål vises (unntatt mellom punkter snappet til IFC, som har høyde).'
@@ -1178,6 +1271,9 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
             summary={measureView.summary}
             crsLabel={crsName(measureView.crs)}
             finished={measureView.finished}
+            history={historyRows}
+            onDeleteItem={(id) => ctxRef.current?.measure?.deleteItem(id)}
+            onFocusItem={(id) => ctxRef.current?.measure?.focusItem(id)}
             note={measureNote}
             snap={snapOn}
             onSnap={toggleSnap}
@@ -1197,6 +1293,7 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
             mode={storedView.mode}
             summary={storedView.summary}
             finished={storedView.finished}
+            count={storedView.count}
             onOpen={() => setMeasureMode(storedView.mode)}
             onClear={() => ctxRef.current?.measure?.clear()}
           />
@@ -1225,9 +1322,6 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
           <section>
             <h4>Terreng</h4>
             <label className="t3d-check"><input type="checkbox" className="chk" checked={terrainOn} onChange={(e) => setTerrainOn(e.target.checked)} /> Vis terreng i 3D (drapér ortofoto på terreng)</label>
-            <label className="t3d-field">Overdrivelse av høyder: <b>{exag.toFixed(1)}×</b>
-              <input type="range" min={1} max={5} step={0.1} value={exag} disabled={!terrainOn} onChange={(e) => setExag(+e.target.value)} />
-            </label>
             <label className="t3d-field">Høydedata
               <select value={terrainSrc} onChange={(e) => setTerrainSrc(e.target.value as TerrainKey)}>
                 {(Object.keys(TERRAINS) as TerrainKey[]).map((k) => <option key={k} value={k}>{TERRAINS[k].label}</option>)}

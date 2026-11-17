@@ -5,14 +5,14 @@ import type { DxfItem, Item, OrthoItem, PhotoItem, Selection, Tool } from '../ty
 import type { DxfState } from '../state';
 import { basemapById } from '../lib/basemaps';
 import { crsName, pointsToMeters, toLatLng } from '../lib/crs';
-import { formatAreaShort, formatLengthShort, isDoubleClick, isTouchEvent, pathLength, ringArea, summarize } from '../lib/measure';
+import { formatAreaShort, formatLengthShort, historyRow, isDoubleClick, isTouchEvent, pathLength, ringArea, summarize } from '../lib/measure';
 import type { ClickMemo, MeasureMode, MPt } from '../lib/measure';
 import { markerHtml } from './icons';
 import MeasurePanel from './MeasurePanel';
 import MeasureChip from './MeasureChip';
 import { buildPlanarIndex, snapPlanar, SNAP_LABEL } from '../lib/snap';
 import type { PlanarIndex, SnapResult2d } from '../lib/snap';
-import { clearStoredMeasure, loadMeasure, loadSnap, onMeasureChanged, saveMeasure, saveSnap } from '../lib/measureStore';
+import { clearAllMeasures, loadMeasures, loadSnap, newMeasureId, onMeasureChanged, pickColor, saveMeasures, saveSnap } from '../lib/measureStore';
 
 export interface FitRequest {
   seq: number;
@@ -39,7 +39,19 @@ type DxfLayers = { key: string; groups: Map<string, L.LayerGroup>; added: Set<st
 
 const ORANGE = '#ef6c1a';
 
+/** En ferdig måling som er flyttet til historikken (tegnes i sin egen farge) */
+interface HistMeasure {
+  id: string;
+  color: string;
+  mode: MeasureMode;
+  pts: L.LatLng[];
+}
+
 interface MeasureState {
+  /** Den aktive målingen (under arbeid eller nettopp ferdig). Ferdige målinger flyttes til `hist` når en ny starter. */
+  id: string;
+  color: string;
+  hist: HistMeasure[];
   pts: L.LatLng[];
   finished: boolean;
   /** Avstand eller areal. Beholdes også når måleverktøyet ikke er valgt (målingen er lagret og vises fortsatt). */
@@ -60,9 +72,16 @@ function toMeters(pts: L.LatLng[], projectCrs: string): { crs: string; mpts: MPt
   return { crs: r.crs, mpts: r.pts };
 }
 
-function labelIcon(text: string, cls = ''): L.DivIcon {
-  return L.divIcon({ className: `measure-label ${cls}`.trim(), html: `<span>${text}</span>`, iconSize: [0, 0] });
+function labelIcon(text: string, cls = '', color = ORANGE): L.DivIcon {
+  return L.divIcon({ className: `measure-label ${cls}`.trim(), html: `<span style="--mc:${color}">${text}</span>`, iconSize: [0, 0] });
 }
+
+const toLL = (q: { lat: number; lng: number; z: number | null; fix?: boolean }): L.LatLng =>
+  Object.assign(L.latLng(q.lat, q.lng), q.z !== null ? { alt: q.z } : {}, q.fix ? { fix: true } : {});
+const fromLL = (ll: L.LatLng) => {
+  const a = ll as L.LatLng & { alt?: number; fix?: boolean };
+  return { lat: ll.lat, lng: ll.lng, z: typeof a.alt === 'number' ? a.alt : null, fix: a.fix === true };
+};
 
 /** Trenger vi det store bildet? Ja når ortofotoet vises bredere enn forhåndsbildet (2048 px). */
 function needsHiRes(map: L.Map, b: L.LatLngBounds): boolean {
@@ -108,17 +127,22 @@ export default function MapView(props: Props) {
     dxfRenderer.current = L.canvas({ pane: 'dxfPane', padding: 0.5, tolerance: 5 });
     photoGroup.current = L.layerGroup().addTo(map);
     highlight.current = L.layerGroup().addTo(map);
-    measure.current = { pts: [], finished: false, mode: 'distance', snap: null, cursor: null, group: L.layerGroup().addTo(map), live: L.layerGroup().addTo(map) };
+    measure.current = { id: newMeasureId(), color: pickColor([]), hist: [], pts: [], finished: false, mode: 'distance', snap: null, cursor: null, group: L.layerGroup().addTo(map), live: L.layerGroup().addTo(map) };
     // Gjenopprett målingen som ble lagret sist (etter omlasting eller bytte av fane), og følg med når Terreng 3D endrer den
     const reload = (): void => {
       const m = measure.current;
       if (!m) return;
       try {
-        const saved = loadMeasure();
-        m.pts = saved ? saved.pts.map((q) => Object.assign(L.latLng(q.lat, q.lng), q.z !== null ? { alt: q.z } : {}, q.fix ? { fix: true } : {})) : [];
-        m.mode = saved?.mode ?? m.mode;
-        m.finished = saved?.finished ?? false;
-      } catch { m.pts = []; m.finished = false; /* ødelagt lagring: start uten måling */ }
+        const { active, history } = loadMeasures();
+        m.hist = history.map((h) => ({ id: h.id, color: h.color, mode: h.mode, pts: h.pts.map(toLL) }));
+        m.pts = active ? active.pts.map(toLL) : [];
+        m.mode = active?.mode ?? m.mode;
+        m.finished = active?.finished ?? false;
+        const used = m.hist.map((h) => h.color);
+        // En måling fra en eldre versjon har ingen id eller farge; den får en som ikke er i bruk
+        m.id = active?.id && !m.hist.some((h) => h.id === active.id) ? active.id : newMeasureId();
+        m.color = active?.color && !used.includes(active.color) ? active.color : pickColor(used);
+      } catch { m.hist = []; m.pts = []; m.finished = false; m.id = newMeasureId(); m.color = pickColor([]); /* ødelagt lagring: start uten måling */ }
     };
     reload();
     const offStore = onMeasureChanged('2d', () => {
@@ -135,7 +159,7 @@ export default function MapView(props: Props) {
     map.on('zoomend', updateTextVis);
     updateTextVis();
     // Etikettene på målingen avhenger av hvor lange strekene er på skjermen
-    map.on('zoomend', () => { if (measure.current?.pts.length) drawMeasure(); });
+    map.on('zoomend', () => { if (measure.current?.pts.length || measure.current?.hist.length) drawMeasure(); });
 
     map.on('mousemove', (e: L.LeafletMouseEvent) => { propsRef.current.onMouseCoord(e.latlng); liveMove(e.latlng, e.originalEvent); });
     map.on('mouseout', () => {
@@ -373,7 +397,12 @@ export default function MapView(props: Props) {
     map.getContainer().classList.toggle('tool-crosshair', props.tool !== 'select');
     const m = measure.current!;
     // Målingen er lagret og blir stående (også når verktøyet ikke er valgt) til brukeren trykker Nullstill.
-    if (measuring) m.mode = props.tool === 'area' ? 'area' : 'distance';
+    if (measuring) {
+      const nm: MeasureMode = props.tool === 'area' ? 'area' : 'distance';
+      // En ferdig måling beholder sin egen type (og blir stående i kartet); et nytt valg gir en ny, tom måling
+      if (m.finished && m.pts.length && m.mode !== nm) archiveActive();
+      m.mode = nm;
+    }
     if (m.finished && m.pts.length < (m.mode === 'area' ? 3 : 2)) m.finished = false;
     m.cursor = null;
     m.snap = null;
@@ -409,34 +438,76 @@ export default function MapView(props: Props) {
   }, [props.fit?.seq]);
 
   // ---------- Måling ----------
+  /** «Nullstill alle»: fjerner alle målingene og de lagrede kopiene */
   function clearMeasure() {
     const m = measure.current;
     if (!m) return;
+    m.hist = [];
     m.pts = [];
     m.finished = false;
+    m.id = newMeasureId();
+    m.color = pickColor([]);
     m.cursor = null;
     m.snap = null;
     setSnapState(null);
     lastClick.current = null;
     m.group.clearLayers();
     m.live.clearLayers();
-    clearStoredMeasure('2d');
+    clearAllMeasures('2d');
     setMeasureVer((v) => v + 1);
   }
 
-  /** Lagrer målingen i nettleseren etter hver endring. Uten punkter fjernes den lagrede målingen. */
+  /** Flytter en ferdig måling til historikken og gjør klar en ny, tom måling med neste farge */
+  function archiveActive() {
+    const m = measure.current;
+    if (!m || !m.finished || !m.pts.length) return;
+    m.hist.push({ id: m.id, color: m.color, mode: m.mode, pts: m.pts });
+    m.pts = [];
+    m.finished = false;
+    m.id = newMeasureId();
+    m.color = pickColor(m.hist.map((h) => h.color));
+  }
+
+  /** Sletter én måling (den aktive eller en i historikken) */
+  function deleteMeasureItem(id: string) {
+    const m = measure.current;
+    if (!m) return;
+    if (m.id === id) {
+      m.pts = [];
+      m.finished = false;
+      m.cursor = null;
+      m.snap = null;
+      lastClick.current = null;
+      m.live.clearLayers();
+    } else {
+      m.hist = m.hist.filter((h) => h.id !== id);
+    }
+    drawMeasure();
+    drawLive();
+    persistMeasure();
+    setMeasureVer((v) => v + 1);
+  }
+
+  /** Zoomer kartet til en måling */
+  function focusMeasureItem(id: string) {
+    const m = measure.current;
+    const map = mapRef.current;
+    if (!m || !map) return;
+    const pts = m.id === id ? m.pts : m.hist.find((h) => h.id === id)?.pts;
+    if (!pts || !pts.length) return;
+    try { map.fitBounds(L.latLngBounds(pts), { padding: [90, 90], maxZoom: 20 }); } catch { /* ignorer */ }
+  }
+
+  /** Lagrer målingene i nettleseren etter hver endring. Uten noe å lagre fjernes de lagrede kopiene. */
   function persistMeasure() {
     const m = measure.current;
     if (!m) return;
     try {
-      saveMeasure({
-        mode: m.mode,
-        finished: m.finished,
-        pts: m.pts.map((ll) => {
-          const a = ll as L.LatLng & { alt?: number; fix?: boolean };
-          return { lat: ll.lat, lng: ll.lng, z: typeof a.alt === 'number' ? a.alt : null, fix: a.fix === true };
-        }),
-      }, '2d');
+      saveMeasures(
+        m.pts.length ? { mode: m.mode, finished: m.finished, id: m.id, color: m.color, pts: m.pts.map(fromLL) } : null,
+        m.hist.map((h) => ({ id: h.id, color: h.color, mode: h.mode, pts: h.pts.map(fromLL) })),
+        '2d',
+      );
     } catch { /* lagring er ikke kritisk */ }
   }
 
@@ -470,7 +541,7 @@ export default function MapView(props: Props) {
     lastClick.current = here;
     if (second) { finishMeasure(false); return; }
     // Etter en avsluttet måling starter neste klikk en helt ny måling
-    if (m.finished) { m.pts = []; m.finished = false; }
+    if (m.finished) { archiveActive(); m.mode = propsRef.current.tool === 'area' ? 'area' : 'distance'; }
     m.pts.push(snapped ? L.latLng(snapped.lat, snapped.lng) : ll);
     m.cursor = null; // strek til pekeren vises igjen ved neste musebevegelse
     m.snap = null;
@@ -510,43 +581,49 @@ export default function MapView(props: Props) {
     setMeasureVer((v) => v + 1);
   }
 
-  /** Tegner punkter, linjer og etiketter for det som er målt så langt */
+  /** Tegner én måling (punkter, linjer, etiketter) i sin egen farge */
+  function drawOne(pts: L.LatLng[], mode: MeasureMode, color: string) {
+    const map = mapRef.current;
+    const m = measure.current;
+    if (!map || !m || !pts.length) return;
+    const n = pts.length;
+    const { crs, mpts } = toMeters(pts, propsRef.current.projectCrs);
+    const s = summarize(mode, mpts);
+    const base = { pane: 'measurePane', interactive: false } as const;
+    // Hvit kontur under den fargede streken gjør målingen synlig på alle bakgrunner
+    if (mode === 'area' && n >= 3) {
+      L.polygon(pts, { ...base, color: '#fff', weight: 7, opacity: 0.9, fill: false }).addTo(m.group);
+      L.polygon(pts, { ...base, color, weight: 3.5, fillColor: color, fillOpacity: 0.18 }).addTo(m.group);
+    } else if (n >= 2) {
+      L.polyline(pts, { ...base, color: '#fff', weight: 7, opacity: 0.9 }).addTo(m.group);
+      L.polyline(pts, { ...base, color, weight: 3.5 }).addTo(m.group);
+    }
+    for (const pt of pts) {
+      L.circleMarker(pt, { ...base, radius: 5, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(m.group);
+    }
+    // Lengde på hver delstrekning (hoppes over når strekningen er for kort til å få plass)
+    s.segments.forEach((len, i) => {
+      const a = pts[i], b = pts[(i + 1) % n];
+      if (map.latLngToContainerPoint(a).distanceTo(map.latLngToContainerPoint(b)) < 56) return;
+      L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], { ...base, keyboard: false, icon: labelIcon(formatLengthShort(len), '', color) }).addTo(m.group);
+    });
+    if (mode === 'distance' && s.segments.length >= 2) {
+      L.marker(pts[n - 1], { ...base, keyboard: false, icon: labelIcon(`Σ ${formatLengthShort(s.horizontal)}`, 'total', color) }).addTo(m.group);
+    }
+    if (s.area !== null && s.centroid) {
+      const [lat, lng] = toLatLng(crs, s.centroid.x, s.centroid.y);
+      L.marker([lat, lng], { ...base, keyboard: false, icon: labelIcon(formatAreaShort(s.area), 'total area', color) }).addTo(m.group);
+    }
+  }
+
+  /** Tegner alle målingene: de ferdige i historikken og den som pågår */
   function drawMeasure() {
     const map = mapRef.current;
     const m = measure.current;
     if (!map || !m) return;
     m.group.clearLayers();
-    const n = m.pts.length;
-    if (!n) return;
-    const p = propsRef.current;
-    const mode: MeasureMode = m.mode;
-    const { crs, mpts } = toMeters(m.pts, p.projectCrs);
-    const s = summarize(mode, mpts);
-    const base = { pane: 'measurePane', interactive: false } as const;
-    // Hvit kontur under den oransje streken gjør målingen synlig på alle bakgrunner
-    if (mode === 'area' && n >= 3) {
-      L.polygon(m.pts, { ...base, color: '#fff', weight: 7, opacity: 0.9, fill: false }).addTo(m.group);
-      L.polygon(m.pts, { ...base, color: ORANGE, weight: 3.5, fillColor: ORANGE, fillOpacity: 0.18 }).addTo(m.group);
-    } else if (n >= 2) {
-      L.polyline(m.pts, { ...base, color: '#fff', weight: 7, opacity: 0.9 }).addTo(m.group);
-      L.polyline(m.pts, { ...base, color: ORANGE, weight: 3.5 }).addTo(m.group);
-    }
-    for (const pt of m.pts) {
-      L.circleMarker(pt, { ...base, radius: 5, color: '#fff', weight: 2, fillColor: ORANGE, fillOpacity: 1 }).addTo(m.group);
-    }
-    // Lengde på hver delstrekning (hoppes over når strekningen er for kort til å få plass)
-    s.segments.forEach((len, i) => {
-      const a = m.pts[i], b = m.pts[(i + 1) % n];
-      if (map.latLngToContainerPoint(a).distanceTo(map.latLngToContainerPoint(b)) < 56) return;
-      L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], { ...base, keyboard: false, icon: labelIcon(formatLengthShort(len)) }).addTo(m.group);
-    });
-    if (mode === 'distance' && s.segments.length >= 2) {
-      L.marker(m.pts[n - 1], { ...base, keyboard: false, icon: labelIcon(`Σ ${formatLengthShort(s.horizontal)}`, 'total') }).addTo(m.group);
-    }
-    if (s.area !== null && s.centroid) {
-      const [lat, lng] = toLatLng(crs, s.centroid.x, s.centroid.y);
-      L.marker([lat, lng], { ...base, keyboard: false, icon: labelIcon(formatAreaShort(s.area), 'total area') }).addTo(m.group);
-    }
+    for (const h of m.hist) drawOne(h.pts, h.mode, h.color);
+    drawOne(m.pts, m.mode, m.color);
   }
 
   /** Stiplet strek fra siste punkt til musepekeren, med lengden på strekningen under arbeid */
@@ -563,7 +640,7 @@ export default function MapView(props: Props) {
     }
     if (m.finished || !m.cursor || !m.pts.length) return;
     const last = m.pts[m.pts.length - 1];
-    const dash = { pane: 'measurePane', interactive: false, color: ORANGE, weight: 2.5, dashArray: '6 6' } as const;
+    const dash = { pane: 'measurePane', interactive: false, color: m.color, weight: 2.5, dashArray: '6 6' } as const;
     L.polyline([last, m.cursor], dash).addTo(m.live);
     if (p.tool === 'area' && m.pts.length >= 2) L.polyline([m.cursor, m.pts[0]], { ...dash, opacity: 0.45 }).addTo(m.live);
     const { mpts } = toMeters([...m.pts, m.cursor], p.projectCrs);
@@ -571,7 +648,7 @@ export default function MapView(props: Props) {
     let text = formatLengthShort(Math.hypot(mpts[k - 1].x - mpts[k - 2].x, mpts[k - 1].y - mpts[k - 2].y));
     if (p.tool === 'distance' && k >= 3) text += ` · Σ ${formatLengthShort(pathLength(mpts))}`;
     if (p.tool === 'area' && k >= 3) text += ` · ${formatAreaShort(ringArea(mpts))}`;
-    L.marker(m.cursor, { pane: 'measurePane', interactive: false, keyboard: false, icon: labelIcon(text, 'live') }).addTo(m.live);
+    L.marker(m.cursor, { pane: 'measurePane', interactive: false, keyboard: false, icon: labelIcon(text, 'live', m.color) }).addTo(m.live);
   }
 
   function liveMove(ll: L.LatLng, ev?: unknown) {
@@ -597,12 +674,25 @@ export default function MapView(props: Props) {
     return { summary: summarize(measureMode, mpts), crs, finished: m.finished };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measuring, measureMode, measureVer, props.projectCrs]);
-  // Lagret måling når verktøyet ikke er i bruk
+  /** Listen over alle målingene (ferdige først, så den som pågår) med farge og verdi */
+  const historyRows = useMemo(() => {
+    const m = measure.current;
+    if (!m) return [];
+    const all = [
+      ...m.hist.map((h) => ({ id: h.id, color: h.color, mode: h.mode, pts: h.pts, active: false, finished: true })),
+      ...(m.pts.length ? [{ id: m.id, color: m.color, mode: m.mode, pts: m.pts, active: true, finished: m.finished }] : []),
+    ];
+    return all.map((it) => historyRow(it, summarize(it.mode, toMeters(it.pts, props.projectCrs).mpts)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measureVer, props.projectCrs]);
+  // Lagrede målinger når verktøyet ikke er i bruk
   const storedView = useMemo(() => {
     const m = measure.current;
-    if (measuring || !m || !m.pts.length) return null;
-    const { mpts } = toMeters(m.pts, props.projectCrs);
-    return { mode: m.mode, summary: summarize(m.mode, mpts), finished: m.finished };
+    if (measuring || !m) return null;
+    const last = m.pts.length ? { mode: m.mode, pts: m.pts, finished: m.finished } : m.hist.length ? { mode: m.hist[m.hist.length - 1].mode, pts: m.hist[m.hist.length - 1].pts, finished: true } : null;
+    if (!last) return null;
+    const { mpts } = toMeters(last.pts, props.projectCrs);
+    return { mode: last.mode, summary: summarize(last.mode, mpts), finished: last.finished, count: m.hist.length + (m.pts.length ? 1 : 0) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measuring, measureVer, props.projectCrs]);
   const toggleSnap = (on: boolean) => {
@@ -622,6 +712,9 @@ export default function MapView(props: Props) {
           summary={measureView.summary}
           crsLabel={crsName(measureView.crs)}
           finished={measureView.finished}
+          history={historyRows}
+          onDeleteItem={deleteMeasureItem}
+          onFocusItem={focusMeasureItem}
           snap={snapOn}
           onSnap={toggleSnap}
           snapState={snapState}
@@ -637,6 +730,7 @@ export default function MapView(props: Props) {
           mode={storedView.mode}
           summary={storedView.summary}
           finished={storedView.finished}
+          count={storedView.count}
           onOpen={() => props.onTool(storedView.mode)}
           onClear={clearMeasure}
         />

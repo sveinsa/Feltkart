@@ -7,6 +7,7 @@ import { isWorldFile } from './lib/jp2';
 import type { ParsedDxf } from './lib/dxf';
 import { parseVector, vectorFormatOf, FORMAT_LABEL, type Placement } from './lib/vector';
 import { fetchGoogleUser } from './lib/google';
+import { activeProjectId, projectNameFor, setProjectName } from './lib/projects';
 import type { DxfItem, Folder, Item, ItemKind, OrthoItem, PhotoItem, Settings } from './types';
 
 /** Ekstra info per fil ved import fra Google Disk */
@@ -27,11 +28,12 @@ export interface UploadResult {
   bounds: [[number, number], [number, number]] | null; // utstrekning av alt som ble lagt til
 }
 
-const DEFAULT_SETTINGS: Omit<Settings, 'defaultFolders'> = {
-  projectName: 'Mitt prosjekt',
+/** Nytt, tomt prosjekt: navnet kommer fra prosjektlisten (første prosjekt heter «Oppdal Ålma») */
+const defaultSettings = (): Omit<Settings, 'defaultFolders'> => ({
+  projectName: projectNameFor(activeProjectId()),
   projectCrs: 'EPSG:25832',
   basemapId: 'kv-topo',
-};
+});
 
 /** Mapperekkefølge: nummererte mapper (01 …, 02 …) først i nummerrekkefølge, deretter øvrige i opprettelsesrekkefølge. */
 export function compareFolders(a: Folder, b: Folder): number {
@@ -69,12 +71,12 @@ export function useProject() {
         let [fs, its, st] = await Promise.all([db.getFolders(), db.getItems(), db.getSettings()]);
         if (!fs.length || !st) {
           const now = Date.now();
-          const root: Folder = { id: uid(), name: DEFAULT_SETTINGS.projectName, parentId: null, createdAt: now };
+          const root: Folder = { id: uid(), name: defaultSettings().projectName, parentId: null, createdAt: now };
           const mk = (name: string, i: number): Folder => ({ id: uid(), name, parentId: root.id, createdAt: now + i });
           const photos = mk('Bilder', 1), panos = mk('360-bilder', 2), dxfF = mk('Prosjektert (DXF/IFC)', 3), survey = mk('Innmålinger', 4), ortho = mk('Ortofoto (drone)', 5);
           fs = [root, photos, panos, dxfF, survey, ortho];
           for (const f of fs) await db.putFolder(f);
-          st = { ...DEFAULT_SETTINGS, defaultFolders: { photo: photos.id, pano: panos.id, dxf: dxfF.id, ortho: ortho.id, survey: survey.id } };
+          st = { ...defaultSettings(), defaultFolders: { photo: photos.id, pano: panos.id, dxf: dxfF.id, ortho: ortho.id, survey: survey.id } };
           await db.putSettings(st);
         }
         // Opprydding: elementer hentet fra Google Disk ble tidligere lagt i speilede mapper (Foto, Innmåling, Ortofoto, Prosjektert …)
@@ -113,15 +115,24 @@ export function useProject() {
           await db.putSettings(st);
           if (changed) its = [...its];
         }
+        // Det første prosjektet het «Mitt prosjekt» før prosjektlisten kom; gi det det nye standardnavnet (bare om navnet aldri er endret)
+        if (activeProjectId() === 'default' && st.projectName === 'Mitt prosjekt') {
+          const rootF = fs.find((f) => f.parentId === null);
+          const nm = projectNameFor('default');
+          st = { ...st, projectName: nm };
+          await db.putSettings(st);
+          if (rootF && rootF.name === 'Mitt prosjekt') { const nr = { ...rootF, name: nm }; await db.putFolder(nr); fs = fs.map((f) => (f.id === nr.id ? nr : f)); }
+        }
+        setProjectName(activeProjectId(), st.projectName); // listen over prosjekter viser samme navn som Innstillinger
         setFolders(fs);
         setItems(its);
         setSettings(st);
       } catch (e: any) {
         console.error(e);
         setStorageError('Lagring i nettleseren er ikke tilgjengelig. Endringer forsvinner når siden lastes på nytt.');
-        const root: Folder = { id: 'root', name: DEFAULT_SETTINGS.projectName, parentId: null, createdAt: Date.now() };
+        const root: Folder = { id: 'root', name: defaultSettings().projectName, parentId: null, createdAt: Date.now() };
         setFolders([root]);
-        setSettings({ ...DEFAULT_SETTINGS, defaultFolders: { photo: 'root', pano: 'root', dxf: 'root', ortho: 'root' } });
+        setSettings({ ...defaultSettings(), defaultFolders: { photo: 'root', pano: 'root', dxf: 'root', ortho: 'root' } });
       }
       setReady(true);
     })();
@@ -174,6 +185,7 @@ export function useProject() {
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((s) => {
       const next = { ...(s as Settings), ...patch };
+      if (patch.projectName) setProjectName(activeProjectId(), patch.projectName);
       safe(() => db.putSettings(next));
       return next;
     });

@@ -272,3 +272,39 @@ export function isTouchEvent(ev: unknown): boolean {
     return false;
   }
 }
+
+// ---------- Historikk: flere målinger i samme visning ----------
+
+/** En linje i målelisten (en måling med farge og verdi) */
+export interface HistoryRow {
+  id: string;
+  color: string;
+  mode: MeasureMode;
+  /** Ferdig formatert, f.eks. «136 257,44 m²» eller «214,3 m» */
+  value: string;
+  /** Areal i m² (bare ferdige arealmålinger) */
+  area: number | null;
+  /** Horisontal lengde i m (bare avstandsmålinger med minst to punkter) */
+  length: number | null;
+  /** Målingen som tegnes nå (resten er ferdige målinger i historikken) */
+  active: boolean;
+  finished: boolean;
+}
+
+export function historyRow(it: { id: string; color: string; mode: MeasureMode; active: boolean; finished: boolean }, s: Summary): HistoryRow {
+  const pts = `${s.count} punkt${s.count === 1 ? '' : 'er'}`;
+  const area = it.mode === 'area' && s.area !== null ? s.area : null;
+  const length = it.mode === 'distance' && s.count >= 2 ? s.horizontal : null;
+  const value = it.mode === 'area' ? (area !== null ? formatArea(area) : pts) : (length !== null ? formatLength(length) : pts);
+  return { id: it.id, color: it.color, mode: it.mode, value, area, length, active: it.active, finished: it.finished };
+}
+
+/** Sum av arealene og av lengdene i listen. Bare ferdige målinger regnes med, og summen vises først fra to målinger. */
+export function historyTotals(rows: HistoryRow[]): { area: string | null; length: string | null } {
+  const a = rows.filter((r) => r.area !== null && r.finished);
+  const l = rows.filter((r) => r.length !== null && r.finished);
+  return {
+    area: a.length >= 2 ? formatArea(a.reduce((x, r) => x + (r.area as number), 0)) : null,
+    length: l.length >= 2 ? formatLength(l.reduce((x, r) => x + (r.length as number), 0)) : null,
+  };
+}
