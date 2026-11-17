@@ -74,7 +74,7 @@ export default function App() {
   // ---------- Demodata fra Google Disk (lastes automatisk når kartet er tomt) ----------
   const startDemo = useCallback(async () => {
     setDemo({ busy: true, msg: 'Starter …', pct: 1, startedAt: Date.now(), error: null });
-    const job = startJob('Laster demodata', 'Starter …'); // fremdriften vises i statusfeltet i alle visninger
+    const job = startJob('Laster demodata', 'Starter …', 'Antatt tid for nedlasting er ca. 60 sekunder.'); // fremdriften vises i statusfeltet i alle visninger
     try {
       const r = await loadDemoData(project, googleConfig(project), (msg, pct) => {
         setDemo((d) => ({ ...d, msg, pct: pct !== undefined ? Math.max(d.pct, pct) : d.pct }));

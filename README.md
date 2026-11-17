@@ -317,3 +317,10 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 
 ## Stigning/fall i prosent (v 4.11)
 - Sammen med Δh vises nå **stigning (+) eller fall (−) i prosent**, f.eks. «Δh +3,20 m (+6,4 %)», både i målelisten og i resultatpanelet (Terreng 3D). Prosenten er Δh delt på horisontal lengde. Med mer enn to punkter er det gjennomsnittet for hele målingen.
+
+## Antatt tid i demodata-vinduet (v 4.12)
+- Statusvinduet «Laster demodata» (midt på skjermen) viser nå teksten **«Antatt tid for nedlasting er ca. 60 sekunder.»** under statuslinjen mens nedlastingen pågår.
+
+## Antatt tid også i statusvinduet for demodata (v 5.0)
+- Statusvinduet «Laster demodata» viser nå alltid teksten **«Antatt tid for nedlasting er ca. 60 sekunder.»**, også når demodata lastes fra Prosjektfiler/Google Disk-dialogen (tidligere sto den bare ved oppstartsspørsmålet).
+- Versjonsnummeret er nå 5.0.

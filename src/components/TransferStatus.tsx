@@ -21,6 +21,7 @@ function JobCard({ job, now }: { job: Job; now: number }) {
             <div className="dp-fill" style={p === null ? undefined : { width: `${p}%` }} />
           </div>
           <div className="dp-meta"><span>{p === null ? 'Jobber …' : `${p} %`}</span><span>⏱ {fmt(elapsed)}</span></div>
+          {job.hint && <div className="xfer-hint">{job.hint}</div>}
           {job.msg && <div className="xfer-msg" title={job.msg}>{job.msg}</div>}
         </>
       )}

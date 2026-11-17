@@ -13,6 +13,8 @@ export interface Job {
   state: 'running' | 'done' | 'error';
   /** Sluttmelding (ferdig) eller feilmelding */
   detail?: string;
+  /** Fast info som vises under statuslinjen mens jobben pågår, f.eks. antatt tid */
+  hint?: string;
   /** Blir stående til brukeren lukker den (feil og advarsler) */
   keep?: boolean;
 }
@@ -41,9 +43,9 @@ export function dismissJob(id: number) {
 }
 
 /** Starter en jobb som vises i statusfeltet øverst til høyre i alle visninger. */
-export function startJob(title: string, msg = ''): JobHandle {
+export function startJob(title: string, msg = '', hint?: string): JobHandle {
   const id = ++seq;
-  jobs = [...jobs, { id, title, msg, pct: null, startedAt: Date.now(), state: 'running' }];
+  jobs = [...jobs, { id, title, msg, hint, pct: null, startedAt: Date.now(), state: 'running' }];
   emit();
   let last = 0;
   const end = (p: Partial<Job>, keep: boolean) => {

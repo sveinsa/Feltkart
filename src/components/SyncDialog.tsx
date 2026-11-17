@@ -61,11 +61,11 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
 
   /** Hjelpere en oppgave bruker for å melde fra om fremdrift og resultat. Fremdriften vises også utenfor dialogen (statusfeltet). */
   interface RunCtx { report: (m: string, pct?: number | null) => void; ok: (m: string) => void; err: (m: string) => void }
-  const run = async (fn: (c: RunCtx) => Promise<void>, title?: string) => {
+  const run = async (fn: (c: RunCtx) => Promise<void>, title?: string, hint?: string) => {
     setError(null);
     setOkMsg(null);
     setBusy(true);
-    const job = title ? startJob(title) : null;
+    const job = title ? startJob(title, '', hint) : null;
     let okText = '', errText = '';
     const c: RunCtx = {
       report: (m, p) => { setMsg(m); job?.update(m, p); },
@@ -159,7 +159,7 @@ export default function SyncDialog({ project, onClose, onOpenSettings, onOpenTem
     if (r.message) c.err(r.message);
     if (r.added) { c.ok(`${r.added} element(er) hentet fra demomappen.`); onImported(r.added, r.bounds); }
     else if (!r.message) c.ok('Demodataene ligger allerede i kartet.');
-  }, 'Laster demodata');
+  }, 'Laster demodata', 'Antatt tid for nedlasting er ca. 60 sekunder.');
 
   // ---------- Last opp til mappen ----------
   const pathOf = (folderId: string): string[] => {
