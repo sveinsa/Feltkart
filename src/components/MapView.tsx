@@ -694,6 +694,18 @@ export default function MapView(props: Props) {
     return all.map((it) => historyRow(it, summarize(it.mode, toMeters(it.pts, props.projectCrs).mpts)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measureVer, props.projectCrs]);
+  /** Markør i kartet for pekeren i tverrsnittsvinduet */
+  const cursorLayer = useRef<L.LayerGroup | null>(null);
+  const showSectionCursor = (ll: { lng: number; lat: number } | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!cursorLayer.current) cursorLayer.current = L.layerGroup().addTo(map);
+    cursorLayer.current.clearLayers();
+    if (!ll) return;
+    const at = L.latLng(ll.lat, ll.lng);
+    L.circleMarker(at, { pane: 'measurePane', radius: 12, stroke: false, fillColor: '#ffffff', fillOpacity: 0.85, interactive: false }).addTo(cursorLayer.current);
+    L.circleMarker(at, { pane: 'measurePane', radius: 7, color: '#ffffff', weight: 2, fillColor: '#e53935', fillOpacity: 1, interactive: false }).addTo(cursorLayer.current);
+  };
   /** Tverrsnitt langs en avstandsmåling: terrengprofil (høydefliser) og de synlige IFC-modellene */
   const openSection = async (id: string) => {
     const m = measure.current;
@@ -774,7 +786,7 @@ export default function MapView(props: Props) {
         />
       )}
       {sectionBusy && <div className="sec-busy" role="status">Lager tverrsnitt … henter høydedata</div>}
-      {sectionView && <SectionWindow section={sectionView.section} title={sectionView.title} note={sectionView.note} onClose={() => setSectionView(null)} />}
+      {sectionView && <SectionWindow section={sectionView.section} title={sectionView.title} note={sectionView.note} onCursor={showSectionCursor} onClose={() => setSectionView(null)} />}
       {storedView && (
         <MeasureChip
           mode={storedView.mode}

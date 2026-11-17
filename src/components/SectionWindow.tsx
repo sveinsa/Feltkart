@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { drawSection, fmtNum, layoutSection, sectionToDxf, terrainAtS } from '../lib/section';
+import { drawSection, fmtNum, layoutSection, positionAtS, sectionToDxf, terrainAtS } from '../lib/section';
 import type { Section } from '../lib/section';
 import { IconClose } from './icons';
 
@@ -9,6 +9,8 @@ interface Props {
   title: string;
   /** Opplysning om kilden til terrenget, vises nederst */
   note?: string;
+  /** Kalles med posisjonen på målelinjen som musepekeren peker på i snittet (null når pekeren forlater snittet) */
+  onCursor?: (ll: { lng: number; lat: number } | null) => void;
   onClose: () => void;
 }
 
@@ -21,7 +23,7 @@ const EXAG: { v: 'auto' | number; label: string }[] = [
  * Vinduet kan flyttes (dra i tittelen) og gjøres større (dra i hjørnet nede til høyre).
  * Knapper: kopier bilde til utklippstavlen og eksporter til DXF.
  */
-export default function SectionWindow({ section, title, note, onClose }: Props) {
+export default function SectionWindow({ section, title, note, onCursor, onClose }: Props) {
   const win = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const cvs = useRef<HTMLCanvasElement>(null);
@@ -33,6 +35,10 @@ export default function SectionWindow({ section, title, note, onClose }: Props) 
   const [msg, setMsg] = useState('');
   const msgTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(msgTimer.current), []);
+  const cursorRef = useRef(onCursor);
+  cursorRef.current = onCursor;
+  // Markøren i kartet fjernes når snittet lukkes
+  useEffect(() => () => cursorRef.current?.(null), []);
   const say = (t: string) => { setMsg(t); window.clearTimeout(msgTimer.current); msgTimer.current = window.setTimeout(() => setMsg(''), 3500); };
 
   const empty = !section.terrain.some(Boolean) && section.objects.length === 0;
@@ -52,7 +58,9 @@ export default function SectionWindow({ section, title, note, onClose }: Props) 
     const r = e.currentTarget.getBoundingClientRect();
     const L = layoutSection(section, size.w, size.h, vExag);
     const s = (e.clientX - r.left - L.x0) / L.sx;
-    setHover(s >= 0 && s <= section.length ? { s, z: terrainAtS(section, s) } : null);
+    const inside = s >= 0 && s <= section.length;
+    setHover(inside ? { s, z: terrainAtS(section, s) } : null);
+    onCursor?.(inside ? positionAtS(section, s) : null);
   };
 
   // Flytte vinduet
@@ -140,7 +148,7 @@ export default function SectionWindow({ section, title, note, onClose }: Props) 
         <button className="btn primary" onClick={exportDxf} disabled={empty} title="Laster ned snittet som DXF-tegning (kan åpnes i AutoCAD, Civil 3D, QGIS m.fl.)">Eksporter DXF</button>
       </div>
       <div className="sec-body" ref={body} style={{ width: size.w, height: size.h }}>
-        <canvas ref={cvs} style={{ width: size.w, height: size.h }} onMouseMove={onMove} onMouseLeave={() => setHover(null)} aria-label="Tverrsnitt" />
+        <canvas ref={cvs} style={{ width: size.w, height: size.h }} onMouseMove={onMove} onMouseLeave={() => { setHover(null); onCursor?.(null); }} aria-label="Tverrsnitt" />
         {empty && <div className="sec-empty">Fant verken terreng eller IFC-objekter langs linjen. Sjekk at du er på nett (terreng) og at en IFC-modell er synlig, og lag snittet på nytt.</div>}
       </div>
       <div className="sec-foot">
@@ -152,7 +160,7 @@ export default function SectionWindow({ section, title, note, onClose }: Props) 
           </div>
         )}
         <div className="sec-status small muted" aria-live="polite">
-          {msg || (hover ? `Avstand ${fmtNum(hover.s, 1)} m${hover.z !== null ? ` · terreng ${fmtNum(hover.z, 2)} m o.h.` : ''}` : 'Flytt musepekeren over snittet for å lese av avstand og terrenghøyde.')}
+          {msg || (hover ? `Avstand ${fmtNum(hover.s, 1)} m${hover.z !== null ? ` · terreng ${fmtNum(hover.z, 2)} m o.h.` : ''}` : 'Flytt musepekeren over snittet: en markør i kartet viser hvor på linjen du er, og du leser av avstand og terrenghøyde.')}
           {note && !msg && <div>{note}</div>}
         </div>
       </div>

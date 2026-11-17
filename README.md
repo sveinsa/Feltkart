@@ -347,3 +347,6 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 - Tverrsnitt finnes nå også i **Kart (2D)**: mål en avstand og trykk **Lag tverrsnitt langs linjen**, eller bruk **Snitt**-knappen på en måling i listen. Vinduet, overhøyde, lag, **Kopier bilde** og **Eksporter DXF** er de samme som i Terreng 3D.
 - **IFC-objekter** tas fra de IFC-modellene som er synlige i kartet (lag du har skjult i lagtreet tas ikke med), og skjæres i prosjektets koordinatsystem.
 - **Terreng** hentes direkte fra høydefliser (Mapterhorn, Norge i 1 m, med AWS som reserve), siden 2D-kartet ikke har egen terrengmodell. Det trenger nett. Er det ikke tilgjengelig, vises bare objektene, og statuslinjen i vinduet sier fra. Kode: `src/lib/dem.ts`.
+
+## Markør i kartet fra tverrsnittet (v 5.5)
+- Når du flytter musepekeren langs snittet, vises en **rød markør i kartet (2D og 3D)** på det stedet på måle-linjen som pekeren er over i snittet. Den følger også med rundt knekk i linjen, og forsvinner når pekeren forlater snittet eller du lukker vinduet.

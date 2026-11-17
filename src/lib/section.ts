@@ -25,6 +25,8 @@ export interface Section {
   /** Terrengprofil. null = ingen høyde der (hull i linjen) */
   terrain: (P2 | null)[];
   objects: SectionObject[];
+  /** Målelinjens punkter (lengde/bredde), til å vise hvor på linjen musepekeren er i snittet */
+  path: { lng: number; lat: number }[];
   zmin: number;
   zmax: number;
 }
@@ -232,7 +234,7 @@ export function buildSection(inp: BuildInput): Section | null {
   for (const p of terrain) if (p) see(p[1]);
   for (const o of objects) { for (const l of o.loops) for (const p of l) see(p[1]); for (const l of o.lines) for (const p of l) see(p[1]); }
   if (!Number.isFinite(zmin)) { zmin = 0; zmax = 1; }
-  return { length, stations, terrain, objects, zmin, zmax };
+  return { length, stations, terrain, objects, path: path.map((p) => ({ lng: p.lng, lat: p.lat })), zmin, zmax };
 }
 
 // ---------- Tegning ----------
@@ -404,6 +406,20 @@ export function drawSection(ctx: CanvasRenderingContext2D, w: number, h: number,
   }
   ctx.restore();
   return L;
+}
+
+/** Posisjon (lengde/bredde) på målelinjen ved en avstand s langs snittet */
+export function positionAtS(sec: Section, s: number): { lng: number; lat: number } | null {
+  if (!(s >= 0 && s <= sec.length) || sec.path.length < 2) return null;
+  for (let i = 0; i + 1 < sec.stations.length; i++) {
+    const a = sec.stations[i], b = sec.stations[i + 1];
+    if (s <= b || i + 2 === sec.stations.length) {
+      const f = b > a ? Math.max(0, Math.min(1, (s - a) / (b - a))) : 0;
+      const p = sec.path[i], q = sec.path[i + 1];
+      return { lng: p.lng + (q.lng - p.lng) * f, lat: p.lat + (q.lat - p.lat) * f };
+    }
+  }
+  return null;
 }
 
 /** Terrenghøyde ved en avstand (lineær mellom punktene), eller null */

@@ -61,6 +61,7 @@ type TerrainKey = keyof typeof TERRAINS;
 
 const CUSTOM_ID = 'feltkart-three';
 const MEASURE_SRC = 'feltkart-measure';
+const SEC_CURSOR_SRC = 'feltkart-sec-cursor';
 /** Det nederste målelaget. Bakgrunn og ortofoto legges under det, så målingen alltid ligger oppå. */
 const MEASURE_FIRST = 'feltkart-m-fill';
 const MEASURE_ORANGE = '#ef6c1a';
@@ -106,6 +107,8 @@ interface MeasureApi {
   fillHeights: () => void;
   /** Tverrsnitt langs en avstandsmåling: terrengprofil og IFC-objekter. null hvis målingen ikke er en linje med minst to punkter. */
   section: (id: string) => Section | null;
+  /** Markør i kartet for pekeren i tverrsnittet (null fjerner den) */
+  cursor: (ll: { lng: number; lat: number } | null) => void;
   dispose: () => void;
 }
 
@@ -623,6 +626,10 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
         redrawAll();
       },
       state: () => ({ pts: mst.pts, finished: mst.finished, mode: mst.mode, id: mst.id, color: mst.color, hist: mst.hist }),
+      cursor: (ll) => {
+        const src = map.getSource(SEC_CURSOR_SRC) as maplibregl.GeoJSONSource | undefined;
+        src?.setData({ type: 'FeatureCollection', features: ll ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] } }] : [] } as any);
+      },
       section: (id) => {
         const isActive = mst.id === id;
         const item = isActive ? { pts: mst.pts, mode: modeOf() } : mst.hist.find((h) => h.id === id);
@@ -712,6 +719,10 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       map.addLayer({ id: 'feltkart-m-line', type: 'line', source: MEASURE_SRC, filter: ['any', isK('line'), isK('poly')], layout: round, paint: { 'line-color': MEASURE_COLOR, 'line-width': 3.5 } } as any, before);
       map.addLayer({ id: 'feltkart-m-live', type: 'line', source: MEASURE_SRC, filter: isK('live'), layout: round, paint: { 'line-color': MEASURE_COLOR, 'line-width': 2.5, 'line-dasharray': [2, 2] } } as any, before);
       map.addLayer({ id: 'feltkart-m-pts', type: 'circle', source: MEASURE_SRC, filter: isK('pt'), paint: { 'circle-radius': 6, 'circle-color': MEASURE_COLOR, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } } as any, before);
+      // Markør for pekeren i tverrsnittsvinduet (øverst, så den alltid er synlig)
+      map.addSource(SEC_CURSOR_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } } as any);
+      map.addLayer({ id: 'feltkart-sec-cursor-halo', type: 'circle', source: SEC_CURSOR_SRC, paint: { 'circle-radius': 12, 'circle-color': '#ffffff', 'circle-opacity': 0.85 } } as any);
+      map.addLayer({ id: 'feltkart-sec-cursor', type: 'circle', source: SEC_CURSOR_SRC, paint: { 'circle-radius': 7, 'circle-color': '#e53935', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } } as any);
     };
 
     const layer: maplibregl.CustomLayerInterface = {
@@ -1323,7 +1334,7 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
           />
         )}
         {sectionMsg && <div className="t3d-toast" role="status" onAnimationEnd={() => setSectionMsg('')}>{sectionMsg}</div>}
-        {sectionView && <SectionWindow section={sectionView.section} title={sectionView.title} onClose={() => setSectionView(null)} />}
+        {sectionView && <SectionWindow section={sectionView.section} title={sectionView.title} onCursor={(ll) => ctxRef.current?.measure?.cursor(ll)} onClose={() => setSectionView(null)} />}
         <div ref={liveEl} className="t3d-live" style={{ display: 'none' }} />
         <div ref={snapEl} className="snap-mark" />
         {storedView && (
