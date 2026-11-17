@@ -331,3 +331,14 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 
 ## Bugreport-knapp (v 5.2)
 - Øverst til høyre i toppfeltet står en knapp **Bugreport 🪲** som åpner skjemaet for feilmeldinger i et nytt vindu. Den vises i alle visninger.
+
+## Tverrsnitt (v 5.3)
+- **Innstillinger** er fjernet fra øverste linje. De nås fortsatt via tannhjulet nederst i venstre meny og via «Prosjektinnstillinger» i prosjektmenyen.
+- I **Terreng 3D**: mål en avstand (to eller flere punkter) og trykk **Lag tverrsnitt langs linjen** i målepanelet. Hver avstandsmåling i målelisten har også en **Snitt**-knapp.
+- Snittet åpnes i et **eget vindu** som kan flyttes (dra i tittelen) og gjøres større (dra i hjørnet nede til høyre). Det viser terrengprofilen og alle viste **IFC-objekter** (skåret av et loddrett plan langs linjen, med IFC-fargene og fylt flate). Målelinjer med flere punkter følges rundt knekkene.
+- **Overhøyde**: tilpass vinduet, ×1 (ekte målestokk), ×2, ×5 eller ×10. **Lag** (Terreng og hvert IFC-lag) kan slås av og på. Musepekeren viser avstand og terrenghøyde.
+- **Kopier bilde**: legger snittet som PNG (minst 1600 piksler bredt) på utklippstavlen, så du kan lime det inn i Word, e-post eller Teams. Tillater ikke nettleseren bilde på utklippstavlen, lastes bildet ned i stedet.
+- **Eksporter DXF**: AutoCAD-format (R12) i meter og 1:1, med x = avstand langs snittet og y = høyde (m o.h.). Lag: TERRENG, AKSER, TEKST, KNEKKPUNKT og ett lag per IFC-lag. Skjulte lag tas ikke med.
+- Terrengprofilen leses av terrengmodellen (omtrentlig) og trenger at terrenget er slått på og lastet rundt linjen. Uten terreng vises bare objektene.
+- Tverrsnitt finnes bare i Terreng 3D (2D-kartet har ingen høyder eller IFC-objekter).
+- Kode: `src/lib/section.ts` (matte, tegning, DXF) og `src/components/SectionWindow.tsx` (vinduet).

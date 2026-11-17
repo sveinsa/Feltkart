@@ -20,6 +20,9 @@ import { formatAreaShort, formatLengthShort, historyRow, isDoubleClick, isTouchE
 import type { ClickMemo, MeasureMode } from '../lib/measure';
 import MeasurePanel from './MeasurePanel';
 import MeasureChip from './MeasureChip';
+import SectionWindow from './SectionWindow';
+import { buildSection } from '../lib/section';
+import type { Section, SectionPart } from '../lib/section';
 import { invert4, mercatorToLngLat, nearestOnScreen, projectWithMatrix, rayFromMatrix, snapAt3d, SNAP_LABEL } from '../lib/snap';
 import type { SnapKind, SnapPart } from '../lib/snap';
 import { clearAllMeasures, loadMeasures, loadSnap, newMeasureId, onMeasureChanged, pickColor, saveMeasures, saveSnap } from '../lib/measureStore';
@@ -101,6 +104,8 @@ interface MeasureApi {
   redraw: () => void;
   /** Leser manglende høyder (og fjerner dem når terreng er av) */
   fillHeights: () => void;
+  /** Tverrsnitt langs en avstandsmåling: terrengprofil og IFC-objekter. null hvis målingen ikke er en linje med minst to punkter. */
+  section: (id: string) => Section | null;
   dispose: () => void;
 }
 
@@ -180,6 +185,8 @@ interface Ctx {
   measure: MeasureApi | null;
   /** IFC-delene som målingen kan snappe til (med scenekoordinater) */
   snapParts: SnapPart[];
+  /** Alle viste IFC-deler (også gjennomsiktige) med farge, til tverrsnitt */
+  secParts: SectionPart[];
 }
 
 function disposeGroup(g: THREE.Object3D) {
@@ -231,6 +238,9 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
   const crsRef = useRef(settings.projectCrs);
   crsRef.current = settings.projectCrs;
   const [measVer, setMeasVer] = useState(0);
+  // Tverrsnittet som er åpent (eget vindu)
+  const [sectionView, setSectionView] = useState<{ title: string; section: Section } | null>(null);
+  const [sectionMsg, setSectionMsg] = useState('');
   const liveEl = useRef<HTMLDivElement>(null);
   const snapEl = useRef<HTMLDivElement>(null);
   const [snapOn, setSnapOn] = useState(() => loadSnap());
@@ -298,7 +308,7 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
     const c: Ctx = {
       map, renderer: null, scene: new THREE.Scene(), camera: new THREE.Camera(), root: new THREE.Group(), bubbles: [],
       originMerc: null, origin: null, exag: 1, zOffset: 0, baseElev: 0, terrainOn: true, bubbleScale: 1,
-      proj: new THREE.Matrix4(), demSrc: null, baseKey: '', broken: false, demErrors: 0, refresh: () => {}, measure: null, snapParts: [],
+      proj: new THREE.Matrix4(), demSrc: null, baseKey: '', broken: false, demErrors: 0, refresh: () => {}, measure: null, snapParts: [], secParts: [],
     };
     c.scene.add(c.root);
     c.scene.add(new THREE.AmbientLight(0xffffff, 1.6));
@@ -613,6 +623,19 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
         redrawAll();
       },
       state: () => ({ pts: mst.pts, finished: mst.finished, mode: mst.mode, id: mst.id, color: mst.color, hist: mst.hist }),
+      section: (id) => {
+        const isActive = mst.id === id;
+        const item = isActive ? { pts: mst.pts, mode: modeOf() } : mst.hist.find((h) => h.id === id);
+        if (!item || item.mode !== 'distance' || item.pts.length < 2) return null;
+        // Scenekoordinater (meter fra origo) – samme som IFC-delene. Uten IFC/bilder finnes ingen origo: da brukes første punkt.
+        const o = c.originMerc ?? maplibregl.MercatorCoordinate.fromLngLat([item.pts[0].lng, item.pts[0].lat], 0);
+        const sc = o.meterInMercatorCoordinateUnits();
+        const path = item.pts.map((p) => {
+          const mc = maplibregl.MercatorCoordinate.fromLngLat([p.lng, p.lat], 0);
+          return { x: (mc.x - o.x) / sc, y: -(mc.y - o.y) / sc, lng: p.lng, lat: p.lat };
+        });
+        return buildSection({ path, parts: c.secParts, terrainAt: elevAt });
+      },
       deleteItem(id) {
         if (mst.id === id) {
           mst.pts = [];
@@ -970,6 +993,7 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
       disposeGroup(c.root);
       c.bubbles = [];
       c.snapParts = [];
+      c.secParts = [];
 
       const shownIfc = ifcs.filter(ifcVisible).map((d) => ({ d, m: meshOf(d) })).filter((x): x is { d: DxfItem; m: Mesh3D } => !!x.m);
       const shownPhotos = photos.filter((p) => p.lat !== null && (p.kind === 'pano' ? showPanos : showPhotos));
@@ -1016,6 +1040,7 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
           mesh.frustumCulled = false;
           c.root.add(mesh);
           // Samme avbildning som over, til snapping (stråle mot trekantene)
+          c.secParts.push({ layer: part.layer, color: own ? hexCss(part.color!) : colorFor(part.layer), positions: part.positions, xf: { ax, ay, bx, by, tx: p0[0], ty: p0[1] } });
           if (opacity >= 0.3) c.snapParts.push({ layer: part.layer, positions: part.positions, xf: { ax, ay, bx, by, tx: p0[0], ty: p0[1] } });
           // Kantlinjer: viser detaljer (vinduer, dører, fuger) som ellers flyter sammen i like farger. Hoppes over i svært store modeller.
           if (ifcEdges && totalTris <= 400_000 && opacity >= 0.3) {
@@ -1193,6 +1218,15 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
     ];
     return all.map((it) => historyRow(it, summarize(it.mode, pointsToMeters(settings.projectCrs, it.pts).pts)));
   }, [measVer, settings.projectCrs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const openSection = (id: string) => {
+    try {
+      const sec = ctxRef.current?.measure?.section(id) ?? null;
+      const n = historyRows.findIndex((r) => r.id === id);
+      if (!sec) { setSectionMsg('Tverrsnitt krever en avstandsmåling med minst to punkter.'); return; }
+      setSectionMsg('');
+      setSectionView({ title: `Snitt ${n >= 0 ? n + 1 : ''}`.trim(), section: sec });
+    } catch (e) { report('Tverrsnitt', e); }
+  };
   // Lagrede målinger når verktøyet ikke er i bruk
   const storedView = useMemo(() => {
     const api = ctxRef.current?.measure;
@@ -1274,6 +1308,8 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
             history={historyRows}
             onDeleteItem={(id) => ctxRef.current?.measure?.deleteItem(id)}
             onFocusItem={(id) => ctxRef.current?.measure?.focusItem(id)}
+            onSection={openSection}
+            activeId={ctxRef.current?.measure?.state().id}
             note={measureNote}
             snap={snapOn}
             onSnap={toggleSnap}
@@ -1286,6 +1322,8 @@ export default function Terrain3D({ items, photos, dxf, settings, onOpenPhoto }:
             onClose={() => setMeasureMode(null)}
           />
         )}
+        {sectionMsg && <div className="t3d-toast" role="status" onAnimationEnd={() => setSectionMsg('')}>{sectionMsg}</div>}
+        {sectionView && <SectionWindow section={sectionView.section} title={sectionView.title} onClose={() => setSectionView(null)} />}
         <div ref={liveEl} className="t3d-live" style={{ display: 'none' }} />
         <div ref={snapEl} className="snap-mark" />
         {storedView && (

@@ -26,6 +26,10 @@ interface Props {
   onDeleteItem?: (id: string) => void;
   /** Zoom til målingen */
   onFocusItem?: (id: string) => void;
+  /** Tverrsnitt langs en avstandsmåling (bare i Terreng 3D). id = målingen som skal snittes. */
+  onSection?: (id: string) => void;
+  /** Id til målingen som pågår (den som ikke er arkivert ennå) */
+  activeId?: string;
   onMode: (m: MeasureMode) => void;
   onUndo: () => void;
   onFinish: () => void;
@@ -131,6 +135,9 @@ export default function MeasurePanel(p: Props) {
                   {h.dz !== null && <span className={`mp-hist-dh ${h.dz > 0.005 ? 'up' : h.dz < -0.005 ? 'down' : ''}`} title="Høydeforskjell (siste mot første punkt) og stigning/fall i prosent">Δh {formatDz(h.dz)}{h.pct !== null && ` (${formatPct(h.pct)})`}</span>}
                   {!h.finished && <small>pågår</small>}
                 </button>
+                {p.onSection && h.mode === 'distance' && h.length !== null && (
+                  <button className="mp-sec" title="Lag tverrsnitt langs denne linjen (terreng og IFC-objekter)" onClick={() => p.onSection!(h.id)}>Snitt</button>
+                )}
                 <button className="icon-btn mp-del" title="Slett denne målingen" aria-label={`Slett måling ${i + 1}`} onClick={() => p.onDeleteItem?.(h.id)}><IconClose size={14} /></button>
               </li>
             ))}
@@ -150,6 +157,14 @@ export default function MeasurePanel(p: Props) {
         <button className="btn primary" disabled={finished || s.count < need} onClick={p.onFinish} title="Fullfør målingen (Enter eller dobbeltklikk)">Fullfør</button>
         <button className="btn" disabled={rows.length === 0} onClick={copy} title="Kopier resultatet som tekst">{copied ? 'Kopiert' : 'Kopier'}</button>
       </div>
+      {p.onSection && (
+        <div className="mp-section">
+          <button className="btn sec-go" disabled={mode !== 'distance' || s.count < 2 || !p.activeId} onClick={() => p.activeId && p.onSection!(p.activeId)}
+            title="Lager et tverrsnitt langs linjen du måler: terrengprofil og IFC-objekter i et eget vindu (med DXF-eksport og kopiering av bilde)">
+            Lag tverrsnitt langs linjen
+          </button>
+        </div>
+      )}
       <div className="mp-foot">{p.stored !== false && s.count > 0 ? 'Målingene lagres underveis og blir stående til du trykker Nullstill alle.' : ''}{p.stored !== false && s.count > 0 && <br />}Enter fullfører · {p.rightClickUndo === false ? 'Backspace' : 'Backspace/høyreklikk'} angrer · Esc avslutter<br />Regnet i {p.crsLabel}</div>
     </div>
   );

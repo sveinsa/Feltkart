@@ -274,7 +274,6 @@ export default function App() {
           <button className={view === 'photos' || view === 'gallery' ? 'on' : ''} onClick={() => setView('photos')}>Bilder</button>
           <button className={view === 'files' ? 'on' : ''} onClick={() => setView('files')}>Prosjektfiler</button>
           <button className={view === 'terrain3d' ? 'on' : ''} onClick={() => setView('terrain3d')}>Terreng 3D <span className="beta-tag">beta</span></button>
-          <button className={view === 'settings' ? 'on' : ''} onClick={() => setView('settings')}>Innstillinger</button>
         </nav>
         <div className="topbar-right">
           <a className="bugreport" href="https://forms.cloud.microsoft/e/waiwYtDeUX?origin=lprLink" target="_blank" rel="noopener noreferrer" title="Meld fra om feil i Feltkart (åpnes i et nytt vindu)">Bugreport <span aria-hidden="true">🪲</span></a>
