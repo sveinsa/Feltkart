@@ -342,3 +342,8 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 - Terrengprofilen leses av terrengmodellen (omtrentlig) og trenger at terrenget er slått på og lastet rundt linjen. Uten terreng vises bare objektene.
 - Tverrsnitt finnes bare i Terreng 3D (2D-kartet har ingen høyder eller IFC-objekter).
 - Kode: `src/lib/section.ts` (matte, tegning, DXF) og `src/components/SectionWindow.tsx` (vinduet).
+
+## Tverrsnitt i 2D-kartet (v 5.4)
+- Tverrsnitt finnes nå også i **Kart (2D)**: mål en avstand og trykk **Lag tverrsnitt langs linjen**, eller bruk **Snitt**-knappen på en måling i listen. Vinduet, overhøyde, lag, **Kopier bilde** og **Eksporter DXF** er de samme som i Terreng 3D.
+- **IFC-objekter** tas fra de IFC-modellene som er synlige i kartet (lag du har skjult i lagtreet tas ikke med), og skjæres i prosjektets koordinatsystem.
+- **Terreng** hentes direkte fra høydefliser (Mapterhorn, Norge i 1 m, med AWS som reserve), siden 2D-kartet ikke har egen terrengmodell. Det trenger nett. Er det ikke tilgjengelig, vises bare objektene, og statuslinjen i vinduet sier fra. Kode: `src/lib/dem.ts`.

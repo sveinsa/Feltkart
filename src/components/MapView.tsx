@@ -4,12 +4,17 @@ import 'leaflet/dist/leaflet.css';
 import type { DxfItem, Item, OrthoItem, PhotoItem, Selection, Tool } from '../types';
 import type { DxfState } from '../state';
 import { basemapById } from '../lib/basemaps';
-import { crsName, pointsToMeters, toLatLng } from '../lib/crs';
+import { crsName, pointsToMeters, toLatLng, transform } from '../lib/crs';
 import { formatAreaShort, formatLengthShort, historyRow, isDoubleClick, isTouchEvent, pathLength, ringArea, summarize } from '../lib/measure';
 import type { ClickMemo, MeasureMode, MPt } from '../lib/measure';
 import { markerHtml } from './icons';
 import MeasurePanel from './MeasurePanel';
 import MeasureChip from './MeasureChip';
+import SectionWindow from './SectionWindow';
+import { buildSection } from '../lib/section';
+import type { Section, SectionPart } from '../lib/section';
+import { loadTerrain } from '../lib/dem';
+import { colorFor, hexCss } from '../lib/ifcColors';
 import { buildPlanarIndex, snapPlanar, SNAP_LABEL } from '../lib/snap';
 import type { PlanarIndex, SnapResult2d } from '../lib/snap';
 import { clearAllMeasures, loadMeasures, loadSnap, newMeasureId, onMeasureChanged, pickColor, saveMeasures, saveSnap } from '../lib/measureStore';
@@ -107,6 +112,10 @@ export default function MapView(props: Props) {
   /** Siste klikk under måling – brukes til å kjenne igjen dobbeltklikk / dobbelttrykk */
   const lastClick = useRef<ClickMemo | null>(null);
   const [measureVer, setMeasureVer] = useState(0);
+  // Tverrsnitt (eget vindu). `busy` mens høydedata hentes.
+  const [sectionView, setSectionView] = useState<{ title: string; section: Section; note?: string } | null>(null);
+  const [sectionBusy, setSectionBusy] = useState(false);
+  const sectionRun = useRef(0);
   const [snapOn, setSnapOn] = useState(() => loadSnap());
   const snapOnRef = useRef(snapOn);
   snapOnRef.current = snapOn;
@@ -685,6 +694,43 @@ export default function MapView(props: Props) {
     return all.map((it) => historyRow(it, summarize(it.mode, toMeters(it.pts, props.projectCrs).mpts)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measureVer, props.projectCrs]);
+  /** Tverrsnitt langs en avstandsmåling: terrengprofil (høydefliser) og de synlige IFC-modellene */
+  const openSection = async (id: string) => {
+    const m = measure.current;
+    if (!m) return;
+    const item = m.id === id ? { pts: m.pts, mode: m.mode } : m.hist.find((h) => h.id === id);
+    if (!item || item.mode !== 'distance' || item.pts.length < 2) return;
+    const run = ++sectionRun.current;
+    const pts = item.pts.slice();
+    const idx = historyRows.findIndex((r) => r.id === id);
+    setSectionBusy(true);
+    try {
+      const { crs, mpts } = toMeters(pts, propsRef.current.projectCrs);
+      const path = pts.map((p, i) => ({ x: mpts[i].x, y: mpts[i].y, lng: p.lng, lat: p.lat }));
+      // IFC-delene (i målekoordinatsystemet, høyder som i modellen)
+      const parts: SectionPart[] = [];
+      for (const it of propsRef.current.items) {
+        if (it.kind !== 'dxf' || it.format !== 'ifc' || it.hidden) continue;
+        const mesh = propsRef.current.dxf[it.id]?.data?.mesh3d;
+        if (!mesh) continue;
+        const [e0, n0] = mesh.crs === crs ? mesh.origin : transform(mesh.crs, crs, mesh.origin[0], mesh.origin[1]);
+        for (const part of mesh.parts) {
+          if ((it as DxfItem).hiddenLayers.includes(part.layer)) continue;
+          parts.push({ layer: part.layer, color: part.color !== undefined ? hexCss(part.color) : colorFor(part.layer), positions: part.positions, xf: { ax: 1, ay: 0, bx: 0, by: 1, tx: e0, ty: n0 } });
+        }
+      }
+      const dem = await loadTerrain(path);
+      if (run !== sectionRun.current) return; // en nyere forespørsel har overtatt
+      const sec = buildSection({ path, parts, terrainAt: dem.at });
+      if (!sec) return;
+      const note = dem.source ? `Terreng: ${dem.source}` : 'Fikk ikke tak i høydedata (er du på nett?). Bare IFC-objekter vises.';
+      setSectionView({ title: `Snitt ${idx >= 0 ? idx + 1 : ''}`.trim(), section: sec, note });
+    } catch (e) {
+      console.warn('Tverrsnitt feilet', e);
+    } finally {
+      if (run === sectionRun.current) setSectionBusy(false);
+    }
+  };
   // Lagrede målinger når verktøyet ikke er i bruk
   const storedView = useMemo(() => {
     const m = measure.current;
@@ -715,6 +761,8 @@ export default function MapView(props: Props) {
           history={historyRows}
           onDeleteItem={deleteMeasureItem}
           onFocusItem={focusMeasureItem}
+          onSection={openSection}
+          activeId={measure.current?.id}
           snap={snapOn}
           onSnap={toggleSnap}
           snapState={snapState}
@@ -725,6 +773,8 @@ export default function MapView(props: Props) {
           onClose={() => props.onTool('select')}
         />
       )}
+      {sectionBusy && <div className="sec-busy" role="status">Lager tverrsnitt … henter høydedata</div>}
+      {sectionView && <SectionWindow section={sectionView.section} title={sectionView.title} note={sectionView.note} onClose={() => setSectionView(null)} />}
       {storedView && (
         <MeasureChip
           mode={storedView.mode}

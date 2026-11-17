@@ -7,6 +7,8 @@ interface Props {
   section: Section;
   /** F.eks. «Snitt 2» (nummeret i målelisten) */
   title: string;
+  /** Opplysning om kilden til terrenget, vises nederst */
+  note?: string;
   onClose: () => void;
 }
 
@@ -19,7 +21,7 @@ const EXAG: { v: 'auto' | number; label: string }[] = [
  * Vinduet kan flyttes (dra i tittelen) og gjøres større (dra i hjørnet nede til høyre).
  * Knapper: kopier bilde til utklippstavlen og eksporter til DXF.
  */
-export default function SectionWindow({ section, title, onClose }: Props) {
+export default function SectionWindow({ section, title, note, onClose }: Props) {
   const win = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const cvs = useRef<HTMLCanvasElement>(null);
@@ -139,7 +141,7 @@ export default function SectionWindow({ section, title, onClose }: Props) {
       </div>
       <div className="sec-body" ref={body} style={{ width: size.w, height: size.h }}>
         <canvas ref={cvs} style={{ width: size.w, height: size.h }} onMouseMove={onMove} onMouseLeave={() => setHover(null)} aria-label="Tverrsnitt" />
-        {empty && <div className="sec-empty">Fant verken terreng eller IFC-objekter langs linjen. Slå på terreng (og en IFC-modell) i 3D-visningen, og lag snittet på nytt.</div>}
+        {empty && <div className="sec-empty">Fant verken terreng eller IFC-objekter langs linjen. Sjekk at du er på nett (terreng) og at en IFC-modell er synlig, og lag snittet på nytt.</div>}
       </div>
       <div className="sec-foot">
         {names.length > 1 && (
@@ -151,6 +153,7 @@ export default function SectionWindow({ section, title, onClose }: Props) {
         )}
         <div className="sec-status small muted" aria-live="polite">
           {msg || (hover ? `Avstand ${fmtNum(hover.s, 1)} m${hover.z !== null ? ` · terreng ${fmtNum(hover.z, 2)} m o.h.` : ''}` : 'Flytt musepekeren over snittet for å lese av avstand og terrenghøyde.')}
+          {note && !msg && <div>{note}</div>}
         </div>
       </div>
       <div className="sec-grip" title="Dra for å endre størrelsen" onPointerDown={gDown} onPointerMove={gMove} onPointerUp={gUp} onPointerCancel={gUp} />

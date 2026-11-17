@@ -703,3 +703,4 @@ body.picking .modal-back { visibility: hidden; }
 .mp-section .sec-go { flex: 1; padding: 6px 10px; border: 1px solid var(--green); color: var(--green); background: #fff; font-weight: 600; }
 .mp-section .sec-go:hover:not(:disabled) { background: #e3f4e8; }
 .mp-section .sec-go:disabled { opacity: 0.45; cursor: default; }
+.sec-busy { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); z-index: 1400; background: #26303a; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 13px; }
