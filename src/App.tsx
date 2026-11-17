@@ -277,6 +277,7 @@ export default function App() {
           <button className={view === 'settings' ? 'on' : ''} onClick={() => setView('settings')}>Innstillinger</button>
         </nav>
         <div className="topbar-right">
+          <a className="bugreport" href="https://forms.cloud.microsoft/e/waiwYtDeUX?origin=lprLink" target="_blank" rel="noopener noreferrer" title="Meld fra om feil i Feltkart (åpnes i et nytt vindu)">Bugreport <span aria-hidden="true">🪲</span></a>
           <ProjectMenu name={settings.projectName} onSettings={() => setView('settings')} />
           <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp</button>
         </div>

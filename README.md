@@ -328,3 +328,6 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 ## Sjekk ny versjon og Nullstill demodata i menyen (v 5.1)
 - Knappen nederst i venstre meny heter nå **Nullstill demodata** (tidligere «nullstill»).
 - Ny knapp **Sjekk ny versjon Feltkart** over den: gjør det samme som Ctrl + Shift + R. Hurtigbufferen tømmes og siden hentes på nytt, så du får nyeste publiserte versjon av Feltkart. Bilder, målinger og innstillinger beholdes. Nytt versjonsnummer vises når oppdateringen er publisert på GitHub; knappen kan ikke hente en versjon som ikke er publisert ennå.
+
+## Bugreport-knapp (v 5.2)
+- Øverst til høyre i toppfeltet står en knapp **Bugreport 🪲** som åpner skjemaet for feilmeldinger i et nytt vindu. Den vises i alle visninger.
