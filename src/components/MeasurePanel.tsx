@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { formatLength, historyTotals, summaryRows, summaryText } from '../lib/measure';
+import { formatDz, formatLength, formatPct, historyTotals, summaryRows, summaryText } from '../lib/measure';
 import type { HistoryRow, MeasureMode, Summary } from '../lib/measure';
 import { IconArea, IconClose, IconRuler } from './icons';
 
@@ -79,7 +79,7 @@ export default function MeasurePanel(p: Props) {
       <div className="mp-body">
         {rows.length === 0 && <div className="mp-hint">{hint}</div>}
         {rows.map((r) => (
-          <div key={r.label} className={`mp-row${r.strong ? ' strong' : ''}`}>
+          <div key={r.label} className={`mp-row${r.strong ? ' strong' : ''}${r.dh ? ' dh' : ''}`}>
             <span className="mp-label">{r.label}</span>
             <span className="mp-val">{r.value}{r.sub && <small>{r.sub}</small>}</span>
           </div>
@@ -128,16 +128,18 @@ export default function MeasurePanel(p: Props) {
                   <span className="mp-hist-n">{i + 1}</span>
                   {h.mode === 'area' ? <IconArea size={14} /> : <IconRuler size={14} />}
                   <span className="mp-hist-v">{h.value}</span>
+                  {h.dz !== null && <span className={`mp-hist-dh ${h.dz > 0.005 ? 'up' : h.dz < -0.005 ? 'down' : ''}`} title="Høydeforskjell (siste mot første punkt) og stigning/fall i prosent">Δh {formatDz(h.dz)}{h.pct !== null && ` (${formatPct(h.pct)})`}</span>}
                   {!h.finished && <small>pågår</small>}
                 </button>
                 <button className="icon-btn mp-del" title="Slett denne målingen" aria-label={`Slett måling ${i + 1}`} onClick={() => p.onDeleteItem?.(h.id)}><IconClose size={14} /></button>
               </li>
             ))}
           </ul>
-          {(totals.area || totals.length) && (
+          {(totals.area || totals.length || totals.dz) && (
             <div className="mp-hist-sum">
               {totals.area && <span>Sum areal: <b>{totals.area}</b></span>}
               {totals.length && <span>Sum lengde: <b>{totals.length}</b></span>}
+              {totals.dz && <span>Sum Δh: <b>{totals.dz}</b></span>}
             </div>
           )}
         </div>

@@ -304,3 +304,16 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 
 ## Info om ventetid ved demodata (v 4.9)
 - Velkomstboksen og fremdriftsvinduet for demodata oppgir nå antatt tid: **ca. 60 sekunder**.
+
+## Prosjektmenyen over kartet (v 4.10)
+- Nedtrekksmenyen for prosjekter lå bak kartet i Kart-visningen; toppfeltet ligger nå over kartlagene, så menyen vises i alle visninger.
+- Menyen har fått teksten **Prosjekt:** foran seg.
+- Menyen tegnes nå direkte i siden med fast plassering, så ikke noe annet kan skjule den.
+
+## Høydeforskjell (Δh) i målelisten (v 4.10)
+- I Terreng 3D vises **Δh** (høydeforskjell, siste mot første punkt, f.eks. «Δh +3,20 m») på hver avstandsmåling i målelisten, med grønn bakgrunn ved stigning og rød ved fall. Fra to målinger vises også **Sum Δh**.
+- I resultatpanelet er raden «Høydeforskjell (Δh)» fremhevet med egen bakgrunn og større tall, og den følger med når du kopierer resultatet.
+- I vanlig 2D-kart finnes ingen høydedata, så Δh vises bare i Terreng 3D.
+
+## Stigning/fall i prosent (v 4.11)
+- Sammen med Δh vises nå **stigning (+) eller fall (−) i prosent**, f.eks. «Δh +3,20 m (+6,4 %)», både i målelisten og i resultatpanelet (Terreng 3D). Prosenten er Δh delt på horisontal lengde. Med mer enn to punkter er det gjennomsnittet for hele målingen.

@@ -32,7 +32,7 @@ button { cursor: pointer; }
 
 /* ---------- Ramme ---------- */
 .app { display: flex; flex-direction: column; height: 100%; }
-.topbar { height: 48px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 20; }
+.topbar { height: 48px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); position: relative; z-index: 1900; /* over kartlagene (Leaflet bruker opptil 1000), under dialoger (2000) */ }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
 .logo { display: flex; }
 .topnav { display: flex; gap: 2px; height: 100%; }
@@ -42,9 +42,10 @@ button { cursor: pointer; }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .project-pill { display: flex; align-items: center; gap: 6px; border: 0; background: none; font-weight: 500; color: var(--ink-2); padding: 6px 8px; border-radius: 6px; }
 .project-pill:hover { background: var(--bg); }
-.project-menu { position: relative; }
+.project-menu { position: relative; display: flex; align-items: center; gap: 2px; }
+.pm-label { color: rgba(255, 255, 255, 0.72); font-size: 13px; }
 .pm-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pm-pop { position: absolute; right: 0; top: calc(100% + 6px); min-width: 230px; background: var(--panel); color: var(--ink); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25); padding: 6px; z-index: 3000; display: flex; flex-direction: column; }
+.pm-pop { position: fixed; min-width: 230px; background: var(--panel); color: var(--ink); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25); padding: 6px; z-index: 3000; display: flex; flex-direction: column; }
 .pm-head { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 6px 10px 4px; }
 .pm-item { display: flex; align-items: center; gap: 8px; border: 0; background: none; color: var(--ink); padding: 8px 10px; border-radius: 7px; text-align: left; font: inherit; cursor: pointer; }
 .pm-item:hover { background: var(--bg); }
@@ -207,6 +208,12 @@ button { cursor: pointer; }
 .mp-hist-item small { color: var(--muted); font-size: 11px; }
 .mp-del { flex: none; width: 24px; height: 24px; }
 .mp-hist-sum { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.mp-row.dh { margin-top: 2px; padding: 5px 8px; background: #fff4e5; border-radius: 6px; }
+.mp-row.dh .mp-label { color: #8a4b00; font-weight: 600; }
+.mp-row.dh .mp-val { font-size: 17px; color: #c2540c; }
+.mp-hist-dh { margin-left: auto; padding: 1px 7px; border-radius: 10px; background: #fff4e5; color: #8a4b00; font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp-hist-dh.up { background: #e3f4e8; color: #1b6b3a; }
+.mp-hist-dh.down { background: #fde8e8; color: #a12622; }
 .mp-hist-sum b { color: #c2540c; }
 .mp-snap { display: flex; align-items: center; gap: 7px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12.5px; cursor: pointer; }
 .mp-snap input { margin: 0; accent-color: #ef6c1a; }

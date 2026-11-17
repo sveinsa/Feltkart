@@ -39,6 +39,8 @@ export interface Row {
   value: string;
   sub?: string;
   strong?: boolean;
+  /** Fremhevet høydeforskjell (Δh) */
+  dh?: boolean;
 }
 
 const hasZ = (p: MPt): p is MPt & { z: number } => typeof p.z === 'number' && Number.isFinite(p.z);
@@ -205,8 +207,9 @@ export function summaryRows(s: Summary): Row[] {
     const withHeight = s.slope !== null;
     rows.push({ label: withHeight ? 'Horisontal lengde' : 'Lengde', value: formatLength(s.horizontal), sub: formatKm(s.horizontal) || undefined, strong: true });
     if (s.slope !== null) rows.push({ label: 'Skrå lengde', value: formatLength(s.slope), sub: formatKm(s.slope) || undefined });
-    if (s.dz !== null) rows.push({ label: 'Høydeforskjell', value: formatDz(s.dz), sub: 'siste mot første punkt' });
-    if (s.gradient !== null) rows.push({ label: 'Stigning', value: formatPct(s.gradient) });
+    if (s.dz !== null) rows.push({ label: 'Høydeforskjell (Δh)', value: formatDz(s.dz), sub: 'siste mot første punkt', dh: true });
+    if (s.gradient !== null) rows.push({ label: 'Stigning / fall', value: formatPct(s.gradient), dh: true });
+    else if (s.dz !== null && s.horizontal > 0) rows.push({ label: 'Snitt stigning / fall', value: formatPct((s.dz / s.horizontal) * 100), sub: 'Δh delt på horisontal lengde', dh: true });
     return rows;
   }
   if (s.count === 2) {
@@ -284,6 +287,10 @@ export interface HistoryRow {
   value: string;
   /** Areal i m² (bare ferdige arealmålinger) */
   area: number | null;
+  /** Høydeforskjell Δh i m, siste mot første punkt (bare avstandsmålinger i 3D der alle punkter har høyde) */
+  dz: number | null;
+  /** Stigning (+) eller fall (−) i prosent: Δh delt på horisontal lengde */
+  pct: number | null;
   /** Horisontal lengde i m (bare avstandsmålinger med minst to punkter) */
   length: number | null;
   /** Målingen som tegnes nå (resten er ferdige målinger i historikken) */
@@ -296,14 +303,18 @@ export function historyRow(it: { id: string; color: string; mode: MeasureMode; a
   const area = it.mode === 'area' && s.area !== null ? s.area : null;
   const length = it.mode === 'distance' && s.count >= 2 ? s.horizontal : null;
   const value = it.mode === 'area' ? (area !== null ? formatArea(area) : pts) : (length !== null ? formatLength(length) : pts);
-  return { id: it.id, color: it.color, mode: it.mode, value, area, length, active: it.active, finished: it.finished };
+  const dz = it.mode === 'distance' && s.dz !== null ? s.dz : null;
+  const pct = dz !== null && s.horizontal > 0 ? (dz / s.horizontal) * 100 : null;
+  return { id: it.id, color: it.color, mode: it.mode, value, area, dz, pct, length, active: it.active, finished: it.finished };
 }
 
 /** Sum av arealene og av lengdene i listen. Bare ferdige målinger regnes med, og summen vises først fra to målinger. */
-export function historyTotals(rows: HistoryRow[]): { area: string | null; length: string | null } {
+export function historyTotals(rows: HistoryRow[]): { area: string | null; length: string | null; dz: string | null } {
   const a = rows.filter((r) => r.area !== null && r.finished);
   const l = rows.filter((r) => r.length !== null && r.finished);
+  const d = rows.filter((r) => r.dz !== null && r.finished);
   return {
+    dz: d.length >= 2 ? formatDz(d.reduce((x, r) => x + (r.dz as number), 0)) : null,
     area: a.length >= 2 ? formatArea(a.reduce((x, r) => x + (r.area as number), 0)) : null,
     length: l.length >= 2 ? formatLength(l.reduce((x, r) => x + (r.length as number), 0)) : null,
   };
