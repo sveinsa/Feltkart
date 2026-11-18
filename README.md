@@ -380,7 +380,7 @@ På telefon vises hovedmenyen i egen rad øverst.
 - Kode: `src/lib/field/survey.ts` (sortering, filter, KOF/CSV), `src/lib/field/export.ts` (SOSI, LandXML, filnavn), `src/components/FieldPanel.tsx` (fanen).
 
 ## Android-bygget rettet (v 6.0)
-- Kotlin-feilen `onGeolocationShowPrompt overrides nothing` i `MainActivity.kt` er rettet (parametrene er nå «nullable», slik Android-SDK-en krever). Ingen endring i funksjonene.
+- Forsøk på å rette Kotlin-feilen `onGeolocationShowPrompt overrides nothing` ved å gjøre parameterne «nullable». **Dette var ikke riktig årsak, se v 6.4.**
 
 ## Innmåling-fanen (v 6.1)
 
@@ -403,3 +403,7 @@ På telefon vises hovedmenyen i egen rad øverst.
 - Ny knapp **Readme** i menyen til venstre (over «Sjekk ny versjon Feltkart») åpner en egen side i et nytt vindu: oversikt over Feltkart, kom i gang, fanene, filformater, måling og tverrsnitt, Android-appen, tips og **versjonshistorikk** (gruppert på hovedversjon, nyeste først). Siden har logoen og en innholdsliste som ruller til hver del.
 - Blokkerer nettleseren vinduet, og i Android-appen, vises den samme siden i en dialog.
 - **Vedlikehold:** legg en ny linje øverst i `CHANGELOG` i `src/lib/readme.ts` for hver ny versjon. Resten av siden bygges av `buildReadmeHtml` i samme fil.
+
+## Android-bygget rettet på ordentlig (v 6.4)
+- Årsaken til `onGeolocationShowPrompt overrides nothing` var at metoden i Android-SDK-en heter **`onGeolocationPermissionsShowPrompt`**. Navnet i `MainActivity.kt` er rettet. Funksjonen (be om posisjonstillatelse når nettsiden vil bruke `navigator.geolocation`) er den samme.
+- Den lokale kompileringssjekken brukte et forenklet Android-bibliotek med samme feil navn, og slapp derfor feilen gjennom. Det er rettet, og det gamle navnet gir nå samme feilmelding som i GitHub.

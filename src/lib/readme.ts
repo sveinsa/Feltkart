@@ -5,6 +5,7 @@ export interface Release { v: string; title: string; text: string }
 
 /** Versjonshistorikk, nyeste først. Legg til en linje øverst for hver ny versjon. */
 export const CHANGELOG: Release[] = [
+  { v: '6.4', title: 'Android-bygget rettet', text: 'Rettet feil metodenavn i Android-koden (posisjonstillatelse i WebView) som stoppet bygging av APK-en.' },
   { v: '6.3', title: 'Readme-knapp', text: 'Ny knapp «Readme» i menyen til venstre åpner denne siden i eget vindu, med oversikt og versjonshistorikk.' },
   { v: '6.2', title: 'Ett repo for web og app', text: 'Nettsiden og Android-appen bygges nå fra samme GitHub-repo. Android-bygget hoppes over uten feil hvis signeringsnøkkelen ikke er lagt inn.' },
   { v: '6.1', title: 'Innmåling-fanen', text: 'Register over innmålinger fra KOF, SOSI og LandXML med mappetre, filter per kolonne, sortering, valg av kolonner og koordinatsystem. Nedlasting som KOF, CSV, LandXML, DXF og SOSI. Selve målingen (Felt) finnes bare i Android-appen.' },

@@ -126,8 +126,8 @@ class MainActivity : ComponentActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
-            // Android-SDK-en oppgir parametrene som «kan være null», så de må deklareres slik for at metoden skal overstyres
-            override fun onGeolocationShowPrompt(origin: String?, callback: GeolocationPermissions.Callback?) {
+            // Navnet på metoden i Android-SDK-en er onGeolocationPermissionsShowPrompt. Parameterne er «plattformtyper», så både med og uten ? er lov.
+            override fun onGeolocationPermissionsShowPrompt(origin: String?, callback: GeolocationPermissions.Callback?) {
                 if (callback == null) return
                 val o = origin ?: ""
                 requestPerms(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) { r ->
