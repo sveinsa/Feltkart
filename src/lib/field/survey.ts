@@ -67,6 +67,10 @@ export interface FieldPoint {
   saved?: boolean;
 }
 
+/** Det eksportfunksjonene trenger. Målte punkter (FieldPoint) og punkter lest fra filer i prosjektet passer begge. */
+export type ExportPoint = Pick<FieldPoint, 'name' | 'code' | 'lat' | 'lng' | 'e' | 'n' | 'h' | 'time' | 'crs'>
+  & Partial<Pick<FieldPoint, 'poleHeight' | 'quality' | 'estimated' | 'accH' | 'n_epochs'>>;
+
 export function loadPoints(): FieldPoint[] {
   try { const p = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(p) ? p : []; } catch { return []; }
 }
@@ -97,13 +101,13 @@ export function makePoint(avg: Averaged, s: FieldSettings, crs: string, name: st
 export const safe = (t: string) => t.trim().replace(/\s+/g, '_').replace(/[^\p{L}\p{N}_.\-+]/gu, '') || 'X';
 
 /** Punktets koordinater (øst, nord) i ønsket system. Regnes om fra bredde/lengde, så punktene kan eksporteres i hvilket som helst system. */
-export function pointEN(p: FieldPoint, crs?: string): [number, number] {
+export function pointEN(p: Pick<FieldPoint, 'lat' | 'lng' | 'e' | 'n' | 'crs'>, crs?: string): [number, number] {
   if (!crs || crs === p.crs) return [p.e, p.n];
   return fromLatLng(crs, p.lat, p.lng);
 }
 
 /** KOF: «-05 punkt kode nord øst høyde». Filen kan leses av Feltkart og av vanlig anleggs-/oppmålingsprogramvare. */
-export function toKof(points: FieldPoint[], crs?: string): string {
+export function toKof(points: ExportPoint[], crs?: string): string {
   return points.map((p) => {
     const [e, n] = pointEN(p, crs);
     const parts = ['-05', safe(p.name)];
@@ -115,12 +119,12 @@ export function toKof(points: FieldPoint[], crs?: string): string {
   }).join('\n') + '\n';
 }
 
-export function toCsv(points: FieldPoint[], crs?: string): string {
+export function toCsv(points: ExportPoint[], crs?: string): string {
   const head = 'Punkt;Kode;Ost;Nord;Hoyde;Kvalitet;Usikkerhet_H_m;Epoker;Stanghoyde;Tid;System';
   const f = (v: number | null, d: number) => (v === null ? '' : v.toFixed(d).replace('.', ','));
   const rows = points.map((p) => {
     const [e, n] = pointEN(p, crs);
-    return [p.name, p.code, f(e, 3), f(n, 3), f(p.h, 3), QUALITY_LABEL[p.quality] + (p.estimated ? ' (anslått)' : ''), f(p.accH, 3), String(p.n_epochs), f(p.poleHeight, 3), p.time, crs || p.crs].join(';');
+    return [p.name, p.code, f(e, 3), f(n, 3), f(p.h, 3), p.quality ? QUALITY_LABEL[p.quality] + (p.estimated ? ' (anslått)' : '') : '', f(p.accH ?? null, 3), p.n_epochs === undefined ? '' : String(p.n_epochs), f(p.poleHeight ?? null, 3), p.time, crs || p.crs].join(';');
   });
   return '\ufeff' + [head, ...rows].join('\r\n') + '\r\n';
 }

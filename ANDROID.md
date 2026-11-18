@@ -98,7 +98,7 @@ Android-posisjon gir ikke RTK-status direkte. Feltkart **anslår** Fix/Float ut 
 7. **Bilde:** **Ta bilde** åpner kameraet. Bildet får RTK-posisjonen du hadde da du trykket på knappen, og havner i bildemappen.
 8. I **Kart** vises din posisjon som blå prikk. Knappen ◎ følger posisjonen.
 
-Punktene ligger trygt i enheten til du fjerner dem. **Felt-fanen finnes også i vanlig nettleser** (på PC og telefon) med enhetens posisjon; Bluetooth til FLX100 krever Android-appen.
+Punktene ligger trygt i enheten til du fjerner dem. **Felt-fanen (selve målingen) finnes bare i Android-appen.** I nettleseren finnes fanen **Innmåling**, som viser innmålingene i prosjektet (KOF, SOSI, LandXML) med filter, sortering og nedlasting – se README «Innmåling-fanen (v 6.1)».
 
 Hold appen åpen mens du måler (skjermen holdes våken når GNSS er tilkoblet). Trykk «Tilbake» for å legge appen i bakgrunnen uten å miste Bluetooth-forbindelsen.
 
@@ -117,6 +117,6 @@ Hold appen åpen mens du måler (skjermen holdes våken når GNSS er tilkoblet).
 
 ## Hva er og er ikke testet
 
-- Webdelen (Felt-fanen, NMEA-tolking, KOF, bilde, kart) er testet automatisk med en simulert Android-bro.
+- Webdelen (Felt-fanen i appen, NMEA-tolking, KOF, bilde, kart) er testet automatisk med en simulert Android-bro.
 - **Selve Android-appen (Kotlin) er ikke kompilert eller kjørt her**, fordi Android-verktøyene ikke finnes i dette arbeidsmiljøet. Første bygg på GitHub kan derfor gi en feilmelding som må rettes.
 - Ikke prøvd mot ekte Leica FLX100, ekte Zeno Connect eller ekte Google-innlogging på telefon.

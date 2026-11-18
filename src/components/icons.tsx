@@ -60,3 +60,6 @@ export const IconGoogle = ({ size = 18, ...rest }: P) => (
 );
 export const IconChevronDown = (p: P) => <Svg {...p}><path d="M6 9l6 6 6-6" /></Svg>;
 export const IconCheck = (p: P) => <Svg {...p}><path d="M5 12.5l4.5 4.5L19 7.5" /></Svg>;
+export const IconFilter = (p: P) => <Svg {...p}><path d="M4 5h16l-6 7.5V19l-4 1.5v-8L4 5z" /></Svg>;
+export const IconDownload = (p: P) => <Svg {...p}><path d="M12 4v12M7 11l5 5 5-5" /><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3" /></Svg>;
+export const IconSortUpDown = (p: P) => <Svg {...p}><path d="M8 5v14M5 8l3-3 3 3M16 19V5M13 16l3 3 3-3" /></Svg>;

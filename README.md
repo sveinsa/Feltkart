@@ -372,7 +372,7 @@ På telefon vises hovedmenyen i egen rad øverst.
 
 ## Felt i nettleseren, sortering og eksport (v 5.9)
 
-- **Felt-fanen finnes nå i vanlig nettleser** (ikke bare i Android-appen), uten `?felt=1`. Der brukes enhetens posisjon; direkte Bluetooth til FLX100 krever fortsatt appen. **Ta bilde** åpner kameraet på mobil og et filvalg på PC.
+- *(Erstattet i v 6.1: Felt-fanen med selve målingen finnes nå bare i Android-appen. Nettleseren har fanen Innmåling.)*
 - Ny fane **Punkter**: alle målte punkter i en tabell, **sortert på dato, kode, punktnavn eller høyde** (kolonneoverskrift eller nedtrekksliste), med **filter på kode og dato** (fra/til). Punkter uten kode havner alltid sist ved kodesortering. Likt resultat avgjøres av dato og så navn (P2 før P10).
 - **Koordinatsystem kan velges** (EUREF89 UTM og NTM). Punktene lagres med bredde/lengde og regnes om til valgt system ved visning og eksport. Valget huskes. Er prosjektet satt til grader (WGS84), brukes UTM til innmåling.
 - **Nedlasting til PC (eller telefon) som KOF, SOSI, LandXML og CSV**, i valgt koordinatsystem, med utvalget og rekkefølgen du har valgt. SOSI støttes i EUREF89 UTM sone 31–36 (SOSI 4.0, punktobjekter, UTF-8, mm-oppløsning); i NTM brukes KOF eller LandXML. LandXML skrives som 1.2 med `<CgPoints>`.
@@ -381,3 +381,14 @@ På telefon vises hovedmenyen i egen rad øverst.
 
 ## Android-bygget rettet (v 6.0)
 - Kotlin-feilen `onGeolocationShowPrompt overrides nothing` i `MainActivity.kt` er rettet (parametrene er nå «nullable», slik Android-SDK-en krever). Ingen endring i funksjonene.
+
+## Innmåling-fanen (v 6.1)
+
+- **Nettleseren har ingen målefunksjon.** Fanen «Felt» (RTK, Bluetooth, bilde, mål punkt) vises nå bare i Android-appen. I nettleseren heter fanen **Innmåling** og viser innmålingene som ligger i prosjektet.
+- **Innhold:** alle punkter fra KOF-, SOSI- og LandXML-filer i prosjektet (også de som er lagt inn fra Felt i appen eller hentet fra Google Disk), samlet i én tabell. Til venstre er et **mappetre** med antall punkter og hake per mappe (hake på en mappe tar med eller skjuler alt under den), og **Importer innmålinger** åpner vanlig opplasting.
+- **Tabell:** Punkt, Kode, Dato, X (nord), Y (øst), Z (høyde) og Fil, med **sortering** (trykk på overskriften) og **filter per kolonne** (trakt-ikonet): kode og fil velges fra en liste, punkt søkes i, dato og X/Y/Z har fra–til. **Legg til filter** gjør det samme fra én knapp, aktive filter vises som merkelapper, og **Fjern filter** nullstiller alt. **Vis kolonner** skjuler og viser kolonner (valget huskes). Punkter uten kode eller uten høyde havner alltid sist. Over 100 punkter deles i sider. Pin-ikonet viser punktet i kartet.
+- **Dato:** SOSI (`DATAFANGSTDATO`) og LandXML (`timeStamp`) har punktets egen dato. **KOF har ikke dato per punkt**, så der vises filens dato. Eksporterer du fra Felt-appen som SOSI eller LandXML følger måledatoen med.
+- **Koordinatsystem** velges øverst (EUREF89 UTM og NTM). Punktene regnes om til valgt system i tabellen og i nedlastingen.
+- **Last ned innmålinger** gir **KOF, CSV, LandXML, DXF** (og SOSI i UTM sone 31–36) i valgt koordinatsystem. Har du krysset av rader, lastes bare de ned. Ellers lastes alt som vises ned (etter filter og mapper). DXF er R12 (ASCII) med ett lag per kode, ett POINT per punkt og en tekst med punktnavn og høyde.
+- Ikke med: Flatekode, Linjekode, DZ og Stanghøyde (finnes ikke i KOF/SOSI/LandXML), og endring eller sletting av enkeltpunkter i filene.
+- Kode: `src/lib/field/register.ts` (rader, filter, sortering), `src/lib/field/export.ts` (nå også DXF), `src/components/SurveyRegister.tsx` (fanen). LandXML-leseren tar nå også med `timeStamp` som tid.

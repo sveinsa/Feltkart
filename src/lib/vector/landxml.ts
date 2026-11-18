@@ -111,6 +111,7 @@ export function parseLandXml(text: string, crs: string, mkLl: (crs: string) => L
       const attrs: Record<string, string> = { Punkt: p.attrs.name ?? '' };
       if (code) attrs.Kode = code;
       if (Number.isFinite(xyz[2])) attrs.Høyde = xyz[2].toFixed(3);
+      if (p.attrs.timeStamp) attrs.Tid = p.attrs.timeStamp;
       b.point(gName || (code ? `Kode ${code}` : 'Punkter'), 'LandXML punkt', xyz,
         Number.isFinite(xyz[2]) ? `${p.attrs.name ?? ''}\n${xyz[2].toFixed(2)}` : p.attrs.name, attrs);
     }
