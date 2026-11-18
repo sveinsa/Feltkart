@@ -17,6 +17,8 @@ export interface UploadOptions {
   stream?: boolean;
   /** IFC uten georeferanse: modellens origo */
   placement?: Placement;
+  /** Posisjon som overstyrer EXIF (bilder tatt med Feltkart i felt, med RTK-posisjon) */
+  positions?: Map<File, { lat: number; lng: number; altitude: number | null; heading?: number | null; takenAt?: string }>;
 }
 
 export type DxfState = { key: string; data?: ParsedDxf; error?: string; loading?: boolean };
@@ -371,6 +373,8 @@ export function useProject() {
           } else if (isImageFile(f)) {
             rep('leser bilde …');
             const p = await readPhoto(f);
+            const ov = opts.positions?.get(f);
+            if (ov) { p.lat = ov.lat; p.lng = ov.lng; p.altitude = ov.altitude; if (ov.heading !== undefined) p.heading = ov.heading; if (ov.takenAt) p.takenAt = ov.takenAt; }
             const driveId = driveIdOf(f);
             const streamed = !!(opts.stream && driveId);
             if (streamed) { rep('lager forhåndsvisning …'); p.blob = await makePreview(f, p.kind === 'pano' ? 4096 : 1600); }

@@ -378,3 +378,6 @@ På telefon vises hovedmenyen i egen rad øverst.
 - **Nedlasting til PC (eller telefon) som KOF, SOSI, LandXML og CSV**, i valgt koordinatsystem, med utvalget og rekkefølgen du har valgt. SOSI støttes i EUREF89 UTM sone 31–36 (SOSI 4.0, punktobjekter, UTF-8, mm-oppløsning); i NTM brukes KOF eller LandXML. LandXML skrives som 1.2 med `<CgPoints>`.
 - **Lagre i prosjektet** legger bare punkter som ikke allerede er lagret inn som KOF i *Innmålinger*. Punktene beholdes i tabellen med ✓ til du trykker **Fjern lagrede**. Tidligere ble listen tømt ved lagring.
 - Kode: `src/lib/field/survey.ts` (sortering, filter, KOF/CSV), `src/lib/field/export.ts` (SOSI, LandXML, filnavn), `src/components/FieldPanel.tsx` (fanen).
+
+## Android-bygget rettet (v 6.0)
+- Kotlin-feilen `onGeolocationShowPrompt overrides nothing` i `MainActivity.kt` er rettet (parametrene er nå «nullable», slik Android-SDK-en krever). Ingen endring i funksjonene.

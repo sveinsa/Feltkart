@@ -38,6 +38,10 @@ interface Props {
   onPlace: (lat: number, lng: number) => void;
   onTool: (t: Tool) => void;
   onMouseCoord: (ll: { lat: number; lng: number } | null) => void;
+  /** Live GNSS-posisjon fra Felt-funksjonene (Android-appen). Vises som blå prikk med usikkerhetssirkel. */
+  gnss?: { lat: number; lng: number; acc: number | null; fix: boolean } | null;
+  /** Hold kartet sentrert på GNSS-posisjonen */
+  gnssFollow?: boolean;
 }
 
 type DxfLayers = { key: string; groups: Map<string, L.LayerGroup>; added: Set<string> };
@@ -694,6 +698,27 @@ export default function MapView(props: Props) {
     return all.map((it) => historyRow(it, summarize(it.mode, toMeters(it.pts, props.projectCrs).mpts)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measureVer, props.projectCrs]);
+  // ---------- Live GNSS-posisjon (Felt) ----------
+  const gnssLayer = useRef<L.LayerGroup | null>(null);
+  const gnssFirst = useRef(true);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const g = props.gnss;
+    if (!g) { gnssLayer.current?.clearLayers(); gnssFirst.current = true; return; }
+    if (!gnssLayer.current) gnssLayer.current = L.layerGroup().addTo(map);
+    const lg = gnssLayer.current;
+    lg.clearLayers();
+    const at = L.latLng(g.lat, g.lng);
+    const col = g.fix ? '#1e88e5' : '#f9a825';
+    if (g.acc !== null && g.acc > 0) L.circle(at, { pane: 'measurePane', radius: Math.max(g.acc, 0.02), color: col, weight: 1, fillColor: col, fillOpacity: 0.15, interactive: false }).addTo(lg);
+    L.circleMarker(at, { pane: 'measurePane', radius: 11, stroke: false, fillColor: '#ffffff', fillOpacity: 0.9, interactive: false }).addTo(lg);
+    L.circleMarker(at, { pane: 'measurePane', radius: 7, color: '#ffffff', weight: 2, fillColor: col, fillOpacity: 1, interactive: false, className: 'gnss-dot' }).addTo(lg);
+    if (gnssFirst.current || props.gnssFollow) {
+      map.setView(at, Math.max(map.getZoom(), 18), { animate: !gnssFirst.current });
+      gnssFirst.current = false;
+    }
+  }, [props.gnss?.lat, props.gnss?.lng, props.gnss?.acc, props.gnss?.fix, !!props.gnss, props.gnssFollow]);
   /** Markør i kartet for pekeren i tverrsnittsvinduet */
   const cursorLayer = useRef<L.LayerGroup | null>(null);
   const showSectionCursor = (ll: { lng: number; lat: number } | null) => {

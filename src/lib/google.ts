@@ -1,6 +1,7 @@
 // Google Disk: innlogging (Google Identity Services), mappevelger (Google Picker) og oppretting av mapper (Drive API v3).
 // Oppsett av Client ID / API-nøkkel er beskrevet i README.
 import type { TemplateNode } from './templates';
+import { isNative, native } from './field/native';
 
 declare global {
   interface Window {
@@ -80,8 +81,17 @@ export async function getAccessToken(cfg: GoogleConfig, forcePrompt = false): Pr
     if (!cfg.apiKey) throw new Error('Demodata krever en Google API-nøkkel (legges inn under Innstillinger).');
     return KEY_PREFIX + cfg.apiKey;
   }
-  if (!cfg.clientId) throw new Error('Google Client ID mangler. Legg den inn under Innstillinger.');
   const scope = SCOPES[cfg.access ?? 'file'];
+  if (isNative()) {
+    // Android-appen: Googles innlogging åpnes i Chrome (ikke i appens eget vindu, det er ikke tillatt), og appen husker innloggingen.
+    const cid = androidClientId();
+    if (!cid) throw new Error('Android Client ID mangler. Legg den inn under Felt → Oppsett (se ANDROID.md).');
+    if (!forcePrompt && token && token.clientId === cid && token.scope === scope && token.expires > Date.now() + 60_000) return token.value;
+    const r = await native.call<{ accessToken: string; expiresIn: number }>('googleToken', { clientId: cid, scope, force: forcePrompt }, 300000);
+    token = { value: r.accessToken, expires: Date.now() + (Number(r.expiresIn) || 3600) * 1000, clientId: cid, scope };
+    return token.value;
+  }
+  if (!cfg.clientId) throw new Error('Google Client ID mangler. Legg den inn under Innstillinger.');
   if (!forcePrompt && token && token.clientId === cfg.clientId && token.scope === scope && token.expires > Date.now() + 60_000) return token.value;
   await loadScript('https://accounts.google.com/gsi/client');
   return new Promise((resolve, reject) => {
@@ -111,8 +121,16 @@ export async function fetchGoogleUser(): Promise<string | null> {
   return userName;
 }
 
+const ANDROID_CID_KEY = 'feltkart.androidClientId';
+/** Client ID for Android-appen (egen type i Google Cloud, ikke den samme som nettsiden bruker) */
+export function androidClientId(): string {
+  try { return localStorage.getItem(ANDROID_CID_KEY)?.trim() || ((import.meta as any).env?.VITE_ANDROID_CLIENT_ID ?? ''); } catch { return ''; }
+}
+export function setAndroidClientId(v: string) { try { localStorage.setItem(ANDROID_CID_KEY, v.trim()); } catch { /* ignorer */ } }
+
 export function signOut() {
   userName = null;
+  if (isNative()) native.call('googleSignOut', {}).catch(() => {});
   if (token && window.google?.accounts?.oauth2) window.google.accounts.oauth2.revoke(token.value, () => {});
   token = null;
 }
