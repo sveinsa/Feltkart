@@ -313,7 +313,7 @@ button { cursor: pointer; }
 .viewer-note { padding: 10px 16px; background: #1a1d22; color: #d6d9de; }
 .pano { position: absolute; inset: 0; cursor: grab; }
 .pano:active { cursor: grabbing; }
-.pano canvas { display: block; }
+.pano canvas { display: block; touch-action: none; }
 .pano-status { position: absolute; inset: 0; display: grid; place-items: center; color: #c9ccd1; }
 .pano-hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(0, 0, 0, 0.55); padding: 5px 12px; border-radius: 999px; font-size: 12px; pointer-events: none; }
 
@@ -679,7 +679,7 @@ body.picking .modal-back { visibility: hidden; }
 .topbar a.bugreport:hover { background: rgba(255, 255, 255, 0.12); }
 
 /* Tverrsnitt: eget flyttbart vindu */
-.sec-win { position: fixed; z-index: 1500; background: #fff; border: 1px solid #b9c2cc; border-radius: 10px; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.28); display: flex; flex-direction: column; max-width: calc(100vw - 8px); }
+.sec-win { position: fixed; z-index: 1950; background: #fff; border: 1px solid #b9c2cc; border-radius: 10px; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.28); display: flex; flex-direction: column; max-width: calc(100vw - 8px); }
 .sec-head { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 12px; background: var(--green); color: #fff; border-radius: 9px 9px 0 0; cursor: move; touch-action: none; user-select: none; }
 .sec-head .muted { color: rgba(255, 255, 255, 0.85); margin-right: auto; }
 .sec-head .icon-btn { color: #fff; }
@@ -704,3 +704,9 @@ body.picking .modal-back { visibility: hidden; }
 .mp-section .sec-go:hover:not(:disabled) { background: #e3f4e8; }
 .mp-section .sec-go:disabled { opacity: 0.45; cursor: default; }
 .sec-busy { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); z-index: 1400; background: #26303a; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 13px; }
+
+/* 360-visning direkte i bildedialogen (v 5.7) */
+.info-pano { position: relative; width: 100%; height: min(52vh, 560px); background: #111 center / cover no-repeat; overflow: hidden; }
+.info-pano .pano { position: absolute; inset: 0; }
+.info-pano .pano-hint { bottom: 10px; font-size: 11px; padding: 3px 10px; }
+@media (max-width: 900px) { .info-pano { height: 34vh; } }

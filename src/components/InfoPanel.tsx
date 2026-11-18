@@ -5,6 +5,7 @@ import { crsName, CRS_LIST, formatProjected, fmt } from '../lib/crs';
 import { IconChevron, IconClose, IconExpand, IconPano, IconPin, IconTrash } from './icons';
 import { FORMAT_LABEL } from '../lib/vector';
 import { useMemo } from 'react';
+import PanoViewer from './PanoViewer';
 
 interface Props {
   project: Project;
@@ -16,6 +17,8 @@ interface Props {
   /** Alle bilder i visningsrekkefølge, brukes til å bla i forhåndsvisningen */
   photos: PhotoItem[];
   onSelectItem: (id: string) => void;
+  /** Fullskjermvisning er åpen: da hviler 360-visningen i dialogen (sparer grafikkminne) */
+  viewerOpen?: boolean;
 }
 
 function Section({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
@@ -37,32 +40,46 @@ const Row = ({ k, v }: { k: string; v: ReactNode }) => (
 
 const dateFmt = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'medium', timeStyle: 'short' });
 
-/** Stor forhåndsvisning med bla-knapper. Bruker bildefilen (ikke miniatyren) slik at den blir skarp. */
-function PhotoPreview({ p, index, total, onPrev, onNext, onOpen }: {
-  p: PhotoItem; index: number; total: number; onPrev?: () => void; onNext?: () => void; onOpen: () => void;
+/** Forsinker en verdi litt, slik at 360-visningen ikke startes for hvert bilde når man blar raskt */
+function useSettled<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
+  return v;
+}
+
+/** Stor forhåndsvisning med bla-knapper. Bruker bildefilen (ikke miniatyren) slik at den blir skarp.
+ *  360-bilder vises som levende 360-visning rett i dialogen (dra for å rotere, rull for å zoome). */
+function PhotoPreview({ p, index, total, onPrev, onNext, onOpen, paused }: {
+  p: PhotoItem; index: number; total: number; onPrev?: () => void; onNext?: () => void; onOpen: () => void; paused?: boolean;
 }) {
   const url = useMemo(() => URL.createObjectURL(p.blob), [p.id, p.blob]);
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  const isPano = p.kind === 'pano';
+  const settledId = useSettled(p.id, 180);
+  const live = isPano && !paused && settledId === p.id;
   return (
     <div className="info-preview">
-      <button className="info-preview-img" onClick={onOpen} title={p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne i fullskjerm'}>
-        <img src={url} alt={p.name} style={{ backgroundImage: `url(${p.thumb})` }} />
-        <span className="info-open">{p.kind === 'pano' ? 'Åpne 360-visning' : 'Åpne fullskjerm'}</span>
-      </button>
+      {isPano ? (
+        <div className="info-pano" data-live={live ? '1' : '0'} style={{ backgroundImage: `url(${p.thumb})` }}>
+          {live && <PanoViewer blob={p.blob} key={p.id} />}
+        </div>
+      ) : (
+        <button className="info-preview-img" onClick={onOpen} title="Åpne i fullskjerm">
+          <img src={url} alt={p.name} style={{ backgroundImage: `url(${p.thumb})` }} />
+          <span className="info-open">Åpne fullskjerm</span>
+        </button>
+      )}
       {onPrev && <button className="info-nav prev" onClick={onPrev} aria-label="Forrige bilde" title="Forrige (←)"><IconChevron size={22} style={{ transform: 'rotate(180deg)' }} /></button>}
       {onNext && <button className="info-nav next" onClick={onNext} aria-label="Neste bilde" title="Neste (→)"><IconChevron size={22} /></button>}
       <span className="info-count">{index + 1} / {total}</span>
       <div className="info-actions">
-        {p.kind === 'pano' && (
-          <button className="btn primary" onClick={onOpen}><IconPano size={18} /> Åpne i 360-visning</button>
-        )}
-        <button className={p.kind === 'pano' ? 'btn' : 'btn primary'} onClick={onOpen}><IconExpand size={18} /> Åpne fullskjerm</button>
+        <button className="btn primary" onClick={onOpen}>{isPano ? <IconPano size={18} /> : <IconExpand size={18} />} {isPano ? 'Åpne 360 i fullskjerm' : 'Åpne fullskjerm'}</button>
       </div>
     </div>
   );
 }
 
-export default function InfoPanel({ project, selection, onClose, onOpenViewer, onStartPlace, onZoomTo, photos, onSelectItem }: Props) {
+export default function InfoPanel({ project, selection, onClose, onOpenViewer, onStartPlace, onZoomTo, photos, onSelectItem, viewerOpen }: Props) {
   const [confirmDel, setConfirmDel] = useState(false);
   useEffect(() => setConfirmDel(false), [selection]);
   // Endringer samles i et utkast til du trykker Lagre
@@ -176,7 +193,7 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
           <PhotoPreview p={p} index={photoIdx} total={photos.length}
             onPrev={photoIdx > 0 ? () => go(-1) : undefined}
             onNext={photoIdx >= 0 && photoIdx < photos.length - 1 ? () => go(1) : undefined}
-            onOpen={() => onOpenViewer(p.id)} />
+            onOpen={() => onOpenViewer(p.id)} paused={viewerOpen} />
           <Section title="Bilde">
             <div className="field">
               <label>Notat</label>

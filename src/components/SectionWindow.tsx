@@ -63,6 +63,25 @@ export default function SectionWindow({ section, title, note, onCursor, onClose 
     onCursor?.(inside ? positionAtS(section, s) : null);
   };
 
+  // Tittelen skal alltid kunne nås: vinduet kan ikke dras helt ut av skjermen
+  const clampPos = (x: number, y: number) => {
+    const w = (win.current?.offsetWidth ?? size.w + 2);
+    const keep = 150; // så mye av bredden som alltid er synlig
+    return {
+      x: Math.round(Math.max(keep - w, Math.min(window.innerWidth - keep, x))),
+      y: Math.round(Math.max(0, Math.min(window.innerHeight - 56, y))),
+    };
+  };
+  useEffect(() => {
+    const fit = () => setPos((p) => clampPos(p.x, p.y));
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size.w]);
+  /** Dobbeltklikk på tittelen setter vinduet tilbake til standardplassen */
+  const resetPos = () => setPos({ x: Math.max(8, Math.round(window.innerWidth / 2 - 380)), y: 84 });
+
   // Flytte vinduet
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const onDown = (e: React.PointerEvent) => {
@@ -72,7 +91,7 @@ export default function SectionWindow({ section, title, note, onCursor, onClose 
   };
   const onDrag = (e: React.PointerEvent) => {
     if (!drag.current) return;
-    setPos({ x: Math.max(-300, Math.min(window.innerWidth - 120, e.clientX - drag.current.dx)), y: Math.max(0, Math.min(window.innerHeight - 40, e.clientY - drag.current.dy)) });
+    setPos(clampPos(e.clientX - drag.current.dx, e.clientY - drag.current.dy));
   };
   const onUp = () => { drag.current = null; };
 
@@ -132,7 +151,7 @@ export default function SectionWindow({ section, title, note, onCursor, onClose 
 
   return (
     <div className="sec-win" ref={win} role="dialog" aria-label={title} style={{ left: pos.x, top: pos.y, width: size.w + 2, }}>
-      <div className="sec-head" onPointerDown={onDown} onPointerMove={onDrag} onPointerUp={onUp} onPointerCancel={onUp}>
+      <div className="sec-head" title="Dra for å flytte. Dobbeltklikk for å sette tilbake på standardplassen." onDoubleClick={(e) => { if (!(e.target as HTMLElement).closest('button')) resetPos(); }} onPointerDown={onDown} onPointerMove={onDrag} onPointerUp={onUp} onPointerCancel={onUp}>
         <b>{title}</b>
         <span className="muted small">A → B · {fmtNum(section.length, 1)} m</span>
         <button className="icon-btn" title="Lukk snittet" aria-label="Lukk snittet" onClick={onClose}><IconClose size={16} /></button>

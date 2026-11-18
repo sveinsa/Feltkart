@@ -408,6 +408,7 @@ export default function App() {
               onZoomTo={zoomToItem}
               photos={photos}
               onSelectItem={(id) => setSelection({ type: 'item', id })}
+              viewerOpen={!!viewerId}
             />
 
             <div className="coord-bar">

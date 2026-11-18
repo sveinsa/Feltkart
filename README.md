@@ -350,3 +350,16 @@ Verktøylinjen har to målevalg med tekst, **Avstand** og **Areal**. Samme måle
 
 ## Markør i kartet fra tverrsnittet (v 5.5)
 - Når du flytter musepekeren langs snittet, vises en **rød markør i kartet (2D og 3D)** på det stedet på måle-linjen som pekeren er over i snittet. Den følger også med rundt knekk i linjen, og forsvinner når pekeren forlater snittet eller du lukker vinduet.
+
+## Snittvinduet kan ikke «henge seg opp» (v 5.6)
+- Snittvinduet kan ikke lenger dras ut av skjermen eller bak toppfeltet: tittelen (med lukk-knappen) er alltid synlig og lagt over toppfeltet. Vinduet justeres også automatisk hvis nettleservinduet gjøres mindre.
+- **Dobbeltklikk på tittelen** setter vinduet tilbake på standardplassen.
+
+## 360-bilder kan roteres rett i bildedialogen (v 5.7)
+
+Når du velger et 360-bilde (i kartet eller i Bilder-panelet), vises det nå som en levende 360-visning inne i dialogen til høyre i stedet for et flatt panorama:
+
+- **Dra** med musen (eller fingeren) for å se rundt, **rull** for å zoome.
+- Bla med pilene eller piltastene, så bytter visningen til neste 360-bilde (visningen starter etter et lite øyeblikk, så det går raskt å bla forbi).
+- Knappen **«Åpne 360 i fullskjerm»** åpner den store visningen som før. Mens fullskjermen er åpen hviler visningen i dialogen, så nettleseren ikke bruker to 360-visninger samtidig.
+- Vanlige bilder er uendret (flatt bilde, klikk åpner fullskjerm).
