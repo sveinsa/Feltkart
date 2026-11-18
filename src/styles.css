@@ -857,3 +857,8 @@ th .rg-pop { top: 100%; left: 0; }
 .rg-menu-h { padding: 6px 10px 8px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); margin-bottom: 4px; }
 .rg-cols label { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 13.5px; }
 @media (max-width: 800px) { .rg { flex-direction: column; } .rg-side { width: auto; max-height: 34%; border-right: 0; border-bottom: 1px solid var(--line); } .rg-crs { margin-left: 0; } }
+
+/* ---------- Readme ---------- */
+.modal.readme { width: min(1040px, 100%); height: min(86vh, 900px); }
+.readme-frame { flex: 1; width: 100%; border: 0; border-radius: 0 0 12px 12px; background: #f5f8f6; min-height: 0; }
+.rail button.rail-readme { color: var(--brand); }

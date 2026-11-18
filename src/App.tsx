@@ -23,17 +23,19 @@ import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
 import FieldPanel from './components/FieldPanel';
 import SurveyRegister from './components/SurveyRegister';
+import ReadmeDialog from './components/ReadmeDialog';
+import { openReadmeWindow } from './lib/readme';
 import { useGnss } from './lib/field/useGnss';
 import { installDownloadShim, isNative } from './lib/field/native';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
 import SyncDialog from './components/SyncDialog';
-import { VERSION_LABEL } from './version';
+import { VERSION, VERSION_LABEL } from './version';
 import { fetchDriveBlob } from './lib/google';
 import { hasDemoSource, loadDemoData } from './lib/demoLoad';
 import { basemapById } from './lib/basemaps';
 import { crsName, formatProjected } from './lib/crs';
 import {
-  IconArea, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRefresh, IconRuler, IconSettings, IconTrash, IconUpload,
+  IconArea, IconBook, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRefresh, IconRuler, IconSettings, IconTrash, IconUpload,
 } from './components/icons';
 
 type View = 'map' | 'photos' | 'gallery' | 'files' | 'terrain3d' | 'settings' | 'field' | 'survey';
@@ -58,6 +60,7 @@ export default function App() {
   const demoStarted = useRef(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [readmeOpen, setReadmeOpen] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
@@ -255,6 +258,8 @@ export default function App() {
   if (!ready || !settings) return <div className="loading">Laster prosjekt …</div>;
 
   const native = isNative();
+  /** Readme i eget vindu. I appen, eller hvis nettleseren blokkerer vinduet, vises den i en dialog. */
+  const openReadme = () => { if (native || !openReadmeWindow(VERSION, VERSION_LABEL)) setReadmeOpen(true); };
   /** Fra Innmåling: vis ett punkt i kartet */
   const showPoint = (lat: number, lng: number) => {
     setView('map');
@@ -310,6 +315,7 @@ export default function App() {
           <button title="Last opp" onClick={() => setUpload({ files: [] })}><IconUpload size={20} /></button>
           <button title="Google Disk (beta)" className="rail-google" onClick={() => setSyncOpen(true)}><IconGoogle size={20} /><span className="rail-beta">beta</span></button>
           <div className="rail-spacer" />
+          <button className="rail-text rail-readme" title="Readme – om Feltkart, hjelp og versjonshistorikk (åpnes i eget vindu)" onClick={openReadme}><IconBook size={18} /><span>Readme</span></button>
           <button className="rail-text rail-update" title="Sjekk ny versjon Feltkart – gjør det samme som Ctrl + Shift + R. Dine data beholdes." onClick={() => { showToast('Sjekker ny versjon av Feltkart …'); void hardRefresh(); }}><IconRefresh size={18} /><span>Sjekk ny versjon Feltkart</span></button>
           <button className="rail-text rail-reset" title="Nullstill demodata – slett alt innhold" onClick={() => setResetOpen(true)}><IconTrash size={18} /><span>Nullstill demodata</span></button>
           <button className={view === 'settings' ? 'on' : ''} title="Innstillinger" onClick={() => setView('settings')}><IconSettings size={20} /></button>
@@ -481,6 +487,7 @@ export default function App() {
         </main>
       </div>
 
+      {readmeOpen && <ReadmeDialog version={VERSION} versionLabel={VERSION_LABEL} onClose={() => setReadmeOpen(false)} />}
       {resetOpen && (
         <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && setResetOpen(false)}>
           <div className="modal welcome">

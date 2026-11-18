@@ -63,3 +63,4 @@ export const IconCheck = (p: P) => <Svg {...p}><path d="M5 12.5l4.5 4.5L19 7.5" 
 export const IconFilter = (p: P) => <Svg {...p}><path d="M4 5h16l-6 7.5V19l-4 1.5v-8L4 5z" /></Svg>;
 export const IconDownload = (p: P) => <Svg {...p}><path d="M12 4v12M7 11l5 5 5-5" /><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3" /></Svg>;
 export const IconSortUpDown = (p: P) => <Svg {...p}><path d="M8 5v14M5 8l3-3 3 3M16 19V5M13 16l3 3 3-3" /></Svg>;
+export const IconBook = (p: P) => <Svg {...p}><path d="M5 4.5A1.5 1.5 0 016.5 3H19v15H6.5A1.5 1.5 0 005 19.5v-15z" /><path d="M5 19.5A1.5 1.5 0 006.5 21H19v-3" /><path d="M9 7.5h6M9 11h6" /></Svg>;

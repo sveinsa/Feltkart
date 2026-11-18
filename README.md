@@ -398,3 +398,8 @@ På telefon vises hovedmenyen i egen rad øverst.
 - Nettsiden publiseres av `deploy.yml` (GitHub Pages). APK-en bygges av `android.yml` og ligger som Release `android-latest`: `https://github.com/sveinsa/Feltkart/releases/download/android-latest/Feltkart.apk`.
 - Signeringsnøkkelen (`KEYSTORE_B64`) må legges inn som *Repository secret* i `sveinsa/Feltkart` (ANDROID.md, trinn 2).
 - `android.yml` hopper nå over APK-byggingen med en grå melding i stedet for en rød feil hvis nøkkelen mangler, slik at nettsiden aldri påvirkes.
+
+## Readme-knapp (v 6.3)
+- Ny knapp **Readme** i menyen til venstre (over «Sjekk ny versjon Feltkart») åpner en egen side i et nytt vindu: oversikt over Feltkart, kom i gang, fanene, filformater, måling og tverrsnitt, Android-appen, tips og **versjonshistorikk** (gruppert på hovedversjon, nyeste først). Siden har logoen og en innholdsliste som ruller til hver del.
+- Blokkerer nettleseren vinduet, og i Android-appen, vises den samme siden i en dialog.
+- **Vedlikehold:** legg en ny linje øverst i `CHANGELOG` i `src/lib/readme.ts` for hver ny versjon. Resten av siden bygges av `buildReadmeHtml` i samme fil.
