@@ -392,3 +392,9 @@ På telefon vises hovedmenyen i egen rad øverst.
 - **Last ned innmålinger** gir **KOF, CSV, LandXML, DXF** (og SOSI i UTM sone 31–36) i valgt koordinatsystem. Har du krysset av rader, lastes bare de ned. Ellers lastes alt som vises ned (etter filter og mapper). DXF er R12 (ASCII) med ett lag per kode, ett POINT per punkt og en tekst med punktnavn og høyde.
 - Ikke med: Flatekode, Linjekode, DZ og Stanghøyde (finnes ikke i KOF/SOSI/LandXML), og endring eller sletting av enkeltpunkter i filene.
 - Kode: `src/lib/field/register.ts` (rader, filter, sortering), `src/lib/field/export.ts` (nå også DXF), `src/components/SurveyRegister.tsx` (fanen). LandXML-leseren tar nå også med `timeStamp` som tid.
+
+## Ett repo for web og app (v 6.2)
+- Web og Android-app bygges nå fra samme repo, **`sveinsa/Feltkart`**. Repoet `Feltkart_android` brukes ikke lenger.
+- Nettsiden publiseres av `deploy.yml` (GitHub Pages). APK-en bygges av `android.yml` og ligger som Release `android-latest`: `https://github.com/sveinsa/Feltkart/releases/download/android-latest/Feltkart.apk`.
+- Signeringsnøkkelen (`KEYSTORE_B64`) må legges inn som *Repository secret* i `sveinsa/Feltkart` (ANDROID.md, trinn 2).
+- `android.yml` hopper nå over APK-byggingen med en grå melding i stedet for en rød feil hvis nøkkelen mangler, slik at nettsiden aldri påvirkes.

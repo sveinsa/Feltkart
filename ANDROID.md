@@ -14,13 +14,13 @@ APK-en bygges **automatisk av GitHub** hver gang du laster opp endringer. Du tre
 ## Engangsoppsett (ca. 10 minutter)
 
 ### 1. Last opp filene til GitHub
-Last opp innholdet i denne mappen til GitHub-repoet ditt, slik du har gjort før (inkludert mappene `android` og `.github`).
+Last opp innholdet i denne mappen til GitHub-repoet **`sveinsa/Feltkart`**, slik du har gjort før (inkludert mappene `android` og `.github`). Web og app bygges fra samme repo: nettsiden publiseres til GitHub Pages, og APK-en bygges av en egen jobb.
 
 ### 2. Legg inn signeringsnøkkelen (hemmelighet)
 Android krever at alle apper er «signert». Du har fått en fil, **`KEYSTORE_B64.txt`**. Den inneholder nøkkelen din som tekst.
 
 1. Åpne filen `KEYSTORE_B64.txt` i Notisblokk og **kopier hele innholdet** (én lang linje).
-2. På GitHub: åpne repoet → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+2. På GitHub: åpne repoet `sveinsa/Feltkart` → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
 3. **Name:** `KEYSTORE_B64` · **Secret:** lim inn teksten → **Add secret**.
 
 > Hold nøkkelen privat. Ikke legg `KEYSTORE_B64.txt` eller `.jks`-filen i repoet. Mister du nøkkelen, kan du ikke oppdatere appen over den gamle (du må avinstallere først).
@@ -29,7 +29,7 @@ Android krever at alle apper er «signert». Du har fått en fil, **`KEYSTORE_B6
 1. Gå til fanen **Actions** → **Bygg Android-app (APK)** → **Run workflow** (eller bare last opp en endring).
 2. Vent 5–10 minutter til den får grønn hake.
 3. Gå til **Releases** (høyre side av repoet) → **Feltkart for Android** → last ned **`Feltkart.apk`**.
-   Fast lenke (bytt ut brukernavn og repo): `https://github.com/BRUKERNAVN/REPO/releases/download/android-latest/Feltkart.apk`
+   Fast lenke: `https://github.com/sveinsa/Feltkart/releases/download/android-latest/Feltkart.apk`
    (Repoet må være offentlig for at lenken skal virke uten innlogging.)
 
 ### 4. Installer på telefonen
