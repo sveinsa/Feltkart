@@ -21,6 +21,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 const Terrain3D = lazy(() => import('./components/Terrain3D'));
 import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
+import FieldPanel from './components/FieldPanel';
+import { useGnss } from './lib/field/useGnss';
+import { installDownloadShim } from './lib/field/native';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
 import SyncDialog from './components/SyncDialog';
 import { VERSION_LABEL } from './version';
@@ -32,7 +35,8 @@ import {
   IconArea, IconCalendar, IconEdit, IconFolder, IconGoogle, IconExtent, IconGrid, IconLayers, IconMap, IconPointer, IconRefresh, IconRuler, IconSettings, IconTrash, IconUpload,
 } from './components/icons';
 
-type View = 'map' | 'photos' | 'gallery' | 'files' | 'terrain3d' | 'settings';
+type View = 'map' | 'photos' | 'gallery' | 'files' | 'terrain3d' | 'settings' | 'field';
+/** «Felt» (RTK, bilde, innmåling og eksport) finnes både i nettleseren og i Android-appen. */
 type Panel = 'tree' | 'basemap' | null;
 
 export default function App() {
@@ -66,6 +70,9 @@ export default function App() {
   const fitSeq = useRef(0);
   const didInitialFit = useRef(false);
 
+  const gnss = useGnss();
+  const [followGnss, setFollowGnss] = useState(false);
+  useEffect(() => { installDownloadShim((n, w) => showToast(`${n} lagret i ${w}`), (e) => showToast('Kunne ikke lagre filen: ' + e.message)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     window.clearTimeout((showToast as any)._t);
@@ -272,6 +279,7 @@ export default function App() {
         <nav className="topnav">
           <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')}>Kart</button>
           <button className={view === 'photos' || view === 'gallery' ? 'on' : ''} onClick={() => setView('photos')}>Bilder</button>
+          <button className={view === 'field' ? 'on' : ''} onClick={() => setView('field')}>Felt</button>
           <button className={view === 'files' ? 'on' : ''} onClick={() => setView('files')}>Prosjektfiler</button>
           <button className={view === 'terrain3d' ? 'on' : ''} onClick={() => setView('terrain3d')}>Terreng 3D <span className="beta-tag">beta</span></button>
         </nav>
@@ -342,7 +350,12 @@ export default function App() {
               onPlace={onPlace}
               onTool={(t) => { setTool(t); setPlacingId(null); }}
               onMouseCoord={setCoord}
+              gnss={gnss.connected && gnss.lat !== null && gnss.lng !== null ? { lat: gnss.lat, lng: gnss.lng, acc: gnss.accH, fix: gnss.quality === 'fix' } : null}
+              gnssFollow={followGnss}
             />
+            {gnss.connected && gnss.lat !== null && (
+              <button className={`gnss-follow${followGnss ? ' on' : ''}`} title={followGnss ? 'Slutt å følge posisjonen' : 'Følg min posisjon'} aria-pressed={followGnss} onClick={() => setFollowGnss((f) => !f)}>◎</button>
+            )}
 
             <div className="map-toolbar">
               <div className="tb-group">
@@ -447,6 +460,9 @@ export default function App() {
               onUpload={() => setUpload({ files: [] })} onDrive={() => setSyncOpen(true)} />
           )}
           {view === 'settings' && <SettingsView project={project} />}
+          <div className="field-host" style={{ display: view === 'field' ? 'block' : 'none' }}>
+            <FieldPanel project={project} onToast={showToast} onShowOnMap={() => { setView('map'); setFollowGnss(true); }} />
+          </div>
         </main>
       </div>
 

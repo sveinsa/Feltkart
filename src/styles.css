@@ -352,7 +352,8 @@ button { cursor: pointer; }
 
 @media (max-width: 900px) {
   .side-panel { position: absolute; left: 48px; top: 48px; bottom: 0; z-index: 950; box-shadow: var(--shadow); }
-  .topnav { display: none; }
+  .topnav { overflow-x: auto; flex: 1 1 auto; min-width: 0; scrollbar-width: none; }
+  .topnav button { white-space: nowrap; }
   .info-panel { width: calc(100% - 20px); top: auto; bottom: 44px; max-height: 50%; }
   .form-grid { grid-template-columns: 1fr; }
 }
@@ -710,3 +711,70 @@ body.picking .modal-back { visibility: hidden; }
 .info-pano .pano { position: absolute; inset: 0; }
 .info-pano .pano-hint { bottom: 10px; font-size: 11px; padding: 3px 10px; }
 @media (max-width: 900px) { .info-pano { height: 34vh; } }
+
+/* ---------- Felt (RTK, bilde, innmåling) og mobilvisning – v 5.8 ---------- */
+.field-host { position: absolute; inset: 0; overflow: auto; background: var(--bg); }
+.fld { max-width: 980px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.fld-card { background: var(--panel); border: 1px solid var(--line-2); border-left: 8px solid var(--line-2); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.fld-card.q-fix { border-left-color: #2e9d57; } .fld-card.q-float { border-left-color: #f2a900; } .fld-card.q-bad { border-left-color: #e8590c; } .fld-card.q-none { border-left-color: #9aa0a8; }
+.fld-q { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fld-qtxt { font-size: 20px; } .fld-acc { font-size: 18px; font-variant-numeric: tabular-nums; }
+.fld-est { font-size: 11px; background: #fff3cd; border-radius: 999px; padding: 1px 8px; }
+.fld-msg { color: var(--muted); font-size: 12px; }
+.fld-coords { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px 12px; font-variant-numeric: tabular-nums; font-size: 15px; }
+.fld-coords i { display: block; font-style: normal; font-size: 11px; color: var(--muted); }
+.fld-conn, .fld-bt { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.fld-conn select { flex: 1 1 200px; min-height: 40px; }
+.fld-devs { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
+.fld-tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; padding: 4px; }
+.fld-tabs button { flex: 1; border: 0; background: transparent; padding: 10px 6px; border-radius: 7px; font-weight: 600; }
+.fld-tabs button.on { background: var(--brand); color: #fff; }
+.fld-sec { background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.fld-sec label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); flex: 1; }
+.fld-sec input, .fld-sec select, .fld-sec textarea { min-height: 40px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 6px; background: #fff; color: var(--ink); font-size: 15px; }
+.fld-sec .fld-check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); }
+.fld-sec .fld-check input { min-height: 0; width: 20px; height: 20px; }
+.fld-row { display: flex; gap: 10px; }
+.fld-codes { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.fld-big { justify-content: center; font-size: 18px; padding: 16px; min-height: 56px; }
+.fld-warn, .fld-err { background: #fff3cd; border: 1px solid #f0d27a; border-radius: 8px; padding: 8px 10px; font-size: 13px; white-space: pre-wrap; }
+.fld-err { background: #fde8e6; border-color: #f0b4ad; color: #8a1f14; }
+.fld-busy { background: var(--brand-soft); border-radius: 8px; padding: 8px 10px; }
+.fld-bar { height: 6px; background: #fff; border-radius: 3px; margin-top: 6px; overflow: hidden; } .fld-bar i { display: block; height: 100%; background: var(--brand); transition: width 0.2s; }
+.fld-list { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
+.fld-pt { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 8px 40px 8px 10px; }
+.fld-pt .icon-btn { position: absolute; right: 4px; top: 4px; }
+.link { background: none; border: 0; color: var(--brand); text-decoration: underline; padding: 0; font-weight: 600; }
+.gnss-follow { position: absolute; right: 12px; bottom: 96px; z-index: 900; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line-2); background: #fff; font-size: 24px; line-height: 1; color: #1e88e5; box-shadow: var(--shadow); }
+.gnss-follow.on { background: #1e88e5; color: #fff; border-color: #1e88e5; }
+.fld-sec label { min-width: 0; }
+.fld-sec input:not([type=checkbox]), .fld-sec select, .fld-sec textarea { width: 100%; min-width: 0; }
+@media (max-width: 700px) {
+  /* Telefon: logo, prosjekt og Last opp i første rad, hovedmenyen (Kart, Bilder, Felt …) i egen rad som kan rulles sideveis */
+  .topbar { height: auto; flex-wrap: wrap; gap: 0 8px; padding: 4px 8px 0; }
+  .topbar .brand-name, .topbar .brand-version, .topbar .bugreport { display: none !important; }
+  .topbar-right { margin-left: auto; }
+  .topnav { order: 3; flex: 1 0 100%; height: 40px; }
+  .topnav button { padding-left: 14px; padding-right: 14px; }
+  .topbar-right .btn.primary { font-size: 0; gap: 0; padding: 6px 10px; }
+}
+
+/* Felt: punktliste med sortering, filter og eksport (v5.9) */
+.fld-tabs button { white-space: nowrap; padding: 10px 4px; font-size: 14px; }
+.fld-last { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
+.fld-crs { grid-column: 1 / -1; font-size: 11px; color: var(--muted); }
+.fld-tablewrap { overflow: auto; max-height: 55vh; border: 1px solid var(--line); border-radius: 8px; }
+.fld-table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.fld-table th, .fld-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.fld-table thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.fld-table .num { text-align: right; white-space: nowrap; }
+.fld-table .nowrap { white-space: nowrap; }
+.fld-table .icon-btn { position: static; }
+.fld-th { border: 0; background: transparent; padding: 4px 2px; font: inherit; color: inherit; font-weight: 700; cursor: pointer; min-height: 32px; }
+.fld-th:hover { color: var(--brand); }
+.fld-saved { color: #2e9d57; margin-left: 6px; font-weight: 700; }
+.fld-export { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.fld-export .fld-row { align-items: flex-end; }
+.fld-dl { flex: 1.4; min-height: 40px; justify-content: center; }
+@media (max-width: 700px) { .fld-row { flex-wrap: wrap; } .fld-row > label { flex: 1 1 140px; } }

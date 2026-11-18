@@ -363,3 +363,18 @@ Når du velger et 360-bilde (i kartet eller i Bilder-panelet), vises det nå som
 - Bla med pilene eller piltastene, så bytter visningen til neste 360-bilde (visningen starter etter et lite øyeblikk, så det går raskt å bla forbi).
 - Knappen **«Åpne 360 i fullskjerm»** åpner den store visningen som før. Mens fullskjermen er åpen hviler visningen i dialogen, så nettleseren ikke bruker to 360-visninger samtidig.
 - Vanlige bilder er uendret (flatt bilde, klikk åpner fullskjerm).
+
+## Android-app med RTK, bilde og innmåling (v 5.8)
+
+Feltkart finnes nå som Android-app (APK) med felt-funksjoner: RTK-posisjon fra Leica FLX100 (Android-posisjon via Zeno Connect eller direkte Bluetooth NMEA), bilder med RTK-posisjon, innmåling av punkter (KOF/CSV) og live posisjon i kartet. APK-en bygges av GitHub Actions (`.github/workflows/android.yml`). Oppsett og bruk står i **[ANDROID.md](ANDROID.md)**.
+
+På telefon vises hovedmenyen i egen rad øverst.
+
+## Felt i nettleseren, sortering og eksport (v 5.9)
+
+- **Felt-fanen finnes nå i vanlig nettleser** (ikke bare i Android-appen), uten `?felt=1`. Der brukes enhetens posisjon; direkte Bluetooth til FLX100 krever fortsatt appen. **Ta bilde** åpner kameraet på mobil og et filvalg på PC.
+- Ny fane **Punkter**: alle målte punkter i en tabell, **sortert på dato, kode, punktnavn eller høyde** (kolonneoverskrift eller nedtrekksliste), med **filter på kode og dato** (fra/til). Punkter uten kode havner alltid sist ved kodesortering. Likt resultat avgjøres av dato og så navn (P2 før P10).
+- **Koordinatsystem kan velges** (EUREF89 UTM og NTM). Punktene lagres med bredde/lengde og regnes om til valgt system ved visning og eksport. Valget huskes. Er prosjektet satt til grader (WGS84), brukes UTM til innmåling.
+- **Nedlasting til PC (eller telefon) som KOF, SOSI, LandXML og CSV**, i valgt koordinatsystem, med utvalget og rekkefølgen du har valgt. SOSI støttes i EUREF89 UTM sone 31–36 (SOSI 4.0, punktobjekter, UTF-8, mm-oppløsning); i NTM brukes KOF eller LandXML. LandXML skrives som 1.2 med `<CgPoints>`.
+- **Lagre i prosjektet** legger bare punkter som ikke allerede er lagret inn som KOF i *Innmålinger*. Punktene beholdes i tabellen med ✓ til du trykker **Fjern lagrede**. Tidligere ble listen tømt ved lagring.
+- Kode: `src/lib/field/survey.ts` (sortering, filter, KOF/CSV), `src/lib/field/export.ts` (SOSI, LandXML, filnavn), `src/components/FieldPanel.tsx` (fanen).
