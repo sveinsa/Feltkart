@@ -42,6 +42,8 @@ interface Props {
   gnss?: { lat: number; lng: number; acc: number | null; fix: boolean } | null;
   /** Hold kartet sentrert på GNSS-posisjonen */
   gnssFollow?: boolean;
+  /** Innmålte punkter i Felt som ennå ikke er lagt inn i prosjektet. Vises med navn. */
+  marks?: { id: string; name: string; lat: number; lng: number }[];
 }
 
 type DxfLayers = { key: string; groups: Map<string, L.LayerGroup>; added: Set<string> };
@@ -719,6 +721,20 @@ export default function MapView(props: Props) {
       gnssFirst.current = false;
     }
   }, [props.gnss?.lat, props.gnss?.lng, props.gnss?.acc, props.gnss?.fix, !!props.gnss, props.gnssFollow]);
+  // ---------- Innmålte punkter fra Felt (ikke lagret i prosjektet ennå) ----------
+  const marksLayer = useRef<L.LayerGroup | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!marksLayer.current) marksLayer.current = L.layerGroup().addTo(map);
+    const lg = marksLayer.current;
+    lg.clearLayers();
+    for (const m of props.marks ?? []) {
+      L.circleMarker([m.lat, m.lng], { pane: 'measurePane', radius: 6, color: '#ffffff', weight: 2, fillColor: '#e8590c', fillOpacity: 1, className: 'field-mark' })
+        .bindTooltip(m.name, { permanent: true, direction: 'right', offset: [8, 0], className: 'field-mark-tip' })
+        .addTo(lg);
+    }
+  }, [props.marks]);
   /** Markør i kartet for pekeren i tverrsnittsvinduet */
   const cursorLayer = useRef<L.LayerGroup | null>(null);
   const showSectionCursor = (ll: { lng: number; lat: number } | null) => {

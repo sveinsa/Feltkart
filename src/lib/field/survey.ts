@@ -4,7 +4,7 @@ import type { Averaged, GnssState } from './gnss';
 import { QUALITY_LABEL, type FixQuality } from './nmea';
 
 export interface FieldSettings {
-  /** Høyde fra antennens fasesenter ned til bakken/merket (m). Trekkes fra høyden. */
+  /** Stanghøyde: fra bakken/merket opp til antennen (m). Trekkes fra høyden mottakeren oppgir, så punktet får høyden på bakken. */
   poleHeight: number;
   /** Sekunder med gjennomsnitt per punkt (0 = ett enkelt øyeblikk) */
   avgSeconds: number;
@@ -74,7 +74,28 @@ export type ExportPoint = Pick<FieldPoint, 'name' | 'code' | 'lat' | 'lng' | 'e'
 export function loadPoints(): FieldPoint[] {
   try { const p = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(p) ? p : []; } catch { return []; }
 }
-export function savePoints(p: FieldPoint[]) { try { localStorage.setItem(PKEY, JSON.stringify(p)); } catch { /* ignorer */ } }
+export const POINTS_EVENT = 'feltkart:points';
+export function savePoints(p: FieldPoint[]) {
+  try { localStorage.setItem(PKEY, JSON.stringify(p)); } catch { /* ignorer */ }
+  // Gir beskjed til resten av appen (f.eks. det lille kartet i Felt) om at punktlisten er endret
+  try { window.dispatchEvent(new Event(POINTS_EVENT)); } catch { /* ignorer */ }
+}
+
+/** Vanlige stanghøyder (m) som hurtigvalg */
+export const POLE_PRESETS = [1.5, 1.8, 2.0];
+export const POLE_MAX = 10;
+/** Runder til mm og holder verdien mellom 0 og 10 m */
+export const cleanPole = (v: number) => Math.min(POLE_MAX, Math.max(0, Math.round(v * 1000) / 1000));
+
+/**
+ * Høyde ved antennen slik mottakeren oppgir den (evt. omregnet til ellipsoidehøyde), og høyden på bakken/merket under stangen.
+ * Stanghøyden er avstanden fra bakken opp til antennen, og trekkes fra antennehøyden.
+ */
+export function groundHeight(alt: number | null, sep: number | null, s: Pick<FieldSettings, 'poleHeight' | 'heightMode'>): { antenna: number | null; ground: number | null } {
+  if (alt === null) return { antenna: null, ground: null };
+  const antenna = s.heightMode === 'ellipsoid' && sep !== null ? alt + sep : alt;
+  return { antenna, ground: antenna - s.poleHeight };
+}
 
 export type Verdict = { ok: boolean; reason: string };
 
@@ -89,9 +110,7 @@ export function canMeasure(g: Pick<GnssState, 'lat' | 'lng' | 'quality' | 'accH'
 
 export function makePoint(avg: Averaged, s: FieldSettings, crs: string, name: string, code: string, id: string): FieldPoint {
   const [e, n] = fromLatLng(crs, avg.lat, avg.lng);
-  let h: number | null = avg.alt;
-  if (h !== null && s.heightMode === 'ellipsoid' && avg.sep !== null) h += avg.sep;
-  if (h !== null) h -= s.poleHeight;
+  const h = groundHeight(avg.alt, avg.sep, s).ground;
   return {
     id, name, code, lat: avg.lat, lng: avg.lng, e, n, h, poleHeight: s.poleHeight, heightMode: s.heightMode, quality: avg.quality, estimated: avg.estimated,
     accH: avg.accH, accV: avg.accV, stdH: avg.stdH, n_epochs: avg.n, sats: avg.sats, time: new Date(avg.time).toISOString(), crs,

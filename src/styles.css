@@ -862,3 +862,60 @@ th .rg-pop { top: 100%; left: 0; }
 .modal.readme { width: min(1040px, 100%); height: min(86vh, 900px); }
 .readme-frame { flex: 1; width: 100%; border: 0; border-radius: 0 0 12px 12px; background: #f5f8f6; min-height: 0; }
 .rail button.rail-readme { color: var(--brand); }
+
+/* ---------- v6.5: forenklet Android-app (bare Felt og Kart) ---------- */
+.app.native .topbar { height: 52px; flex-wrap: nowrap; gap: 10px; padding: 0 8px 0 12px; }
+.app.native .topbar .brand-name, .app.native .topbar .brand-version { display: block !important; }
+.app.native .brand-name { font-size: 14px; }
+.app.native .brand-version { font-size: 9.5px; }
+.app.native .topnav { order: 0; flex: 1 1 auto; height: 100%; gap: 6px; padding: 6px 0; min-width: 0; }
+.app.native .topnav button { flex: 1; height: 100%; padding: 0 10px; font-size: 17px; font-weight: 700; border-radius: 10px; border-bottom: 0; color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.1); }
+.app.native .topnav button.on { background: #fff; color: var(--brand); }
+@media (max-width: 380px) { .app.native .topbar .brand-text { display: none; } }
+/* Kartlag i appen: arket ligger nederst, så «Lag»-knappen i verktøylinjen er synlig og kan trykkes igjen for å lukke */
+.app.native .side-panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 55%; border-right: 0; border-top: 2px solid var(--line-2); border-radius: 12px 12px 0 0; }
+.app.native .map-toolbar { max-width: calc(100% - 20px); }
+
+/* Felt med lite kart samtidig: kartet øverst på stående skjerm, til venstre på liggende */
+.main.split .map-host { inset: 0 0 auto 0; height: 30%; min-height: 170px; border-bottom: 2px solid var(--line-2); }
+.main.split .field-host { inset: max(30%, 170px) 0 0 0; }
+/* Kompakt GNSS-kort når kartet vises ved siden av, og «Mål punkt» ligger alltid synlig nederst */
+.main.split .fld { padding: 8px; gap: 8px; }
+.main.split .fld-card { padding: 8px 10px; gap: 4px; }
+.main.split .fld-qtxt { font-size: 18px; } .main.split .fld-acc { font-size: 16px; }
+.main.split .fld-coords { grid-template-columns: repeat(3, 1fr); font-size: 13px; gap: 2px 8px; }
+.main.split .fld-coords i { font-size: 10px; }
+.main.split .fld-showmap { display: none; }
+.main.split .fld-conn select { min-height: 36px; }
+.fld-measure { position: sticky; bottom: 6px; z-index: 5; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3); }
+.main.split .map-toolbar, .main.split .coord-bar, .main.split .map-empty, .main.split .info-panel, .main.split .mp { display: none !important; }
+.main.split .gnss-follow { right: 8px; bottom: 8px; width: 40px; height: 40px; font-size: 22px; }
+@media (orientation: landscape) and (min-width: 640px) {
+  .main.split .map-host { inset: 0 auto 0 0; width: 42%; height: auto; min-height: 0; border-bottom: 0; border-right: 2px solid var(--line-2); }
+  .main.split .field-host { inset: 0 0 0 42%; }
+}
+.field-mark-tip { background: rgba(255, 255, 255, 0.92); border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); font-weight: 600; font-size: 11px; padding: 1px 5px; color: #7a2e05; }
+.field-mark-tip::before { display: none; }
+
+/* Stanghøyde */
+.fld-pole { border: 2px solid var(--brand); border-radius: 12px; background: var(--brand-soft); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.fld-pole-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.fld-pole-head strong { font-size: 16px; }
+.fld-pole-presets { display: flex; gap: 8px; }
+.pole-chip { flex: 1; min-height: 46px; border: 2px solid var(--line-2); background: #fff; border-radius: 10px; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.pole-chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.fld-pole-edit { display: flex; gap: 8px; align-items: stretch; }
+.pole-step { width: 56px; min-height: 48px; border: 2px solid var(--line-2); background: #fff; border-radius: 10px; font-size: 26px; font-weight: 700; line-height: 1; color: var(--ink); }
+.pole-step:active { background: var(--line); }
+.fld-sec .pole-input { flex: 1; flex-direction: row; align-items: center; gap: 6px; border: 2px solid var(--line-2); border-radius: 10px; background: #fff; padding: 0 12px; }
+.fld-sec .pole-input input { border: 0; min-height: 44px; font-size: 24px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; background: transparent; padding: 0; }
+.pole-input span { font-size: 18px; font-weight: 600; color: var(--muted); }
+.fld-calc { display: flex; align-items: flex-end; justify-content: center; gap: 10px; flex-wrap: wrap; font-variant-numeric: tabular-nums; font-size: 16px; background: #fff; border-radius: 10px; padding: 8px 10px; }
+.fld-calc span { display: flex; flex-direction: column; }
+.fld-calc i { font-style: normal; font-size: 11px; color: var(--muted); }
+.fld-calc b { font-size: 20px; color: var(--muted); padding-bottom: 1px; }
+.fld-calc .res { font-weight: 800; color: var(--brand); font-size: 18px; }
+.fld-calc.none { color: var(--muted); font-size: 13px; justify-content: flex-start; }
+.fld-more { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.fld-more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fld-more-grid .btn { min-height: 44px; justify-content: center; }

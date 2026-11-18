@@ -407,3 +407,11 @@ På telefon vises hovedmenyen i egen rad øverst.
 ## Android-bygget rettet på ordentlig (v 6.4)
 - Årsaken til `onGeolocationShowPrompt overrides nothing` var at metoden i Android-SDK-en heter **`onGeolocationPermissionsShowPrompt`**. Navnet i `MainActivity.kt` er rettet. Funksjonen (be om posisjonstillatelse når nettsiden vil bruke `navigator.geolocation`) er den samme.
 - Den lokale kompileringssjekken brukte et forenklet Android-bibliotek med samme feil navn, og slapp derfor feilen gjennom. Det er rettet, og det gamle navnet gir nå samme feilmelding som i GitHub.
+
+## Enklere Android-app (v 6.5)
+- **Bare «Felt» og «Kart» på øvre linje** i Android-appen. Sidemenyen, Bugreport, prosjektmenyen og «Last opp» er fjernet fra app-visningen (nettsiden er uendret). Appen starter i Felt.
+- **Lite kart samtidig med Felt:** kartet vises over Felt på stående skjerm (ca. 30 % av høyden) og til venstre på liggende (ca. 42 % av bredden). Det viser din posisjon (følger deg som standard, knappen ◎ slår av og på) og innmålte punkter som ennå ikke er lagret i prosjektet. «Mål punkt» ligger alltid synlig nederst.
+- **Stanghøyde** ligger nå øverst på Innmåling-fanen, ikke under Oppsett. Hurtigvalg 1,500 / 1,800 / 2,000, eget felt (komma eller punktum) og − / + for 1 cm. Linjen under viser regnestykket **antenne − stang = bakke**, og målknappen viser stanghøyden som brukes. Verdier mellom 0 og 10 m godtas. Stanghøyde 0 gir en advarsel, og da får punktene antennens høyde.
+- **Snarveier** til Last opp filer, Google Disk, Prosjektinnstillinger, Readme og Sjekk ny versjon ligger under Felt → Oppsett → Mer.
+- **Kart** i appen har en «Lag»-knapp i verktøylinjen som åpner kartlagene som et ark nederst.
+- Stanghøyden regnes som før: høyde fra mottakeren (evt. ellipsoidehøyde) minus stanghøyde. Hvis Leica Zeno Connect selv er satt opp med antennehøyde, skal stanghøyden her være 0, ellers trekkes den fra to ganger.

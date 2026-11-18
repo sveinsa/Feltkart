@@ -26,6 +26,7 @@ import SurveyRegister from './components/SurveyRegister';
 import ReadmeDialog from './components/ReadmeDialog';
 import { openReadmeWindow } from './lib/readme';
 import { useGnss } from './lib/field/useGnss';
+import { loadPoints, POINTS_EVENT } from './lib/field/survey';
 import { installDownloadShim, isNative } from './lib/field/native';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
 import SyncDialog from './components/SyncDialog';
@@ -46,8 +47,10 @@ export default function App() {
   const project = useProject();
   const { ready, items, settings, dxf } = project;
 
-  const [view, setView] = useState<View>('map');
-  const [panel, setPanel] = useState<Panel>('tree');
+  // I Android-appen er skjermen forenklet: bare «Felt» og «Kart», og appen starter i Felt
+  const appMode = isNative();
+  const [view, setView] = useState<View>(appMode ? 'field' : 'map');
+  const [panel, setPanel] = useState<Panel>(appMode ? null : 'tree');
   const [selection, setSelection] = useState<Selection>(null);
   const [tool, setTool] = useState<Tool>('select');
   const [placingId, setPlacingId] = useState<string | null>(null);
@@ -75,7 +78,14 @@ export default function App() {
   const didInitialFit = useRef(false);
 
   const gnss = useGnss();
-  const [followGnss, setFollowGnss] = useState(false);
+  const [followGnss, setFollowGnss] = useState(appMode);
+  // Innmålte punkter som ikke er lagt inn i prosjektet ennå, vises i kartet (også det lille kartet i Felt)
+  const [fieldMarks, setFieldMarks] = useState(() => loadPoints().filter((p) => !p.saved));
+  useEffect(() => {
+    const upd = () => setFieldMarks(loadPoints().filter((p) => !p.saved));
+    window.addEventListener(POINTS_EVENT, upd);
+    return () => window.removeEventListener(POINTS_EVENT, upd);
+  }, []);
   useEffect(() => { installDownloadShim((n, w) => showToast(`${n} lagret i ${w}`), (e) => showToast('Kunne ikke lagre filen: ' + e.message)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -257,7 +267,9 @@ export default function App() {
 
   if (!ready || !settings) return <div className="loading">Laster prosjekt …</div>;
 
-  const native = isNative();
+  const native = appMode;
+  /** Felt med lite kart samtidig (bare i appen) */
+  const split = native && view === 'field';
   /** Readme i eget vindu. I appen, eller hvis nettleseren blokkerer vinduet, vises den i en dialog. */
   const openReadme = () => { if (native || !openReadmeWindow(VERSION, VERSION_LABEL)) setReadmeOpen(true); };
   /** Fra Innmåling: vis ett punkt i kartet */
@@ -279,7 +291,7 @@ export default function App() {
   );
 
   return (
-    <div className="app">
+    <div className={`app${native ? ' native' : ''}`}>
       <header className="topbar">
         <div className="brand">
           <span className="logo" aria-hidden="true">
@@ -291,22 +303,22 @@ export default function App() {
           </span>
         </div>
         <nav className="topnav">
-          <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')}>Kart</button>
-          <button className={view === 'photos' || view === 'gallery' ? 'on' : ''} onClick={() => setView('photos')}>Bilder</button>
-          <button className={view === 'survey' ? 'on' : ''} onClick={() => setView('survey')}>Innmåling</button>
           {native && <button className={view === 'field' ? 'on' : ''} onClick={() => setView('field')}>Felt</button>}
-          <button className={view === 'files' ? 'on' : ''} onClick={() => setView('files')}>Prosjektfiler</button>
-          <button className={view === 'terrain3d' ? 'on' : ''} onClick={() => setView('terrain3d')}>Terreng 3D <span className="beta-tag">beta</span></button>
+          <button className={view === 'map' ? 'on' : ''} onClick={() => setView('map')}>Kart</button>
+          {!native && <button className={view === 'photos' || view === 'gallery' ? 'on' : ''} onClick={() => setView('photos')}>Bilder</button>}
+          {!native && <button className={view === 'survey' ? 'on' : ''} onClick={() => setView('survey')}>Innmåling</button>}
+          {!native && <button className={view === 'files' ? 'on' : ''} onClick={() => setView('files')}>Prosjektfiler</button>}
+          {!native && <button className={view === 'terrain3d' ? 'on' : ''} onClick={() => setView('terrain3d')}>Terreng 3D <span className="beta-tag">beta</span></button>}
         </nav>
-        <div className="topbar-right">
+        {!native && <div className="topbar-right">
           <a className="bugreport" href="https://forms.cloud.microsoft/e/waiwYtDeUX?origin=lprLink" target="_blank" rel="noopener noreferrer" title="Meld fra om feil i Feltkart (åpnes i et nytt vindu)">Bugreport <span aria-hidden="true">🪲</span></a>
           <ProjectMenu name={settings.projectName} onSettings={() => setView('settings')} />
           <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp</button>
-        </div>
+        </div>}
       </header>
 
       <div className="body">
-        <nav className="rail">
+        {!native && <nav className="rail">
           <button className={view === 'map' && panel === 'tree' ? 'on' : ''} title="Innhold og lag"
             onClick={() => { setView('map'); setPanel(panel === 'tree' && view === 'map' ? null : 'tree'); }}><IconLayers size={20} /></button>
           <button className={view === 'map' && panel === 'basemap' ? 'on' : ''} title="Bakgrunnskart"
@@ -319,7 +331,7 @@ export default function App() {
           <button className="rail-text rail-update" title="Sjekk ny versjon Feltkart – gjør det samme som Ctrl + Shift + R. Dine data beholdes." onClick={() => { showToast('Sjekker ny versjon av Feltkart …'); void hardRefresh(); }}><IconRefresh size={18} /><span>Sjekk ny versjon Feltkart</span></button>
           <button className="rail-text rail-reset" title="Nullstill demodata – slett alt innhold" onClick={() => setResetOpen(true)}><IconTrash size={18} /><span>Nullstill demodata</span></button>
           <button className={view === 'settings' ? 'on' : ''} title="Innstillinger" onClick={() => setView('settings')}><IconSettings size={20} /></button>
-        </nav>
+        </nav>}
 
         {view === 'photos' && (
           <aside className="side-panel wide">
@@ -351,8 +363,8 @@ export default function App() {
           </aside>
         )}
 
-        <main className="main">
-          <div className="map-host" style={{ visibility: view === 'map' || view === 'photos' ? 'visible' : 'hidden' }}>
+        <main className={`main${split ? ' split' : ''}`}>
+          <div className="map-host" style={{ visibility: view === 'map' || view === 'photos' || split ? 'visible' : 'hidden' }}>
             <MapView
               items={mapItems}
               dxf={dxf}
@@ -368,6 +380,7 @@ export default function App() {
               onMouseCoord={setCoord}
               gnss={gnss.connected && gnss.lat !== null && gnss.lng !== null ? { lat: gnss.lat, lng: gnss.lng, acc: gnss.accH, fix: gnss.quality === 'fix' } : null}
               gnssFollow={followGnss}
+              marks={fieldMarks}
             />
             {gnss.connected && gnss.lat !== null && (
               <button className={`gnss-follow${followGnss ? ' on' : ''}`} title={followGnss ? 'Slutt å følge posisjonen' : 'Følg min posisjon'} aria-pressed={followGnss} onClick={() => setFollowGnss((f) => !f)}>◎</button>
@@ -375,6 +388,11 @@ export default function App() {
 
             <div className="map-toolbar">
               <div className="tb-group">
+                {native && (
+                  <button className={`tb-btn wide${panel === 'tree' ? ' on' : ''}`} title="Vis eller skjul kartlag" aria-pressed={panel === 'tree'} onClick={() => setPanel(panel === 'tree' ? null : 'tree')}>
+                    <IconLayers size={18} /><span>Lag</span>
+                  </button>
+                )}
                 {toolBtn('select', IconPointer, 'Velg / objektinformasjon')}
                 {toolBtn('distance', IconRuler, 'Mål avstand / lengde', 'Avstand')}
                 {toolBtn('area', IconArea, 'Mål areal innenfor et polygon', 'Areal')}
@@ -481,7 +499,14 @@ export default function App() {
           )}
           {native && (
             <div className="field-host" style={{ display: view === 'field' ? 'block' : 'none' }}>
-              <FieldPanel project={project} onToast={showToast} onShowOnMap={() => { setView('map'); setFollowGnss(true); }} />
+              <FieldPanel project={project} onToast={showToast} onShowOnMap={() => { setView('map'); setFollowGnss(true); }}
+                more={{
+                  onUpload: () => setUpload({ files: [] }),
+                  onSync: () => setSyncOpen(true),
+                  onReadme: openReadme,
+                  onRefresh: () => { showToast('Sjekker ny versjon av Feltkart …'); void hardRefresh(); },
+                  onSettings: () => setView('settings'),
+                }} />
             </div>
           )}
         </main>

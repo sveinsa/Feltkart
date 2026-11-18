@@ -8,7 +8,7 @@ import { useGnss } from '../lib/field/useGnss';
 import { QUALITY_LABEL } from '../lib/field/nmea';
 import { isNative, listBtDevices, pickPhotoWeb, saveFile, takePhoto, native, type BtDevice } from '../lib/field/native';
 import {
-  canMeasure, codeStats, filterPoints, fmtTime, loadFieldSettings, loadPoints, makePoint, nextName, pointEN, saveFieldSettings, savePoints, sortPoints, stamp, toKof,
+  canMeasure, cleanPole, codeStats, filterPoints, fmtTime, groundHeight, loadFieldSettings, loadPoints, makePoint, nextName, pointEN, POLE_MAX, POLE_PRESETS, saveFieldSettings, savePoints, sortPoints, stamp, toKof,
   type FieldPoint, type FieldSettings, type SortDir, type SortKey,
 } from '../lib/field/survey';
 import { buildExport, EXPORT_FORMATS, sosiSupported } from '../lib/field/export';
@@ -19,12 +19,56 @@ interface Props {
   project: Project;
   onToast: (msg: string) => void;
   onShowOnMap: () => void;
+  /** Snarveier til det som ikke lenger ligger i menyene i Android-appen (vises under Oppsett) */
+  more?: { onUpload: () => void; onSync: () => void; onReadme: () => void; onRefresh: () => void; onSettings: () => void };
 }
 
 const nb = (v: number, d: number) => v.toFixed(d).replace('.', ',');
 const cm = (m: number | null) => (m === null ? '–' : m < 0.1 ? `±${nb(m * 100, 1)} cm` : `±${nb(m * 100, 0)} cm`);
 
-export default function FieldPanel({ project, onToast, onShowOnMap }: Props) {
+/** Stanghøyde: store hurtigvalg, eget felt og − / +, og en linje som viser regnestykket mottakerhøyde − stang = bakkehøyde. */
+function PoleHeight({ value, onChange, alt, sep, mode }: { value: number; onChange: (v: number) => void; alt: number | null; sep: number | null; mode: FieldSettings['heightMode'] }) {
+  const parse = (t: string) => Number(t.trim().replace(',', '.'));
+  const [draft, setDraft] = useState(nb(value, 3));
+  // Følg verdien når den endres utenfra (hurtigvalg, − / +), men ikke mens du skriver samme tall
+  useEffect(() => { setDraft((d) => (parse(d) === value ? d : nb(value, 3))); }, [value]);
+  const type = (t: string) => {
+    setDraft(t);
+    const v = parse(t);
+    if (t.trim() !== '' && Number.isFinite(v) && v >= 0 && v <= POLE_MAX) onChange(cleanPole(v));
+  };
+  const step = (d: number) => onChange(cleanPole(value + d));
+  const h = groundHeight(alt, sep, { poleHeight: value, heightMode: mode });
+  return (
+    <div className="fld-pole" data-testid="pole">
+      <div className="fld-pole-head">
+        <strong>Stanghøyde</strong>
+        <span className="muted small">fra bakken opp til antennen</span>
+      </div>
+      <div className="fld-pole-presets" role="group" aria-label="Velg stanghøyde">
+        {POLE_PRESETS.map((v) => (
+          <button key={v} type="button" className={`pole-chip${value === v ? ' on' : ''}`} aria-pressed={value === v} onClick={() => onChange(v)}>{nb(v, 3)}</button>
+        ))}
+      </div>
+      <div className="fld-pole-edit">
+        <button type="button" className="pole-step" aria-label="Minus 1 cm" onClick={() => step(-0.01)}>−</button>
+        <label className="pole-input">
+          <input inputMode="decimal" aria-label="Stanghøyde (m)" value={draft} onChange={(e) => type(e.target.value)} onBlur={() => setDraft(nb(value, 3))} onFocus={(e) => e.target.select()} />
+          <span>m</span>
+        </label>
+        <button type="button" className="pole-step" aria-label="Pluss 1 cm" onClick={() => step(0.01)}>+</button>
+      </div>
+      <div className={`fld-calc${h.ground === null ? ' none' : ''}`} data-testid="pole-calc">
+        {h.ground === null
+          ? <span>Mottakeren oppgir ingen høyde ennå.</span>
+          : <><span><i>Antenne</i>{nb(h.antenna!, 3)}</span><b>−</b><span><i>Stang</i>{nb(value, 3)}</span><b>=</b><span className="res"><i>Bakke</i>{nb(h.ground, 3)} m</span></>}
+      </div>
+      {value === 0 && <div className="fld-warn">Stanghøyde 0 m: punktene får antennens høyde, ikke høyden på bakken.</div>}
+    </div>
+  );
+}
+
+export default function FieldPanel({ project, onToast, onShowOnMap, more }: Props) {
   const projectCrs = project.settings!.projectCrs;
   const g = useGnss();
   const [tab, setTab] = useState<'mal' | 'punkter' | 'bilde' | 'oppsett'>('mal');
@@ -165,7 +209,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap }: Props) {
         {connected && en && (
           <div className="fld-coords">
             <span><i>Øst</i>{en.e}</span><span><i>Nord</i>{en.n}</span>
-            <span><i>Høyde</i>{g.alt !== null ? nb(g.alt, 3) + ' m' : '–'}</span>
+            <span><i>Høyde antenne</i>{g.alt !== null ? nb(g.alt, 3) + ' m' : '–'}</span>
             {g.sats !== null && <span><i>Satellitter</i>{g.sats}</span>}
             {g.hdop !== null && <span><i>HDOP</i>{nb(g.hdop, 1)}</span>}
             {g.age !== null && <span><i>Korreksjonsalder</i>{nb(g.age, 0)} s</span>}
@@ -180,7 +224,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap }: Props) {
           {connected
             ? <button className="btn" onClick={() => void stopGnss()}>Koble fra</button>
             : <button className="btn primary" onClick={() => void connect()}>Koble til</button>}
-          {connected && <button className="btn" onClick={onShowOnMap}>Vis i kart</button>}
+          {connected && <button className="btn fld-showmap" onClick={onShowOnMap}>Vis i kart</button>}
         </div>
         {source === 'bt' && !connected && (
           <div className="fld-bt">
@@ -210,9 +254,9 @@ export default function FieldPanel({ project, onToast, onShowOnMap }: Props) {
             <label>Kode<input value={fs.code} onChange={(e) => setF({ code: e.target.value })} aria-label="Kode" /></label>
           </div>
           {!!codes.length && <div className="fld-codes">{codes.map((c) => <button key={c} className={`chip${fs.code === c ? ' on' : ''}`} onClick={() => setF({ code: fs.code === c ? '' : c })}>{c}</button>)}</div>}
-          <button className="btn primary fld-big" disabled={!!busy || !connected} onClick={() => void measure(false)}>Mål punkt{fs.avgSeconds > 0 ? ` (${fs.avgSeconds} s)` : ''}</button>
+          <PoleHeight value={fs.poleHeight} onChange={(v) => setF({ poleHeight: v })} alt={g.alt} sep={g.sep} mode={fs.heightMode} />
+          <button className="btn primary fld-big fld-measure" disabled={!!busy || !connected} onClick={() => void measure(false)}>Mål punkt · stang {nb(fs.poleHeight, 3)} m{fs.avgSeconds > 0 ? ` · ${fs.avgSeconds} s` : ''}</button>
           {connected && !verdict.ok && <div className="fld-warn">{verdict.reason} <button className="link" onClick={() => void measure(true)} disabled={!!busy}>Mål likevel</button></div>}
-          <div className="muted small">Stanghøyde {nb(fs.poleHeight, 3)} m trekkes fra høyden. Endres under Oppsett.</div>
 
           {!!points.length && (() => {
             const last = sortPoints(points, 'time', 'desc')[0];
@@ -334,7 +378,6 @@ export default function FieldPanel({ project, onToast, onShowOnMap }: Props) {
       {tab === 'oppsett' && (
         <div className="fld-sec">
           <div className="fld-row">
-            <label>Stanghøyde (m)<input type="number" step="0.001" value={fs.poleHeight} onChange={(e) => setF({ poleHeight: Number(e.target.value) || 0 })} /></label>
             <label>Snitt (sekunder)<input type="number" min="0" max="60" value={fs.avgSeconds} onChange={(e) => setF({ avgSeconds: Math.max(0, Number(e.target.value) || 0) })} /></label>
           </div>
           <div className="fld-row">
@@ -357,6 +400,18 @@ export default function FieldPanel({ project, onToast, onShowOnMap }: Props) {
           )}
           <div className="muted small">Feltkart {VERSION}{native_ ? ' · Android-appen' : ' · nettleser (Bluetooth krever Android-appen)'}</div>
           {native_ && <button className="btn" onClick={() => void native.call('openAppSettings', {})}>Åpne Android-innstillinger for appen</button>}
+          {more && (
+            <div className="fld-more" data-testid="more">
+              <strong>Mer</strong>
+              <div className="fld-more-grid">
+                <button className="btn" onClick={more.onUpload}>Last opp filer</button>
+                <button className="btn" onClick={more.onSync}>Google Disk</button>
+                <button className="btn" onClick={more.onSettings}>Prosjektinnstillinger</button>
+                <button className="btn" onClick={more.onReadme}>Readme</button>
+                <button className="btn" onClick={more.onRefresh}>Sjekk ny versjon</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
