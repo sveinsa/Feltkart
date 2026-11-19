@@ -469,3 +469,16 @@ Ny fane **Utsett** i Felt i Android-appen. Velg punkter fra prosjektet og la app
 - Valget lagres på telefonen. *Avslutt* tømmer køen.
 
 Nye filer: `src/lib/field/stake.ts` (lager, regning, innsamling av punkter), `src/components/StakePanel.tsx`. Endret: `FieldPanel.tsx`, `InfoPanel.tsx`, `MapView.tsx`, `App.tsx`, `survey.ts`, `styles.css`, `readme.ts`.
+
+## DOP, stanghøyde og bruker på hvert punkt (v 7.2)
+
+Hvert innmålt punkt (Felt → Innmåling) lagrer nå mer enn posisjonen:
+
+- **PDOP, HDOP, VDOP:** fra GSA/GGA-setningene når kilden er *Direkte Bluetooth til FLX100*. Gjennomsnitt over målingens epoker, to desimaler. *Android-posisjon* og *Intern GPS* oppgir ikke DOP, så feltene står tomme (–). Statuskortet viser PDOP, HDOP og VDOP når de er kjent.
+- **Stanghøyde, kvalitet og usikkerhet:** som før, men nå også i filene (se under).
+- **Bruker:** Oppsett → *Bruker* (navn eller e-post). Settes på hvert nytt punkt.
+- **Hvor de vises:** punktlisten i Felt (kolonnene Stang, PDOP, HDOP, VDOP, Bruker) og Innmåling-registeret (kolonnene Stanghøyde, Kvalitet, PDOP, HDOP, VDOP, Bruker, med sortering og filter). Brukere som har lagret et eldre kolonnevalg får de nye kolonnene lagt til.
+- **Filformater:** CSV får kolonnene PDOP, HDOP, VDOP og Bruker. SOSI får `..STANGHØYDE`, `..KVALITET`, `..USIKKERHET-H`, `..PDOP`, `..HDOP`, `..VDOP`, `..BRUKER`. LandXML får dem som `<Feature code="Feltkart"><Property …/></Feature>` inne i `<CgPoint>`. Feltkart leser verdiene tilbake fra SOSI og LandXML. KOF og DXF har ikke plass til dem.
+- **Lagre i prosjektet** skriver nå SOSI (`.sos`) når koordinatsystemet er EUREF89 UTM 31–36, ellers KOF som før. Det er for at verdiene skal følge punktene inn i registeret. Punktene havner fortsatt i mappen Innmålinger og vises i kartet.
+
+Endret: `gnss.ts` (GSA, DOP-snitt), `survey.ts` (FieldPoint, CSV, `user`), `export.ts`, `vector/landxml.ts`, `register.ts`, `SurveyRegister.tsx`, `FieldPanel.tsx`, `readme.ts`.

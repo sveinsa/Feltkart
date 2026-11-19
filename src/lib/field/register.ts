@@ -3,6 +3,7 @@
 import { fromLatLng } from '../crs';
 import type { ParsedDxf } from '../dxf';
 import { fmtTime, naturalCompare, type ExportPoint } from './survey';
+import { QUALITY_LABEL, type FixQuality } from './nmea';
 
 /** Ett punkt slik det står i en innmålingsfil. Koordinatene (e, n) er i filens eget system (`crs`). */
 export interface SurveyRow extends ExportPoint {
@@ -16,7 +17,7 @@ export interface SurveyRow extends ExportPoint {
 /** Rad slik den vises: x = nord og y = øst i valgt koordinatsystem (samme rekkefølge som i KOF) */
 export interface ViewRow extends SurveyRow { x: number; y: number }
 
-export type ColKey = 'punkt' | 'kode' | 'dato' | 'x' | 'y' | 'z' | 'fil';
+export type ColKey = 'punkt' | 'kode' | 'dato' | 'x' | 'y' | 'z' | 'stang' | 'kvalitet' | 'pdop' | 'hdop' | 'vdop' | 'bruker' | 'fil';
 export type ColKind = 'text' | 'set' | 'date' | 'num';
 
 export const COLUMNS: { key: ColKey; label: string; kind: ColKind; wide?: boolean }[] = [
@@ -26,9 +27,15 @@ export const COLUMNS: { key: ColKey; label: string; kind: ColKind; wide?: boolea
   { key: 'x', label: 'X (nord)', kind: 'num' },
   { key: 'y', label: 'Y (øst)', kind: 'num' },
   { key: 'z', label: 'Z (høyde)', kind: 'num' },
+  { key: 'stang', label: 'Stanghøyde', kind: 'num' },
+  { key: 'kvalitet', label: 'Kvalitet', kind: 'set' },
+  { key: 'pdop', label: 'PDOP', kind: 'num' },
+  { key: 'hdop', label: 'HDOP', kind: 'num' },
+  { key: 'vdop', label: 'VDOP', kind: 'num' },
+  { key: 'bruker', label: 'Bruker', kind: 'set' },
   { key: 'fil', label: 'Fil', kind: 'set', wide: true },
 ];
-export const DEFAULT_COLS: ColKey[] = ['punkt', 'kode', 'dato', 'x', 'y', 'z', 'fil'];
+export const DEFAULT_COLS: ColKey[] = ['punkt', 'kode', 'dato', 'x', 'y', 'z', 'stang', 'kvalitet', 'pdop', 'hdop', 'vdop', 'bruker', 'fil'];
 export const colDef = (k: ColKey) => COLUMNS.find((c) => c.key === k)!;
 
 /** Tidspunkt fra SOSI ..DATAFANGSTDATO (ååååmmdd eller ååååmmddttmmss). Gir null hvis det ikke kan tolkes. */
@@ -37,6 +44,15 @@ export function sosiDate(v: string | undefined): string | null {
   if (!m) return null;
   const d = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0), +(m[6] ?? 0));
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** «RTK Fix» / «RTK Float (anslått)» → kvalitet (omvendt av teksten Feltkart skriver i filene) */
+export function qualityFromText(t: string | undefined): { quality: FixQuality; estimated: boolean } | null {
+  if (!t) return null;
+  const estimated = /\(anslått\)\s*$/.test(t);
+  const base = t.replace(/\s*\(anslått\)\s*$/, '').trim();
+  const hit = (Object.keys(QUALITY_LABEL) as FixQuality[]).find((k) => QUALITY_LABEL[k] === base);
+  return hit ? { quality: hit, estimated } : null;
 }
 
 /**
@@ -55,7 +71,17 @@ export function rowsFromParsed(item: { id: string; name: string; folderId: strin
     const z = f.z[0];
     const h = Number.isFinite(hAttr) ? hAttr : z ? z : null; // 0 betyr «ingen høyde» i lest data
     const time = sosiDate(a['DATAFANGSTDATO']) ?? (a['Tid'] && !Number.isNaN(Date.parse(a['Tid'])) ? new Date(a['Tid']).toISOString() : item.fileIso);
+    const dopOf = (k: string) => { const v = a[k] !== undefined && a[k] !== '' ? parseFloat(a[k].replace(',', '.')) : NaN; return Number.isFinite(v) ? v : null; };
+    const stang = a['STANGHØYDE'] ?? a['Stanghøyde'];
+    const stangV = stang !== undefined && stang !== '' ? parseFloat(stang.replace(',', '.')) : NaN;
+    const kv = qualityFromText(a['KVALITET'] ?? a['Kvalitet']);
+    const uH = dopOf('USIKKERHET-H');
     out.push({
+      ...(Number.isFinite(stangV) ? { poleHeight: stangV } : {}),
+      ...(kv ? { quality: kv.quality, estimated: kv.estimated } : {}),
+      ...(uH !== null ? { accH: uH } : {}),
+      pdop: dopOf('PDOP'), hdop: dopOf('HDOP'), vdop: dopOf('VDOP'),
+      ...((a['BRUKER'] ?? a['Bruker']) ? { user: (a['BRUKER'] ?? a['Bruker']).trim() } : {}),
       key: `${item.id}:${i}`, itemId: item.id, fileName: item.name, folderId: item.folderId,
       name: a['Punkt'] ?? a['PUNKTNAVN'] ?? a['PUNKTID'] ?? '', code: a['Kode'] ?? a['KODE'] ?? '',
       lat, lng, e, n, h, time, crs: item.crs,
@@ -110,6 +136,26 @@ export function cellText(r: ViewRow, k: ColKey): string {
     case 'x': return r.x.toFixed(3);
     case 'y': return r.y.toFixed(3);
     case 'z': return r.h === null ? '' : r.h.toFixed(3);
+    case 'stang': return r.poleHeight === undefined ? '' : r.poleHeight.toFixed(3);
+    case 'kvalitet': return r.quality ? QUALITY_LABEL[r.quality] + (r.estimated ? ' (anslått)' : '') : '';
+    case 'pdop': return r.pdop == null ? '' : r.pdop.toFixed(2);
+    case 'hdop': return r.hdop == null ? '' : r.hdop.toFixed(2);
+    case 'vdop': return r.vdop == null ? '' : r.vdop.toFixed(2);
+    case 'bruker': return r.user ?? '';
+  }
+}
+
+/** Tallverdien i en tallkolonne (null når den mangler) */
+export function numValue(r: ViewRow, k: ColKey): number | null {
+  switch (k) {
+    case 'x': return r.x;
+    case 'y': return r.y;
+    case 'z': return r.h;
+    case 'stang': return r.poleHeight ?? null;
+    case 'pdop': return r.pdop ?? null;
+    case 'hdop': return r.hdop ?? null;
+    case 'vdop': return r.vdop ?? null;
+    default: return null;
   }
 }
 
@@ -121,8 +167,8 @@ export function passes(r: ViewRow, k: ColKey, f: ColFilter): boolean {
     const d = dayOf(r.time);
     if (f.min && d < f.min) return false;
     if (f.max && d > f.max) return false;
-  } else if (k === 'x' || k === 'y' || k === 'z') {
-    const v = k === 'x' ? r.x : k === 'y' ? r.y : r.h;
+  } else if (colDef(k).kind === 'num') {
+    const v = numValue(r, k);
     const lo = f.min?.trim() ? num(f.min) : null, hi = f.max?.trim() ? num(f.max) : null;
     if ((lo !== null || hi !== null) && v === null) return false;
     if (lo !== null && v! < lo) return false;
@@ -137,12 +183,15 @@ export function applyFilters(rows: ViewRow[], filters: Filters): ViewRow[] {
   return rows.filter((r) => keys.every((k) => passes(r, k, filters[k]!)));
 }
 
+/** Tekst for tom verdi i sett-filter */
+export const emptyLabel = (k: ColKey) => (k === 'kode' ? '(uten kode)' : '(mangler)');
+
 /** Kort beskrivelse av et filter, til merkelappene over tabellen */
 export function describeFilter(k: ColKey, f: ColFilter): string {
   const label = colDef(k).label.replace(/ \(.*\)$/, '');
   const parts: string[] = [];
   if (f.text?.trim()) parts.push(`inneholder «${f.text.trim()}»`);
-  if (f.set?.length) parts.push(f.set.map((v) => v || '(uten kode)').join(', '));
+  if (f.set?.length) parts.push(f.set.map((v) => v || emptyLabel(k)).join(', '));
   if (f.min?.trim() || f.max?.trim()) {
     const a = k === 'dato' ? fmtDay(f.min ?? '') : (f.min ?? '').trim();
     const b = k === 'dato' ? fmtDay(f.max ?? '') : (f.max ?? '').trim();
@@ -152,9 +201,9 @@ export function describeFilter(k: ColKey, f: ColFilter): string {
 }
 
 /** Ulike verdier i en kolonne med antall (til sett-filter): alfabetisk, tom verdi («uten kode») sist */
-export function distinctValues(rows: ViewRow[], k: 'kode' | 'fil'): { value: string; count: number }[] {
+export function distinctValues(rows: ViewRow[], k: 'kode' | 'fil' | 'kvalitet' | 'bruker'): { value: string; count: number }[] {
   const m = new Map<string, number>();
-  for (const r of rows) { const v = k === 'kode' ? r.code : r.fileName; m.set(v, (m.get(v) ?? 0) + 1); }
+  for (const r of rows) { const v = k === 'kode' ? r.code : k === 'fil' ? r.fileName : cellText(r, k); m.set(v, (m.get(v) ?? 0) + 1); }
   return [...m.entries()].map(([value, count]) => ({ value, count }))
     .sort((a, b) => (!a.value ? 1 : !b.value ? -1 : naturalCompare(a.value, b.value)));
 }
@@ -181,10 +230,18 @@ export function sortRows(rows: ViewRow[], s: SortState): ViewRow[] {
         c = naturalCompare(a.code, b.code);
         break;
       }
-      case 'z': {
-        if (a.h === null && b.h !== null) return 1;
-        if (a.h !== null && b.h === null) return -1;
-        c = (a.h ?? 0) - (b.h ?? 0);
+      case 'z': case 'stang': case 'pdop': case 'hdop': case 'vdop': {
+        const va = numValue(a, s.key), vb = numValue(b, s.key);
+        if (va === null && vb !== null) return 1;
+        if (va !== null && vb === null) return -1;
+        c = (va ?? 0) - (vb ?? 0);
+        break;
+      }
+      case 'kvalitet': case 'bruker': {
+        const ta = cellText(a, s.key), tb = cellText(b, s.key);
+        if (!ta && tb) return 1;
+        if (ta && !tb) return -1;
+        c = naturalCompare(ta, tb);
         break;
       }
     }

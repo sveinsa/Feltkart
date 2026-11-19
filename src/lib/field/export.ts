@@ -37,6 +37,13 @@ export function toSosi(points: ExportPoint[], crs: string): string {
     L.push(`.PUNKT ${i + 1}:`, '..OBJTYPE Innmaaling', `..PUNKTNAVN ${safe(p.name)}`);
     if (p.code.trim()) L.push(`..KODE ${safe(p.code)}`);
     L.push(`..DATAFANGSTDATO ${localDate(p.time).replace(/-/g, '')}`);
+    if (p.poleHeight !== undefined) L.push(`..STANGHØYDE ${p.poleHeight.toFixed(3)}`);
+    if (p.quality) L.push(`..KVALITET ${QUALITY_LABEL[p.quality]}${p.estimated ? ' (anslått)' : ''}`);
+    if (p.accH != null) L.push(`..USIKKERHET-H ${p.accH.toFixed(3)}`);
+    if (p.pdop != null) L.push(`..PDOP ${p.pdop.toFixed(2)}`);
+    if (p.hdop != null) L.push(`..HDOP ${p.hdop.toFixed(2)}`);
+    if (p.vdop != null) L.push(`..VDOP ${p.vdop.toFixed(2)}`);
+    if (p.user?.trim()) L.push(`..BRUKER ${p.user.trim().replace(/\s+/g, ' ')}`);
     if (p.h !== null) L.push('..NØH', `${mm(n)} ${mm(e)} ${mm(p.h)}`);
     else L.push('..NØ', `${mm(n)} ${mm(e)}`);
   });
@@ -66,7 +73,16 @@ export function toLandXml(points: ExportPoint[], crs: string, version = '', now 
     if (p.poleHeight !== undefined) parts.push(`stang ${p.poleHeight.toFixed(3)} m`);
     const desc = parts.join(', ');
     const coords = [n.toFixed(3), e.toFixed(3)].concat(p.h !== null ? [p.h.toFixed(3)] : []).join(' ');
-    L.push(`    <CgPoint name="${esc(p.name)}"${p.code.trim() ? ` code="${esc(p.code.trim())}"` : ''}${desc ? ` desc="${esc(desc)}"` : ''} timeStamp="${esc(p.time)}">${coords}</CgPoint>`);
+    const props: [string, string][] = [];
+    if (p.poleHeight !== undefined) props.push(['Stanghøyde', p.poleHeight.toFixed(3)]);
+    if (p.pdop != null) props.push(['PDOP', p.pdop.toFixed(2)]);
+    if (p.hdop != null) props.push(['HDOP', p.hdop.toFixed(2)]);
+    if (p.vdop != null) props.push(['VDOP', p.vdop.toFixed(2)]);
+    if (p.user?.trim()) props.push(['Bruker', p.user.trim()]);
+    if (p.quality) props.push(['Kvalitet', `${QUALITY_LABEL[p.quality]}${p.estimated ? ' (anslått)' : ''}`]);
+    const open = `    <CgPoint name="${esc(p.name)}"${p.code.trim() ? ` code="${esc(p.code.trim())}"` : ''}${desc ? ` desc="${esc(desc)}"` : ''} timeStamp="${esc(p.time)}">${coords}`;
+    if (props.length) L.push(open, `      <Feature code="Feltkart">${props.map(([k, v]) => `<Property label="${esc(k)}" value="${esc(v)}"/>`).join('')}</Feature>`, '    </CgPoint>');
+    else L.push(`${open}</CgPoint>`);
   }
   L.push('  </CgPoints>', '</LandXML>');
   return L.join('\n') + '\n';

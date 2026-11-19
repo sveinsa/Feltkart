@@ -941,9 +941,8 @@ th .rg-pop { top: 100%; left: 0; }
 
 /* ===== Utsetting (Android-appen) ===== */
 .fld-tabs button { min-width: 0; }
-.main.split .fld-tabs { gap: 2px; padding: 3px; }
-.main.split .fld-tabs button { font-size: 12.5px; padding: 10px 1px; letter-spacing: -0.2px; }
-@media (orientation: portrait) { .main.split .fld-tabs { margin-right: 0; } }
+.main.split .fld-tabs { gap: 1px; padding: 3px; }
+.main.split .fld-tabs button { flex: 1 1 auto; font-size: 12px; padding: 10px 3px; }
 .stake { display: flex; flex-direction: column; gap: 12px; }
 .stk-card { border: 2px solid #7b1fa2; border-radius: 12px; background: #fff; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .stk-card.wait { border-color: #f9a825; }

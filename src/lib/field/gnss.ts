@@ -1,5 +1,5 @@
 // GNSS-tilstand for feltarbeid: kobler mot Android-posisjon (f.eks. Leica Zeno Connect) eller direkte Bluetooth-NMEA, og gir én felles status.
-import { parseNmea, qualityOf, LineSplitter, type FixQuality, type Gga, type Gst } from './nmea';
+import { parseNmea, qualityOf, LineSplitter, type FixQuality, type Gga, type Gsa, type Gst } from './nmea';
 import { native, isNative } from './native';
 import { nb } from './fmt';
 
@@ -22,6 +22,9 @@ export interface GnssState {
   estimated: boolean;
   sats: number | null;
   hdop: number | null;
+  /** Posisjonsgeometri (PDOP, VDOP) fra GSA. Bare direkte Bluetooth gir dem. */
+  pdop: number | null;
+  vdop: number | null;
   age: number | null;
   /** Horisontal / vertikal nøyaktighet (1 sigma) i meter */
   accH: number | null;
@@ -35,7 +38,7 @@ export interface GnssState {
 
 const blank = (): GnssState => ({
   source: 'none', message: 'Ikke tilkoblet', connected: false, lat: null, lng: null, alt: null, sep: null, quality: 'none', estimated: false,
-  sats: null, hdop: null, age: null, accH: null, accV: null, updated: 0, epochs: 0, raw: '',
+  sats: null, hdop: null, pdop: null, vdop: null, age: null, accH: null, accV: null, updated: 0, epochs: 0, raw: '',
 });
 
 let state: GnssState = blank();
@@ -72,7 +75,7 @@ function startAndroid() {
       set({
         connected: true, message: 'Android-posisjon', lat: p.coords.latitude, lng: p.coords.longitude,
         alt: p.coords.altitude !== null && Number.isFinite(p.coords.altitude) ? p.coords.altitude : null, sep: null,
-        accH: acc, accV, quality: qualityFromAccuracy(acc), estimated: true, sats: null, hdop: null, age: null,
+        accH: acc, accV, quality: qualityFromAccuracy(acc), estimated: true, sats: null, hdop: null, pdop: null, vdop: null, age: null,
         updated: Date.now(), epochs: state.epochs + 1,
         raw: `Nettvisningen oppgir nøyaktighet ${acc === null ? 'ukjent' : nb(acc, 3) + ' m'}${accV === null ? '' : ', høydenøyaktighet ' + nb(accV, 3) + ' m'}`,
       }, true);
@@ -95,7 +98,7 @@ async function startIntern() {
       set({
         connected: true, message: d.mock ? 'Intern GPS (mock, f.eks. Zeno Connect)' : 'Intern GPS (telefonens egen mottaker)',
         lat, lng, alt: num(d.alt), sep: null, accH: acc, accV, quality: qualityFromAccuracy(acc), estimated: true,
-        sats: num(d.sats), hdop: null, age: null, updated: Date.now(), epochs: state.epochs + 1,
+        sats: num(d.sats), hdop: null, pdop: null, vdop: null, age: null, updated: Date.now(), epochs: state.epochs + 1,
         raw: `Leverandør ${String(d.provider || '?')} · mock ${d.mock ? 'ja' : 'nei'} · nøyaktighet ${acc === null ? 'ukjent' : nb(acc, 3) + ' m'}${accV === null ? '' : ' · høydenøyaktighet ' + nb(accV, 3) + ' m'}`,
       }, true);
     } else if (ev === 'locState') set({ connected: false, message: String(d.message || 'Intern GPS stoppet') });
@@ -106,16 +109,17 @@ async function startIntern() {
 // ---------- Direkte Bluetooth (NMEA) ----------
 let offEvt: (() => void) | null = null;
 let pendingGst: Gst | null = null;
+let pendingGsa: Gsa | null = null;
 function applyGga(g: Gga) {
   const sigH = pendingGst && pendingGst.sigLat !== null && pendingGst.sigLng !== null ? Math.hypot(pendingGst.sigLat, pendingGst.sigLng) : null;
   const gst = pendingGst;
   if (g.q === 0 || !Number.isFinite(g.lat)) {
-    set({ connected: true, message: 'Bluetooth: ingen posisjon ennå', quality: 'none', sats: g.sats, hdop: g.hdop, estimated: false, updated: Date.now() });
+    set({ connected: true, message: 'Bluetooth: ingen posisjon ennå', quality: 'none', sats: g.sats, hdop: g.hdop, pdop: null, vdop: null, estimated: false, updated: Date.now() });
     return;
   }
   set({
     connected: true, message: 'Bluetooth (NMEA)', lat: g.lat, lng: g.lng, alt: g.alt, sep: g.sep, quality: qualityOf(g.q), estimated: false,
-    sats: g.sats, hdop: g.hdop, age: g.age, accH: sigH, accV: gst?.sigAlt ?? null, updated: Date.now(), epochs: state.epochs + 1,
+    sats: g.sats, hdop: g.hdop ?? pendingGsa?.hdop ?? null, pdop: pendingGsa?.pdop ?? null, vdop: pendingGsa?.vdop ?? null, age: g.age, accH: sigH, accV: gst?.sigAlt ?? null, updated: Date.now(), epochs: state.epochs + 1,
   }, true);
 }
 const splitter = new LineSplitter();
@@ -124,12 +128,13 @@ export function feedNmea(text: string) {
     const m = parseNmea(line);
     if (!m) continue;
     if (m.type === 'GST') pendingGst = m;
+    else if (m.type === 'GSA') pendingGsa = m;
     else if (m.type === 'GGA') applyGga(m);
   }
 }
 async function startBt(address: string, name: string) {
   set({ ...blank(), source: 'bt', message: `Kobler til ${name} …` });
-  pendingGst = null;
+  pendingGst = null; pendingGsa = null;
   offEvt?.();
   offEvt = native.on((ev, data) => {
     if (ev === 'nmea') feedNmea(String(data.text ?? ''));
@@ -165,6 +170,8 @@ export interface Averaged {
   lat: number; lng: number; alt: number | null; sep: number | null;
   n: number; stdH: number; stdV: number | null;
   quality: FixQuality; estimated: boolean; accH: number | null; accV: number | null; sats: number | null; time: number;
+  /** Gjennomsnittlig DOP over epokene (null når mottakeren ikke oppgir dem) */
+  pdop: number | null; hdop: number | null; vdop: number | null;
 }
 
 /** Samler posisjoner i `ms` millisekunder (minst én) og gir gjennomsnittet. 0 ms gir siste posisjon. */
@@ -205,7 +212,9 @@ export function summarize(eps: GnssState[]): Averaged {
   const worst: FixQuality[] = ['none', 'gps', 'dgps', 'float', 'fix'];
   const quality = eps.reduce<FixQuality>((a, s) => (worst.indexOf(s.quality) < worst.indexOf(a) ? s.quality : a), 'fix');
   const accs = eps.map((s) => s.accH).filter((a): a is number => a !== null);
+  const meanOf = (f: (s: GnssState) => number | null): number | null => { const v = eps.map(f).filter((x): x is number => x !== null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
   return {
+    pdop: meanOf((s) => s.pdop), hdop: meanOf((s) => s.hdop), vdop: meanOf((s) => s.vdop),
     lat, lng, alt, sep, n, stdH, stdV, quality, estimated: last.estimated,
     accH: accs.length ? Math.max(...accs) : null, accV: last.accV, sats: last.sats, time: Date.now(),
   };

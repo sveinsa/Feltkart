@@ -112,6 +112,8 @@ export function parseLandXml(text: string, crs: string, mkLl: (crs: string) => L
       if (code) attrs.Kode = code;
       if (Number.isFinite(xyz[2])) attrs.Høyde = xyz[2].toFixed(3);
       if (p.attrs.timeStamp) attrs.Tid = p.attrs.timeStamp;
+      // Loggdata fra Feltkart (stanghøyde, DOP, bruker, kvalitet) ligger som egenskaper i <Feature code="Feltkart">
+      for (const f of kids(p, 'Feature')) for (const pr of kids(f, 'Property')) { if (pr.attrs.label && pr.attrs.value !== undefined) attrs[pr.attrs.label] = pr.attrs.value; }
       b.point(gName || (code ? `Kode ${code}` : 'Punkter'), 'LandXML punkt', xyz,
         Number.isFinite(xyz[2]) ? `${p.attrs.name ?? ''}\n${xyz[2].toFixed(2)}` : p.attrs.name, attrs);
     }

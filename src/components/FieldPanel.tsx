@@ -14,7 +14,7 @@ import {
   canMeasure, codeStats, filterPoints, fmtTime, loadPoints, makePoint, nextName, pointEN, savePoints, sortPoints, stamp, toKof,
   type FieldPoint, type SortDir, type SortKey,
 } from '../lib/field/survey';
-import { buildExport, EXPORT_FORMATS, sosiSupported } from '../lib/field/export';
+import { buildExport, EXPORT_FORMATS, sosiSupported, toSosi } from '../lib/field/export';
 import { androidClientId, setAndroidClientId } from '../lib/google';
 import { VERSION } from '../version';
 import StakePanel from './StakePanel';
@@ -127,7 +127,9 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
     const todo = points.filter((p) => !p.saved);
     if (!todo.length) return;
     setBusy('Lagrer i prosjektet …');
-    const file = new File([toKof(todo, crs)], `Innmaaling_${stamp()}.kof`, { type: 'text/plain', lastModified: Date.now() });
+    // SOSI tar med stanghøyde, DOP, kvalitet og bruker. Utenfor UTM 31–36 brukes KOF, som bare har punkt, kode og koordinater.
+    const asSosi = sosiSupported(crs);
+    const file = new File([asSosi ? toSosi(todo, crs) : toKof(todo, crs)], `Innmaaling_${stamp()}.${asSosi ? 'sos' : 'kof'}`, { type: 'text/plain', lastModified: Date.now() });
     try {
       const r = await project.upload([file], 'auto', crs, () => {});
       if (r.failed.length) setErr(r.failed.map((f) => `${f.name}: ${f.reason}`).join('\n'));
@@ -183,7 +185,9 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
             <span><i>Øst</i>{en.e}</span><span><i>Nord</i>{en.n}</span>
             <span><i>Høyde antenne</i>{g.alt !== null ? nb(g.alt, 3) + ' m' : '–'}</span>
             {g.sats !== null && <span><i>Satellitter</i>{g.sats}</span>}
-            {g.hdop !== null && <span><i>HDOP</i>{nb(g.hdop, 1)}</span>}
+            {g.pdop !== null && <span><i>PDOP</i>{nb(g.pdop, 2)}</span>}
+            {g.hdop !== null && <span><i>HDOP</i>{nb(g.hdop, 2)}</span>}
+            {g.vdop !== null && <span><i>VDOP</i>{nb(g.vdop, 2)}</span>}
             {g.age !== null && <span><i>Korreksjonsalder</i>{nb(g.age, 0)} s</span>}
           </div>
         )}
@@ -300,6 +304,11 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
                       <th className="num">Øst</th>
                       <th className="num"><button className="fld-th" aria-label="Sorter på høyde" onClick={() => sortBy('h')}>Høyde{arrow('h')}</button></th>
                       <th>Kvalitet</th>
+                      <th className="num">Stang</th>
+                      <th className="num">PDOP</th>
+                      <th className="num">HDOP</th>
+                      <th className="num">VDOP</th>
+                      <th>Bruker</th>
                       <th />
                     </tr>
                   </thead>
@@ -315,6 +324,11 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
                           <td className="num">{nb(pe, 3)}</td>
                           <td className="num">{p.h !== null ? nb(p.h, 3) : '–'}</td>
                           <td className="nowrap">{QUALITY_LABEL[p.quality]}{p.estimated ? ' (anslått)' : ''} {cm(p.accH)}</td>
+                          <td className="num" data-testid="pt-stang">{nb(p.poleHeight, 3)}</td>
+                          <td className="num" data-testid="pt-pdop">{p.pdop != null ? nb(p.pdop, 2) : '–'}</td>
+                          <td className="num" data-testid="pt-hdop">{p.hdop != null ? nb(p.hdop, 2) : '–'}</td>
+                          <td className="num" data-testid="pt-vdop">{p.vdop != null ? nb(p.vdop, 2) : '–'}</td>
+                          <td className="nowrap" data-testid="pt-bruker">{p.user || '–'}</td>
                           <td><button className="icon-btn" aria-label={`Slett ${p.name}`} onClick={() => setPoints((l) => l.filter((x) => x.id !== p.id))}>✕</button></td>
                         </tr>
                       );
@@ -342,7 +356,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
                 {points.some((p) => p.saved) && <button className="btn" onClick={() => setPoints((l) => l.filter((p) => !p.saved))}>Fjern lagrede</button>}
                 <button className="btn danger" onClick={() => { if (window.confirm(`Slette alle ${points.length} punkter?`)) setPoints([]); }}>Tøm</button>
               </div>
-              <div className="muted small">Punktene ligger i denne enheten til du fjerner dem. «Lagre i prosjektet» legger dem også inn som KOF-fil i mappen Innmålinger, så de vises i kartet.</div>
+              <div className="muted small">Punktene ligger i denne enheten til du fjerner dem. «Lagre i prosjektet» legger dem også inn i mappen Innmålinger (som SOSI-fil med stanghøyde, DOP og bruker, eller KOF utenfor UTM 31–36), så de vises i kartet og i Innmåling-registeret.</div>
             </>
           )}
         </div>
@@ -358,6 +372,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
 
       {tab === 'oppsett' && (
         <div className="fld-sec">
+          <label>Bruker (lagres på hvert innmålt punkt)<input aria-label="Bruker" value={fs.user} placeholder="Navn eller e-post" onChange={(e) => setF({ user: e.target.value })} /></label>
           <div className="fld-row">
             <label>Snitt (sekunder)<input type="number" min="0" max="60" value={fs.avgSeconds} onChange={(e) => setF({ avgSeconds: Math.max(0, Number(e.target.value) || 0) })} /></label>
           </div>

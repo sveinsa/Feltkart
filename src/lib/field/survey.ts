@@ -31,12 +31,14 @@ export interface FieldSettings {
   sound: boolean;
   /** Utsetting: fremme når du er nærmere enn dette (m) */
   stakeTol: number;
+  /** Hvem som måler. Lagres på hvert punkt (navn eller e-post). */
+  user: string;
 }
 
 export const DEFAULT_FIELD: FieldSettings = {
   poleHeight: 2, avgSeconds: 3, requireFix: true, maxAccH: 0.05, heightMode: 'device', prefix: 'P', next: 1,
   codes: 'TERRENG\nKANT\nKUM\nSLUK\nROR\nMAST', code: '', source: 'android', btAddress: '', btName: '',
-  exportCrs: '', exportFormat: 'kof', vdatum: 'NN2000', sound: true, stakeTol: 0.05,
+  exportCrs: '', exportFormat: 'kof', vdatum: 'NN2000', sound: true, stakeTol: 0.05, user: '',
 };
 
 const SKEY = 'feltkart.field.settings';
@@ -67,6 +69,12 @@ export interface FieldPoint {
   stdH: number;
   n_epochs: number;
   sats: number | null;
+  /** DOP-verdier (gjennomsnitt) når mottakeren oppgir dem (direkte Bluetooth) */
+  pdop?: number | null;
+  hdop?: number | null;
+  vdop?: number | null;
+  /** Hvem som målte punktet */
+  user?: string;
   time: string; // ISO
   crs: string;
   /** Lagt inn i prosjektet som KOF-element (Innmålinger) */
@@ -75,7 +83,7 @@ export interface FieldPoint {
 
 /** Det eksportfunksjonene trenger. Målte punkter (FieldPoint) og punkter lest fra filer i prosjektet passer begge. */
 export type ExportPoint = Pick<FieldPoint, 'name' | 'code' | 'lat' | 'lng' | 'e' | 'n' | 'h' | 'time' | 'crs'>
-  & Partial<Pick<FieldPoint, 'poleHeight' | 'quality' | 'estimated' | 'accH' | 'n_epochs'>>;
+  & Partial<Pick<FieldPoint, 'poleHeight' | 'quality' | 'estimated' | 'accH' | 'n_epochs' | 'pdop' | 'hdop' | 'vdop' | 'user'>>;
 
 export function loadPoints(): FieldPoint[] {
   try { const p = JSON.parse(localStorage.getItem(PKEY) || '[]'); return Array.isArray(p) ? p : []; } catch { return []; }
@@ -112,12 +120,15 @@ export function canMeasure(g: Pick<GnssState, 'lat' | 'lng' | 'quality' | 'accH'
   return { ok: true, reason: '' };
 }
 
+const dop = (v: number | null): number | null => (v === null ? null : Math.round(v * 100) / 100);
+
 export function makePoint(avg: Averaged, s: FieldSettings, crs: string, name: string, code: string, id: string): FieldPoint {
   const [e, n] = fromLatLng(crs, avg.lat, avg.lng);
   const h = groundHeight(avg.alt, avg.sep, s).ground;
   return {
     id, name, code, lat: avg.lat, lng: avg.lng, e, n, h, poleHeight: s.poleHeight, heightMode: s.heightMode, quality: avg.quality, estimated: avg.estimated,
-    accH: avg.accH, accV: avg.accV, stdH: avg.stdH, n_epochs: avg.n, sats: avg.sats, time: new Date(avg.time).toISOString(), crs,
+    accH: avg.accH, accV: avg.accV, stdH: avg.stdH, n_epochs: avg.n, sats: avg.sats,
+    pdop: dop(avg.pdop), hdop: dop(avg.hdop), vdop: dop(avg.vdop), user: s.user.trim() || undefined, time: new Date(avg.time).toISOString(), crs,
   };
 }
 
@@ -143,11 +154,11 @@ export function toKof(points: ExportPoint[], crs?: string): string {
 }
 
 export function toCsv(points: ExportPoint[], crs?: string): string {
-  const head = 'Punkt;Kode;Ost;Nord;Hoyde;Kvalitet;Usikkerhet_H_m;Epoker;Stanghoyde;Tid;System';
+  const head = 'Punkt;Kode;Ost;Nord;Hoyde;Kvalitet;Usikkerhet_H_m;Epoker;Stanghoyde;PDOP;HDOP;VDOP;Bruker;Tid;System';
   const f = (v: number | null, d: number) => (v === null ? '' : v.toFixed(d).replace('.', ','));
   const rows = points.map((p) => {
     const [e, n] = pointEN(p, crs);
-    return [p.name, p.code, f(e, 3), f(n, 3), f(p.h, 3), p.quality ? QUALITY_LABEL[p.quality] + (p.estimated ? ' (anslått)' : '') : '', f(p.accH ?? null, 3), p.n_epochs === undefined ? '' : String(p.n_epochs), f(p.poleHeight ?? null, 3), p.time, crs || p.crs].join(';');
+    return [p.name, p.code, f(e, 3), f(n, 3), f(p.h, 3), p.quality ? QUALITY_LABEL[p.quality] + (p.estimated ? ' (anslått)' : '') : '', f(p.accH ?? null, 3), p.n_epochs === undefined ? '' : String(p.n_epochs), f(p.poleHeight ?? null, 3), f(p.pdop ?? null, 2), f(p.hdop ?? null, 2), f(p.vdop ?? null, 2), (p.user ?? '').replace(/[;\r\n]+/g, ' '), p.time, crs || p.crs].join(';');
   });
   return '\ufeff' + [head, ...rows].join('\r\n') + '\r\n';
 }

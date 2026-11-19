@@ -6,7 +6,7 @@ import { CRS_LIST, crsName, measureCrs } from '../lib/crs';
 import { EXPORT_FORMATS, buildExport, sosiSupported, type ExportFormat } from '../lib/field/export';
 import { saveFile } from '../lib/field/native';
 import {
-  COLUMNS, DEFAULT_COLS, activeFilters, applyFilters, cellText, colDef, describeFilter, distinctValues, isActive, rowsFromParsed, sortRows, toViewRows,
+  COLUMNS, DEFAULT_COLS, activeFilters, applyFilters, cellText, colDef, describeFilter, distinctValues, emptyLabel, isActive, rowsFromParsed, sortRows, toViewRows,
   type ColFilter, type ColKey, type Filters, type SortState, type SurveyRow, type ViewRow,
 } from '../lib/field/register';
 import { fmtTime } from '../lib/field/survey';
@@ -24,7 +24,10 @@ const PAGE = 100;
 const SKEY = 'feltkart.register';
 const SURVEY_FORMATS = ['kof', 'sosi', 'landxml'];
 
-interface Prefs { crs: string; format: ExportFormat; cols: ColKey[] }
+interface Prefs { crs: string; format: ExportFormat; cols: ColKey[]; colsV?: number }
+/** Versjon 2: nye kolonner (stanghøyde, kvalitet, PDOP, HDOP, VDOP, bruker) legges til for dem som har lagret et eldre valg */
+const COLS_V = 2;
+const NEW_COLS: ColKey[] = ['stang', 'kvalitet', 'pdop', 'hdop', 'vdop', 'bruker'];
 function loadPrefs(): Prefs {
   const d: Prefs = { crs: '', format: 'kof', cols: DEFAULT_COLS };
   try {
@@ -32,7 +35,8 @@ function loadPrefs(): Prefs {
     return {
       crs: typeof p.crs === 'string' ? p.crs : d.crs,
       format: EXPORT_FORMATS.some((f) => f.id === p.format) ? p.format : d.format,
-      cols: Array.isArray(p.cols) ? DEFAULT_COLS.filter((c) => p.cols.includes(c)) : d.cols,
+      cols: Array.isArray(p.cols) ? DEFAULT_COLS.filter((c) => p.cols.includes(c) || (p.colsV !== COLS_V && NEW_COLS.includes(c))) : d.cols,
+      colsV: COLS_V,
     };
   } catch { return d; }
 }
@@ -336,8 +340,8 @@ function FilterBody({ col, rows, value, onApply, onClear }: { col: ColKey; rows:
   const kind = colDef(col).kind;
   const [d, setD] = useState<ColFilter>(() => ({ ...value, set: value?.set ? [...value.set] : undefined }));
   const [find, setFind] = useState('');
-  const values = useMemo(() => (kind === 'set' ? distinctValues(rows, col as 'kode' | 'fil') : []), [kind, rows, col]);
-  const shownVals = values.filter((v) => (v.value || '(uten kode)').toLowerCase().includes(find.trim().toLowerCase()));
+  const values = useMemo(() => (kind === 'set' ? distinctValues(rows, col as 'kode' | 'fil' | 'kvalitet' | 'bruker') : []), [kind, rows, col]);
+  const shownVals = values.filter((v) => (v.value || emptyLabel(col)).toLowerCase().includes(find.trim().toLowerCase()));
   const toggle = (v: string) => setD((x) => { const s = new Set(x.set ?? []); if (s.has(v)) s.delete(v); else s.add(v); return { ...x, set: [...s] }; });
   const submit = (e?: FormEvent) => { e?.preventDefault(); onApply(d); };
   return (
@@ -354,7 +358,7 @@ function FilterBody({ col, rows, value, onApply, onClear }: { col: ColKey; rows:
             {shownVals.map((v) => (
               <label key={v.value || '__ingen'}>
                 <input type="checkbox" checked={d.set?.includes(v.value) ?? false} onChange={() => toggle(v.value)} />
-                <span className="rg-vname">{v.value || '(uten kode)'}</span><span className="rg-vcnt">{v.count}</span>
+                <span className="rg-vname">{v.value || emptyLabel(col)}</span><span className="rg-vcnt">{v.count}</span>
               </label>
             ))}
             {!shownVals.length && <p className="rg-hint">Ingen verdier.</p>}
