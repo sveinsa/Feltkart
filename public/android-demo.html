@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Feltkart – Android-app (demo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f5a3c'/%3E%3Cpath d='M9 22l5-12 4 8 2-4 3 8z' fill='white'/%3E%3C/svg%3E" />
+<style>
+:root { --brand: #0f5a3c; --lime: #8dc63f; --soft: #e8f2ec; --ink: #14261d; --muted: #5a6b62; --line: #d5e2da; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 Inter, system-ui, sans-serif; color: var(--ink); background: linear-gradient(160deg, #f3f8f4 0%, #dcebe1 100%); min-height: 100vh; }
+header { background: var(--brand); color: #fff; display: flex; align-items: center; gap: 12px; padding: 10px 20px; }
+header .logo { width: 28px; height: 28px; }
+header b { font-size: 17px; }
+header .sub { opacity: 0.8; font-size: 13px; }
+header a { margin-left: auto; color: #fff; text-decoration: none; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 8px; padding: 6px 12px; font-weight: 500; white-space: nowrap; }
+header a:hover { background: rgba(255, 255, 255, 0.14); }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 24px 20px 40px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 40px; align-items: start; }
+.txt h1 { margin: 6px 0 10px; font-size: 28px; color: var(--brand); }
+.txt h2 { margin: 22px 0 6px; font-size: 16px; color: var(--brand); }
+.txt p { margin: 8px 0; }
+.txt ol, .txt ul { margin: 6px 0; padding-left: 22px; }
+.txt li { margin: 4px 0; }
+.note { background: #fff; border: 1px solid var(--line); border-left: 5px solid var(--lime); border-radius: 10px; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
+.btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.btn { display: inline-block; padding: 10px 16px; border-radius: 10px; font-weight: 600; text-decoration: none; border: 1px solid var(--brand); color: var(--brand); background: #fff; cursor: pointer; font: inherit; font-weight: 600; }
+.btn.primary { background: var(--brand); color: #fff; }
+.btn:hover { filter: brightness(0.95); }
+
+/* Android-mobilen: ramme, hullkamera, statuslinje og navigasjonsstrek rundt selve appen (iframe) */
+/* Starter liten, så siden ikke blir bredere enn skjermen før skriptet har regnet ut riktig størrelse */
+.stage { width: 196px; padding-bottom: 30px; }
+.phone-box { transform-origin: top left; transform: scale(0.45); margin-bottom: -495px; width: 436px; height: 900px; }
+.phone { position: relative; width: 436px; height: 900px; background: #1a1d1b; border-radius: 58px; padding: 12px; box-shadow: 0 26px 60px rgba(15, 50, 35, 0.35), inset 0 0 0 2px #3a403c; }
+.phone:before, .phone:after { content: ""; position: absolute; width: 4px; background: #2b302d; border-radius: 2px; }
+.phone:before { right: -4px; top: 190px; height: 70px; }
+.phone:after { right: -4px; top: 290px; height: 110px; }
+.screen { position: relative; width: 412px; height: 876px; border-radius: 46px; overflow: hidden; background: var(--brand); }
+.sbar { position: absolute; left: 0; right: 0; top: 0; height: 36px; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 4px 26px 0 28px; font-size: 13px; font-weight: 600; z-index: 3; background: var(--brand); }
+.sbar .ic { display: flex; gap: 6px; align-items: center; }
+.cam { position: absolute; top: 11px; left: 50%; width: 13px; height: 13px; margin-left: -6px; border-radius: 50%; background: #050605; box-shadow: 0 0 0 2px #1b2b23; z-index: 4; }
+iframe { position: absolute; left: 0; top: 36px; width: 412px; height: 820px; border: 0; background: #fff; }
+.nav { position: absolute; left: 0; right: 0; bottom: 0; height: 20px; background: var(--brand); z-index: 3; }
+.nav:after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 120px; height: 4px; margin-left: -60px; border-radius: 2px; background: rgba(255, 255, 255, 0.85); }
+.cap { text-align: center; color: var(--muted); font-size: 13px; margin-top: 10px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); justify-items: center; } .txt { order: 2; width: 100%; min-width: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#8dc63f" /><path d="M8 23l5.5-13 4.5 8.5 2.2-4L24 23z" fill="#0f5a3c" /></svg>
+  <div><b>Feltkart</b> <span class="sub">Android-app, demo</span></div>
+  <a href="./" id="back">← Til Feltkart</a>
+</header>
+
+<div class="wrap">
+  <section class="txt">
+    <h1>Feltkart som Android-app</h1>
+    <p>Til høyre kjører den ekte appen i en Android-mobil, rett i nettleseren. Den er laget for innmåling med RTK-GNSS (Leica FLX100 via Zeno Connect): status øverst, lite kart og en stor målknapp under tommelen.</p>
+    <h2>Slik prøver du den</h2>
+    <ol>
+      <li>Vent noen sekunder. Posisjonen kobles til av seg selv og går fra <strong>rød</strong> (Single, Float) til <strong>grønn</strong> (RTK Fix).</li>
+      <li>Skriv et punktnavn og velg en kode (TERRENG, KANT …). Juster <strong>stanghøyden</strong> øverst om du vil.</li>
+      <li>Trykk den runde <strong>Mål</strong>-knappen. Du hører en pling, og punktet dukker opp i kartet og under <em>Punkter</em>.</li>
+      <li>Bytt til <strong>Kart</strong> øverst for å se hele kartet. Under <em>Oppsett</em> kan du prøve kildene: Android-posisjon, Intern GPS og Direkte Bluetooth.</li>
+    </ol>
+    <div class="note"><strong>Dette er en demo.</strong> Posisjonen er simulert ved Oppdal, og det er ingen ekte FLX100 eller Bluetooth. Google-innlogging er slått av, bilder er demobilder, og filer lastes ned i nettleseren. Punktene ligger bare i denne nettleseren.</div>
+    <div class="btns">
+      <a class="btn primary" href="https://github.com/sveinsa/Feltkart/releases/download/android-latest/Feltkart.apk">Last ned appen (APK)</a>
+      <button class="btn" id="restart" type="button">Start demoen på nytt</button>
+      <a class="btn" href="./">Tilbake til Feltkart</a>
+    </div>
+  </section>
+
+  <div class="stage" id="stage">
+    <div class="phone-box" id="box">
+      <div class="phone" aria-label="Android-mobil som viser Feltkart">
+        <div class="screen">
+          <div class="cam"></div>
+          <div class="sbar"><span id="clock">09:41</span>
+            <span class="ic" aria-hidden="true">
+              <svg width="16" height="12" viewBox="0 0 16 12"><path d="M1 9h2v2H1zM5 6h2v5H5zM9 3h2v8H9zM13 0h2v11h-2z" fill="#fff" /></svg>
+              <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11L.8 3.6a10 10 0 0114.4 0z" fill="#fff" /></svg>
+              <svg width="24" height="12" viewBox="0 0 24 12"><rect x="0.5" y="0.5" width="20" height="11" rx="2.5" fill="none" stroke="#fff" /><rect x="2" y="2" width="14" height="8" rx="1.5" fill="#fff" /><rect x="21.5" y="3.5" width="2" height="5" rx="1" fill="#fff" /></svg>
+            </span>
+          </div>
+          <iframe id="app" title="Feltkart i Android-appen (demo)" src="./index.html?demo=android" allow="geolocation"></iframe>
+          <div class="nav"></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Android-mobil (demo)</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var box = document.getElementById('box'), stage = document.getElementById('stage');
+  function fit() {
+    var s = Math.min(1, (window.innerHeight - 90) / 900, (window.innerWidth - 24) / 436);
+    if (s < 0.45) s = 0.45;
+    box.style.transform = 'scale(' + s + ')';
+    stage.style.width = Math.round(436 * s) + 'px';
+    box.style.marginBottom = '-' + Math.round(900 * (1 - s)) + 'px';
+  }
+  fit(); window.addEventListener('resize', fit);
+  function tick() { var d = new Date(); document.getElementById('clock').textContent = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  tick(); setInterval(tick, 20000);
+  document.getElementById('restart').addEventListener('click', function () {
+    var f = document.getElementById('app'); f.src = './index.html?demo=android&t=' + Date.now();
+  });
+})();
+</script>
+</body>
+</html>

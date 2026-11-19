@@ -445,3 +445,10 @@ Teksten ligger i `src/lib/readmeZeno.ts` (figurene er inline SVG, ingen bildefil
 - **Direkte Bluetooth** feilet på Android 12 og nyere med «Need android.permission.BLUETOOTH_SCAN». Kallet som trengte tillatelsen (`cancelDiscovery`) tåler nå at tillatelsen mangler.
 - Direkte Bluetooth gir bare RTK hvis mottakeren selv får korreksjoner. Feltkart har ikke egen NTRIP-klient.
 - Kotlin-endringene er ikke kompilert eller prøvd på telefon her; det skjer første gang GitHub bygger APK-en.
+
+## Android-demo på nettsiden, tydeligere kilder og enklere tilbake (v 6.9)
+
+- **Android-app** (mobilikon) i øvre linje på nettsiden åpner `android-demo.html` i nytt vindu: den ekte appen kjører i en tegnet Android-mobil (iframe med `?demo=android`). `src/lib/field/demoBridge.ts` etterlikner Android-broen og lager simulert RTK-posisjon ved Oppdal (først Single og Float, så Fix, med NMEA GGA/GST). Google-innlogging er av i demoen. Punkter og bilder lagres bare i nettleseren.
+- Kildene i Felt har forklaring under valget. **Direkte Bluetooth til FLX100** gir full status (Fix/Float, satellitter, korreksjonsalder) når mottakeren får korreksjoner, for eksempel satt opp i Zeno Connect. Feltkart henter ikke korreksjoner selv. Teksten «uten korreksjon» fra 6.8 var misvisende og er fjernet.
+- **Tilbake:** i innstillinger vises «Tilbake til Felt». Androids tilbake-knapp går fra Kart og innstillinger til Felt (ellers legges appen i bakgrunnen som før). Opplasting kaster deg ikke lenger over i Kart.
+- Kotlin: tilbake-knappen i `MainActivity.kt` er endret (ikke kompilert her).

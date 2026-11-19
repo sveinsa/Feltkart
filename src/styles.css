@@ -678,6 +678,9 @@ body.picking .modal-back { visibility: hidden; }
 /* Bugreport-lenke i toppfeltet */
 .topbar a.bugreport { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 8px; color: #fff; text-decoration: none; font-weight: 500; white-space: nowrap; }
 .topbar a.bugreport:hover { background: rgba(255, 255, 255, 0.12); }
+.topbar a.appdemo { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--lime, #8dc63f); border-radius: 8px; color: #fff; text-decoration: none; font-weight: 600; white-space: nowrap; }
+.topbar a.appdemo svg { color: var(--lime, #8dc63f); }
+.topbar a.appdemo:hover { background: rgba(141, 198, 63, 0.18); }
 
 /* Tverrsnitt: eget flyttbart vindu */
 .sec-win { position: fixed; z-index: 1950; background: #fff; border: 1px solid #b9c2cc; border-radius: 10px; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.28); display: flex; flex-direction: column; max-width: calc(100vw - 8px); }
@@ -753,7 +756,7 @@ body.picking .modal-back { visibility: hidden; }
 @media (max-width: 700px) {
   /* Telefon: logo, prosjekt og Last opp i første rad, hovedmenyen (Kart, Bilder, Felt …) i egen rad som kan rulles sideveis */
   .topbar { height: auto; flex-wrap: wrap; gap: 0 8px; padding: 4px 8px 0; }
-  .topbar .brand-name, .topbar .brand-version, .topbar .bugreport { display: none !important; }
+  .topbar .brand-name, .topbar .brand-version, .topbar .bugreport, .topbar a.appdemo span { display: none !important; }
   .topbar-right { margin-left: auto; }
   .topnav { order: 3; flex: 1 0 100%; height: 40px; }
   .topnav button { padding-left: 14px; padding-right: 14px; }
@@ -930,6 +933,8 @@ th .rg-pop { top: 100%; left: 0; }
 .fld-measure small { font-size: 12px; opacity: 0.9; }
 .fld-measure:active:not(:disabled) { transform: scale(0.94); }
 .fld-measure:disabled { background: #8a9a90; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+.app.native .native-back { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 0 14px; border: 0; border-bottom: 1px solid var(--line); background: #e8f2ec; color: var(--brand); font: inherit; font-size: 16px; font-weight: 700; text-align: left; cursor: pointer; flex: none; }
+.fld-srcdesc { grid-column: 1 / -1; line-height: 1.4; }
 .fld-more { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .fld-more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .fld-more-grid .btn { min-height: 44px; justify-content: center; }

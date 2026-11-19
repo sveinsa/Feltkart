@@ -10,6 +10,7 @@ import MediaViewer from './components/MediaViewer';
 import PhotosPanel, { type PhotoSort, type PhotoTypeFilter } from './components/PhotosPanel';
 import ProjectFiles from './components/ProjectFiles';
 import WelcomeDemo from './components/WelcomeDemo';
+import { isDemoMode } from './lib/field/demoBridge';
 import ProjectMenu from './components/ProjectMenu';
 import { hardRefresh } from './lib/refresh';
 import { isDefaultProject } from './lib/projects';
@@ -87,6 +88,14 @@ export default function App() {
     window.addEventListener(POINTS_EVENT, upd);
     return () => window.removeEventListener(POINTS_EVENT, upd);
   }, []);
+  // Android-appen: «Tilbake» (knappen i appen og Androids tilbake-knapp) går alltid mot Felt
+  useEffect(() => { document.documentElement.dataset.fkView = view; }, [view]);
+  useEffect(() => {
+    if (!appMode) return;
+    const onBack = () => { if (view === 'map' && panel) setPanel(null); else setView('field'); };
+    window.addEventListener('fk-back', onBack);
+    return () => window.removeEventListener('fk-back', onBack);
+  }, [view, panel]);
   useEffect(() => { installDownloadShim((n, w) => showToast(`${n} lagret i ${w}`), (e) => showToast('Kunne ikke lagre filen: ' + e.message)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -117,6 +126,7 @@ export default function App() {
     if (!ready || !settings || demoStarted.current) return;
     // Når prosjektet er tomt ved åpning (og det finnes en API-nøkkel): vis velkomstboks med spørsmål om å laste demodata
     if (items.length > 0) return;
+    if (isDemoMode()) return; // Android-demoen spør ikke om å laste data fra Google Disk
     if (!isDefaultProject()) return; // demodata hører til første prosjekt (Oppdal Ålma); de andre er tomme
     demoStarted.current = true;
     void hasDemoSource(googleConfig(project)).then((ok) => { if (ok) setWelcomeOpen(true); else demoStarted.current = false; }); // spør først – lastingen starter når brukeren sier ja
@@ -312,12 +322,19 @@ export default function App() {
           {!native && <button className={view === 'terrain3d' ? 'on' : ''} onClick={() => setView('terrain3d')}>Terreng 3D <span className="beta-tag">beta</span></button>}
         </nav>
         {!native && <div className="topbar-right">
+          <a className="appdemo" href="android-demo.html" target="_blank" rel="noopener noreferrer" title="Se en demo av Android-appen (åpnes i et nytt vindu)">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="18.6" r="1" fill="currentColor" /></svg>
+            <span>Android-app</span>
+          </a>
           <a className="bugreport" href="https://forms.cloud.microsoft/e/waiwYtDeUX?origin=lprLink" target="_blank" rel="noopener noreferrer" title="Meld fra om feil i Feltkart (åpnes i et nytt vindu)">Bugreport <span aria-hidden="true">🪲</span></a>
           <ProjectMenu name={settings.projectName} onSettings={() => setView('settings')} />
           <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp</button>
         </div>}
       </header>
       {native && <FieldStatusBar />}
+      {native && view !== 'field' && view !== 'map' && (
+        <button className="native-back" data-testid="native-back" onClick={() => setView('field')}><span aria-hidden="true">←</span> Tilbake til Felt</button>
+      )}
 
       <div className="body">
         {!native && <nav className="rail">
@@ -541,7 +558,7 @@ export default function App() {
           onClose={() => setUpload(null)}
           onDone={(r, background) => {
             // Ble dialogen skjult underveis, blir brukeren værende i visningen hen har byttet til
-            if (!background) setView('map');
+            if (!background && !native) setView('map'); // i appen blir du i Felt
             // Zoom til det som ble lagt til
             if (r.bounds) fitTo(r.bounds, 19);
           }}

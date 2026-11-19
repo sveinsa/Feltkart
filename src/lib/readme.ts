@@ -7,6 +7,7 @@ export interface Release { v: string; title: string; text: string }
 
 /** Versjonshistorikk, nyeste først. Legg til en linje øverst for hver ny versjon. */
 export const CHANGELOG: Release[] = [
+  { v: '6.9', title: 'Android-demo på nettsiden, tydeligere kilder, enklere tilbake', text: 'Ny knapp «Android-app» med mobilikon øverst på nettsiden åpner en demoside der appen kjører i en Android-mobil i nettleseren, med simulert RTK-posisjon. Posisjonskildene i appen har fått forklaring, og «Direkte Bluetooth til FLX100» heter ikke lenger «uten korreksjon». I appen finnes «Tilbake til Felt» i innstillinger, Androids tilbake-knapp går mot Felt, og opplasting kaster deg ikke lenger over i Kart.' },
   { v: '6.8', title: 'Statuslinje under menyen, Intern GPS, Bluetooth-rettelse', text: 'GNSS-statuslinjen ligger nå rett under menylinjen (Felt og Kart). Ny posisjonskilde «Intern GPS» leser Androids posisjonstjeneste direkte, også mock-posisjon fra Zeno Connect, og viser rådata (leverandør, mock, nøyaktighet) til feilsøking. Direkte Bluetooth feilet på Android 12 og nyere på grunn av manglende tillatelse; det er rettet.' },
   { v: '6.7', title: 'Readme: korreksjon via Zeno Connect', text: 'Readme har fått en ny del om hvordan RTK-korreksjon går fra satellitt og referansenett via FLX100 og Zeno Connect til Feltkart, med flytskjema og figurer: kjeden, kvalitetstrappen, høyde og stanghøyde, oppsett steg for steg og feilsøking.' },
   { v: '6.6', title: 'GNSS-status og stang øverst, rund målknapp, pling', text: 'I Android-appen ligger GNSS-status øverst i grønt (klar til å måle) eller rødt (ikke klar), med «Nøyaktighet» i stedet for «anslått», og stanghøyden i samme felt (uten hurtigvalg). Kartet ligger rett under. Statusfeltet viser også geoidemodell (NN2000 som standard). Målknappen er rund og ligger på høyre side, ca. 1/4 opp fra bunnen. En liten lyd (pling) spilles når et punkt er registrert, og kan slås av under Oppsett.' },
@@ -195,6 +196,7 @@ footer{text-align:center;color:var(--muted);font-size:13px;padding:0 0 30px}
 <li><div>Åpne filen og velg <em>Tillat fra denne kilden</em>, deretter <em>Installer</em>.</div></li>
 <li><div>Åpne Feltkart og tillat <em>posisjon</em> når Android spør.</div></li>
 </ol>
+<p>Vil du se hvordan appen ser ut først? Knappen <strong>Android-app</strong> øverst på nettsiden åpner en demo i en Android-mobil, med simulert posisjon.</p>
 <p class="muted">Nye versjoner installeres oppå den gamle. Data og innstillinger beholdes.</p>
 </section>
 

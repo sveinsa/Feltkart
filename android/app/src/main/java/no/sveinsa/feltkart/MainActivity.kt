@@ -155,9 +155,11 @@ class MainActivity : ComponentActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                // Åpen dialog/visning lukkes (Esc). Ellers legges appen i bakgrunnen, så Bluetooth-forbindelsen beholdes.
+                // Åpen dialog/visning lukkes (Esc). Står du i Kart eller innstillinger, går tilbake til Felt. Ellers legges appen i bakgrunnen, så Bluetooth-forbindelsen beholdes.
                 val js = "(function(){var m=document.querySelector('.modal-back,.viewer,.sec-win');" +
-                    "if(m){window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));return 'esc';}return 'min';})()"
+                    "if(m){window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));return 'esc';}" +
+                    "var v=document.documentElement.dataset.fkView;" +
+                    "if(v&&v!=='field'){window.dispatchEvent(new Event('fk-back'));return 'esc';}return 'min';})()"
                 webView.evaluateJavascript(js) { r -> if (r == null || !r.contains("esc")) moveTaskToBack(true) }
             }
         })

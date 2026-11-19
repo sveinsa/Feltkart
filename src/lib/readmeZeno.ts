@@ -162,9 +162,9 @@ ${fig(FIG_STANG, 'Figur 5. Bakke = høyde fra mottaker minus stanghøyde.')}
 
 <h3>Posisjonskilder i Feltkart</h3>
 <table class="src"><thead><tr><th>Kilde</th><th>Slik virker den</th></tr></thead><tbody>
-<tr><td>Android-posisjon</td><td>Feltkart spør Android via nettvisningen. Enklest, men Android kan blande eller jevne ut posisjonen før appen får den.</td></tr>
-<tr><td>Intern GPS</td><td>Feltkart leser Androids posisjonstjeneste direkte. Her kommer både telefonens egen GPS og mock-posisjonen fra Zeno Connect. Under koordinatene vises <em>Rå data</em>: leverandør, om posisjonen er mock, og nøyaktigheten Android oppgir.</td></tr>
-<tr><td>Direkte Bluetooth</td><td>Feltkart leser FLX100 selv. Feltkart henter ikke korreksjoner, så du får bare RTK hvis mottakeren allerede har korreksjoner.</td></tr>
+<tr><td>Android-posisjon</td><td>Feltkart spør Android om posisjon via nettvisningen. Android oppgir bare nøyaktighet, så Fix og Float er et anslag. Android kan også jevne ut posisjonen før appen får den.</td></tr>
+<tr><td>Intern GPS</td><td>Feltkart leser Androids posisjonstjeneste direkte. Her kommer både telefonens egen GPS og mock-posisjonen fra Zeno Connect. Under koordinatene vises <em>Rå data</em>: leverandør, om posisjonen er mock, og nøyaktigheten Android oppgir. Fix og Float er et anslag.</td></tr>
+<tr><td>Direkte Bluetooth til FLX100</td><td>Feltkart snakker rett med mottakeren og får full status: Fix eller Float, satellitter og korreksjonsalder. Det gir den sikreste statusen. Mottakeren må få RTK-korreksjoner, for eksempel satt opp i Zeno Connect. Feltkart henter ikke korreksjoner selv.</td></tr>
 </tbody></table>
 
 <h3>Feilsøking</h3>
