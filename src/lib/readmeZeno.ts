@@ -160,7 +160,15 @@ ${fig(FIG_STANG, 'Figur 5. Bakke = høyde fra mottaker minus stanghøyde.')}
 <li><div>Åpne Feltkart, velg <em>Android-posisjon</em> som kilde i Felt og vent på grønn status.</div></li>
 </ol>
 
+<h3>Posisjonskilder i Feltkart</h3>
+<table class="src"><thead><tr><th>Kilde</th><th>Slik virker den</th></tr></thead><tbody>
+<tr><td>Android-posisjon</td><td>Feltkart spør Android via nettvisningen. Enklest, men Android kan blande eller jevne ut posisjonen før appen får den.</td></tr>
+<tr><td>Intern GPS</td><td>Feltkart leser Androids posisjonstjeneste direkte. Her kommer både telefonens egen GPS og mock-posisjonen fra Zeno Connect. Under koordinatene vises <em>Rå data</em>: leverandør, om posisjonen er mock, og nøyaktigheten Android oppgir.</td></tr>
+<tr><td>Direkte Bluetooth</td><td>Feltkart leser FLX100 selv. Feltkart henter ikke korreksjoner, så du får bare RTK hvis mottakeren allerede har korreksjoner.</td></tr>
+</tbody></table>
+
 <h3>Feilsøking</h3>
+<div class="note"><strong>Zeno Connect viser Fix, men Feltkart viser ±300 cm?</strong> Velg <em>Intern GPS</em> og les linjen <em>Rå data</em> under koordinatene. Der ser du nøyaktigheten Android faktisk får fra Zeno Connect, og om posisjonen er mock.</div>
 ${fig(FIG_FEIL, 'Figur 6. Gå ovenfra og ned til statusen blir grønn.')}
 <p class="muted">Beskrivelsen følger Leicas oppsettguide for Zeno Connect. Menynavn kan være litt annerledes i din versjon av appen eller telefonen.</p>
 </section>

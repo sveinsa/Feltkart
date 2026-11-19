@@ -1,8 +1,9 @@
 // GNSS-tilstand for feltarbeid: kobler mot Android-posisjon (f.eks. Leica Zeno Connect) eller direkte Bluetooth-NMEA, og gir én felles status.
 import { parseNmea, qualityOf, LineSplitter, type FixQuality, type Gga, type Gst } from './nmea';
 import { native, isNative } from './native';
+import { nb } from './fmt';
 
-export type GnssSource = 'none' | 'android' | 'bt';
+export type GnssSource = 'none' | 'android' | 'intern' | 'bt';
 
 export interface GnssState {
   source: GnssSource;
@@ -28,11 +29,13 @@ export interface GnssState {
   /** Tidspunkt (ms) for siste oppdatering */
   updated: number;
   epochs: number;
+  /** Rådata fra kilden i klartekst, til feilsøking (f.eks. «nøyaktighet 3,0 m · leverandør gps · mock ja») */
+  raw: string;
 }
 
 const blank = (): GnssState => ({
   source: 'none', message: 'Ikke tilkoblet', connected: false, lat: null, lng: null, alt: null, sep: null, quality: 'none', estimated: false,
-  sats: null, hdop: null, age: null, accH: null, accV: null, updated: 0, epochs: 0,
+  sats: null, hdop: null, age: null, accH: null, accV: null, updated: 0, epochs: 0, raw: '',
 });
 
 let state: GnssState = blank();
@@ -71,11 +74,33 @@ function startAndroid() {
         alt: p.coords.altitude !== null && Number.isFinite(p.coords.altitude) ? p.coords.altitude : null, sep: null,
         accH: acc, accV, quality: qualityFromAccuracy(acc), estimated: true, sats: null, hdop: null, age: null,
         updated: Date.now(), epochs: state.epochs + 1,
+        raw: `Nettvisningen oppgir nøyaktighet ${acc === null ? 'ukjent' : nb(acc, 3) + ' m'}${accV === null ? '' : ', høydenøyaktighet ' + nb(accV, 3) + ' m'}`,
       }, true);
     },
     (e) => set({ connected: false, message: e.code === 1 ? 'Ingen tilgang til posisjon. Tillat posisjon for Feltkart i Android.' : 'Får ikke posisjon: ' + e.message }),
     { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
   );
+}
+
+// ---------- Intern GPS (Androids egen posisjonstjeneste, direkte fra Kotlin; tar også imot «mock»-posisjon fra Zeno Connect) ----------
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+async function startIntern() {
+  set({ ...blank(), source: 'intern', message: 'Venter på posisjon …' });
+  offEvt?.();
+  offEvt = native.on((ev, d) => {
+    if (ev === 'loc') {
+      const lat = num(d.lat); const lng = num(d.lng);
+      if (lat === null || lng === null) return;
+      const acc = num(d.acc); const accV = num(d.vacc);
+      set({
+        connected: true, message: d.mock ? 'Intern GPS (mock, f.eks. Zeno Connect)' : 'Intern GPS (telefonens egen mottaker)',
+        lat, lng, alt: num(d.alt), sep: null, accH: acc, accV, quality: qualityFromAccuracy(acc), estimated: true,
+        sats: num(d.sats), hdop: null, age: null, updated: Date.now(), epochs: state.epochs + 1,
+        raw: `Leverandør ${String(d.provider || '?')} · mock ${d.mock ? 'ja' : 'nei'} · nøyaktighet ${acc === null ? 'ukjent' : nb(acc, 3) + ' m'}${accV === null ? '' : ' · høydenøyaktighet ' + nb(accV, 3) + ' m'}`,
+      }, true);
+    } else if (ev === 'locState') set({ connected: false, message: String(d.message || 'Intern GPS stoppet') });
+  });
+  try { await native.call('locStart', {}); } catch (e: any) { set({ connected: false, message: String(e?.message ?? e) }); throw e; }
 }
 
 // ---------- Direkte Bluetooth (NMEA) ----------
@@ -121,6 +146,7 @@ async function startBt(address: string, name: string) {
 export async function startGnss(source: GnssSource, opts: { address?: string; name?: string } = {}) {
   await stopGnss();
   if (source === 'android') startAndroid();
+  else if (source === 'intern') await startIntern();
   else if (source === 'bt' && opts.address) await startBt(opts.address, opts.name || 'GNSS');
   if (isNative()) native.call('keepAwake', { on: true }).catch(() => {});
 }
@@ -129,6 +155,7 @@ export async function stopGnss() {
   if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   offEvt?.(); offEvt = null;
   if (state.source === 'bt') await native.call('btDisconnect', {}).catch(() => {});
+  if (state.source === 'intern') await native.call('locStop', {}).catch(() => {});
   if (isNative()) native.call('keepAwake', { on: false }).catch(() => {});
   set(blank());
 }

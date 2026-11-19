@@ -19,7 +19,7 @@ export interface FieldSettings {
   /** Hurtigkoder, én per linje */
   codes: string;
   code: string;
-  source: 'android' | 'bt';
+  source: 'android' | 'intern' | 'bt';
   btAddress: string;
   btName: string;
   /** Koordinatsystem for visning og eksport av punkter. Tom = prosjektets system. */

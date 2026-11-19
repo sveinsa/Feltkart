@@ -25,6 +25,7 @@ import java.util.concurrent.Executors
 class NativeBridge(private val act: MainActivity) {
     private val io = Executors.newCachedThreadPool()
     private val bt = BtGnss { name, data -> event(name, data) }
+    private val loc = LocGnss(act) { name, data -> event(name, data) }
 
     @JavascriptInterface
     fun call(method: String, args: String, id: Int) {
@@ -39,6 +40,7 @@ class NativeBridge(private val act: MainActivity) {
 
     fun shutdown() {
         bt.disconnect()
+        loc.stop()
         io.shutdownNow()
     }
 
@@ -53,6 +55,14 @@ class NativeBridge(private val act: MainActivity) {
                 ok(id)
             }
             "btDisconnect" -> { bt.disconnect(); ok(id) }
+            "locStart" -> act.requestPerms(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) { r ->
+                if (r[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+                    try { loc.start(); ok(id) } catch (e: Throwable) { fail(id, e.message ?: e.toString()) }
+                } else {
+                    fail(id, "Feltkart mangler tillatelsen «Nøyaktig posisjon». Gi den under Felt → Oppsett → Åpne Android-innstillinger for appen.")
+                }
+            }
+            "locStop" -> { loc.stop(); ok(id) }
             "takePhoto" -> act.launchCamera { f ->
                 if (f == null) ok(id, "null")
                 else ok(id, JSONObject().put("url", "https://${MainActivity.HOST}/capture/${f.name}").put("name", f.name).toString())

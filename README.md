@@ -437,3 +437,11 @@ Readme-siden (knappen «Readme», også i Android-appen) har fått en ny del, **
 - feilsøking som flytskjema
 
 Teksten ligger i `src/lib/readmeZeno.ts` (figurene er inline SVG, ingen bildefiler). Beskrivelsen er ikke prøvd mot en ekte FLX100.
+
+## Statuslinje under menyen, Intern GPS og Bluetooth-rettelse (v 6.8)
+
+- GNSS-statuslinjen (grønn/rød, Nøyaktighet og stanghøyde) ligger nå rett under menylinjen med Felt og Kart.
+- Ny posisjonskilde **Intern GPS**: Android-appen leser Androids posisjonstjeneste direkte (`LocationManager`, ny fil `LocGnss.kt`). Både telefonens egen GPS og mock-posisjon fra Leica Zeno Connect kommer inn her. Under koordinatene vises **Rå data** (leverandør, mock ja/nei, nøyaktighet Android oppgir). Det gjør det mulig å se hvorfor nøyaktigheten blir ±300 cm når Zeno Connect viser 2 cm.
+- **Direkte Bluetooth** feilet på Android 12 og nyere med «Need android.permission.BLUETOOTH_SCAN». Kallet som trengte tillatelsen (`cancelDiscovery`) tåler nå at tillatelsen mangler.
+- Direkte Bluetooth gir bare RTK hvis mottakeren selv får korreksjoner. Feltkart har ikke egen NTRIP-klient.
+- Kotlin-endringene er ikke kompilert eller prøvd på telefon her; det skjer første gang GitHub bygger APK-en.

@@ -66,7 +66,8 @@ class BtGnss(private val emit: (String, JSONObject) -> Unit) {
             var s: BluetoothSocket? = null
             try {
                 state("connecting")
-                adapter.cancelDiscovery()
+                // Android 12+ krever egen tillatelse (BLUETOOTH_SCAN) for dette. Vi søker ikke selv, så feilen ignoreres.
+                try { adapter.cancelDiscovery() } catch (_: SecurityException) { /* ingen søking å avbryte */ }
                 s = connectSocket(device)
                 socket = s
                 failures = 0

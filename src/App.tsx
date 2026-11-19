@@ -293,7 +293,6 @@ export default function App() {
 
   return (
     <div className={`app${native ? ' native' : ''}`}>
-      {native && <FieldStatusBar />}
       <header className="topbar">
         <div className="brand">
           <span className="logo" aria-hidden="true">
@@ -318,6 +317,7 @@ export default function App() {
           <button className="btn primary" onClick={() => setUpload({ files: [] })}><IconUpload size={16} /> Last opp</button>
         </div>}
       </header>
+      {native && <FieldStatusBar />}
 
       <div className="body">
         {!native && <nav className="rail">

@@ -78,7 +78,8 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
       if (source === 'bt') {
         if (!fs.btAddress) { setErr('Velg en Bluetooth-enhet først (trykk «Finn enheter»).'); return; }
         await startGnss('bt', { address: fs.btAddress, name: fs.btName });
-      } else await startGnss('android');
+      } else if (source === 'intern') await startGnss('intern');
+      else await startGnss('android');
     } catch (e: any) { setErr(String(e?.message ?? e)); }
   };
   const findDevices = async () => {
@@ -172,15 +173,18 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
         )}
         <div className="fld-crs" data-testid="crsinfo">{crsName(crs)} · {fs.heightMode === 'ellipsoid' ? 'Ellipsoidehøyde (ingen geoide)' : `Geoidemodell ${fs.vdatum}`}</div>
         <div className="fld-conn">
-          <select value={source} onChange={(e) => setF({ source: e.target.value as 'android' | 'bt' })} disabled={connected || !native_} aria-label="Posisjonskilde">
+          <select value={source} onChange={(e) => setF({ source: e.target.value as 'android' | 'intern' | 'bt' })} disabled={connected || !native_} aria-label="Posisjonskilde">
             <option value="android">{native_ ? 'Android-posisjon (Leica Zeno Connect)' : 'Enhetens posisjon (nettleseren)'}</option>
-            {native_ && <option value="bt">Direkte Bluetooth (NMEA)</option>}
+            {native_ && <option value="intern">Intern GPS (telefonens GPS og mock-posisjon)</option>}
+            {native_ && <option value="bt">Direkte Bluetooth (NMEA, uten korreksjon)</option>}
           </select>
           {connected
             ? <button className="btn" onClick={() => void stopGnss()}>Koble fra</button>
             : <button className="btn primary" onClick={() => void connect()}>Koble til</button>}
           {connected && <button className="btn fld-showmap" onClick={onShowOnMap}>Vis i kart</button>}
         </div>
+        {connected && g.raw && <div className="fld-raw muted small" data-testid="rawinfo">Rå data: {g.raw}</div>}
+        {source === 'bt' && <div className="muted small" data-testid="bthint">Direkte Bluetooth gir bare RTK hvis FLX100 selv får korreksjoner. Feltkart henter ikke korreksjoner selv. Bruk ellers Android-posisjon eller Intern GPS via Zeno Connect.</div>}
         {source === 'bt' && !connected && (
           <div className="fld-bt">
             <button className="btn" onClick={() => void findDevices()}>Finn enheter</button>

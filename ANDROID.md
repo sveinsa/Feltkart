@@ -65,6 +65,8 @@ Mappevelgeren fra Google (Picker) er laget for nettlesere og er **ikke testet i 
 
 Leica FLX100 gir RTK-posisjon til andre apper via **Leica Zeno Connect**. Den tar også imot RTK-korreksjoner (NTRIP) og geoidemodell. Det er derfor **anbefalt vei**:
 
+> **Tre posisjonskilder i Feltkart (v 6.8):** *Android-posisjon* (via nettvisningen), *Intern GPS* (Androids posisjonstjeneste direkte, tar også mock-posisjon fra Zeno Connect og viser rådata: leverandør, mock, nøyaktighet) og *Direkte Bluetooth* (leser FLX100 selv, men Feltkart henter ikke korreksjoner, så RTK krever at mottakeren allerede har dem). Får du ±300 cm i Feltkart mens Zeno Connect viser Fix: velg Intern GPS og les «Rå data».
+
 ### A) Android-posisjon via Zeno Connect (anbefalt)
 1. Parkoble FLX100 i Android (**Innstillinger → Bluetooth**, kode 0000 hvis du blir spurt).
 2. Installer **Leica Zeno Connect** fra Google Play. Koble til FLX100 og sett opp RTK/NTRIP-korreksjon og geoidemodell der.
