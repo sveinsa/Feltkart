@@ -12,7 +12,7 @@ import { primeSound, pling } from '../lib/field/sound';
 import { QUALITY_LABEL } from '../lib/field/nmea';
 import { isNative, listBtDevices, pickPhotoWeb, saveFile, takePhoto, native, type BtDevice } from '../lib/field/native';
 import {
-  canMeasure, codeStats, filterPoints, fmtTime, loadPoints, makePoint, nextName, pointEN, savePoints, sortPoints, stamp, toKof,
+  canMeasure, codeStats, effectiveCrs, filterPoints, fmtTime, loadPoints, makePoint, nextName, pointEN, savePoints, sortPoints, stamp, toKof,
   type FieldPoint, type SortDir, type SortKey,
 } from '../lib/field/survey';
 import { buildExport, EXPORT_FORMATS, sosiSupported, toSosi } from '../lib/field/export';
@@ -67,7 +67,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
   const native_ = isNative();
   // Koordinatsystem for visning, måling og eksport. Prosjektets system, med mindre du velger et annet. Grader (WGS84) egner seg ikke for innmåling, så da brukes UTM.
   const baseCrs = projectCrs && projectCrs !== 'EPSG:4326' ? projectCrs : measureCrs(projectCrs, g.lng ?? 10);
-  const crs = fs.exportCrs && CRS_LIST.some((c) => c.code === fs.exportCrs) ? fs.exportCrs : baseCrs;
+  const crs = effectiveCrs(fs, projectCrs, baseCrs, (code) => CRS_LIST.some((c) => c.code === code));
   const source = native_ ? fs.source : 'android';
 
   const goTab = (t: typeof tab) => { setErr(null); setTab(t); };
@@ -197,7 +197,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
             {g.age !== null && <span><i>Korreksjonsalder</i>{nb(g.age, 0)} s</span>}
           </div>
         )}
-        <div className="fld-crs" data-testid="crsinfo">{crsName(crs)} · {fs.heightMode === 'ellipsoid' ? 'Ellipsoidehøyde (ingen geoide)' : `Geoidemodell ${fs.vdatum}`}</div>
+        <div className="fld-crs" data-testid="crsinfo">{crsName(crs)}{crs !== baseCrs ? ' (valgt i Punkter)' : ''} · {fs.heightMode === 'ellipsoid' ? 'Ellipsoidehøyde (ingen geoide)' : `Geoidemodell ${fs.vdatum}`}</div>
         <div className="fld-conn">
           <select value={source} onChange={(e) => setF({ source: e.target.value as 'android' | 'intern' | 'bt' })} disabled={connected || !native_} aria-label="Posisjonskilde">
             <option value="android">{native_ ? 'Android-posisjon (Leica Zeno Connect)' : 'Enhetens posisjon (nettleseren)'}</option>
@@ -273,8 +273,8 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
           {!points.length && <div className="muted">Ingen punkter ennå. Mål punkter under «Innmåling», så samles de her.</div>}
           <div className="fld-row">
             <label>Koordinatsystem
-              <select aria-label="Koordinatsystem" value={crs} onChange={(e) => setF({ exportCrs: e.target.value })}>
-                {CRS_LIST.filter((c) => c.code !== 'EPSG:4326').map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+              <select aria-label="Koordinatsystem" value={crs} onChange={(e) => setF(e.target.value === baseCrs ? { exportCrs: '', exportCrsBase: '' } : { exportCrs: e.target.value, exportCrsBase: projectCrs })}>
+                {CRS_LIST.filter((c) => c.code !== 'EPSG:4326').map((c) => <option key={c.code} value={c.code}>{c.name}{c.code === baseCrs ? ' (prosjektets)' : ''}</option>)}
               </select>
             </label>
             <label>Sortering

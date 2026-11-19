@@ -24,7 +24,7 @@ const PAGE = 100;
 const SKEY = 'feltkart.register';
 const SURVEY_FORMATS = ['kof', 'sosi', 'landxml'];
 
-interface Prefs { crs: string; format: ExportFormat; cols: ColKey[]; colsV?: number }
+interface Prefs { crs: string; crsBase?: string; format: ExportFormat; cols: ColKey[]; colsV?: number }
 /** Versjon 2: nye kolonner (stanghøyde, kvalitet, PDOP, HDOP, VDOP, bruker) legges til for dem som har lagret et eldre valg */
 const COLS_V = 2;
 const NEW_COLS: ColKey[] = ['stang', 'kvalitet', 'pdop', 'hdop', 'vdop', 'bruker'];
@@ -34,6 +34,7 @@ function loadPrefs(): Prefs {
     const p = JSON.parse(localStorage.getItem(SKEY) || '{}');
     return {
       crs: typeof p.crs === 'string' ? p.crs : d.crs,
+      crsBase: typeof p.crsBase === 'string' ? p.crsBase : undefined,
       format: EXPORT_FORMATS.some((f) => f.id === p.format) ? p.format : d.format,
       cols: Array.isArray(p.cols) ? DEFAULT_COLS.filter((c) => p.cols.includes(c) || (p.colsV !== COLS_V && NEW_COLS.includes(c))) : d.cols,
       colsV: COLS_V,
@@ -87,7 +88,8 @@ export default function SurveyRegister({ project, onUpload, onShowOnMap, onToast
 
   const projectCrs = settings?.projectCrs ?? 'EPSG:25832';
   const baseCrs = projectCrs !== 'EPSG:4326' ? projectCrs : measureCrs(projectCrs, allRows[0]?.lng ?? 10);
-  const crs = prefs.crs && prefs.crs !== 'EPSG:4326' ? prefs.crs : baseCrs;
+  // Valgt system gjelder bare så lenge prosjektet har samme system som da valget ble gjort
+  const crs = prefs.crs && prefs.crs !== 'EPSG:4326' && prefs.crsBase === projectCrs ? prefs.crs : baseCrs;
   const view = useMemo(() => toViewRows(allRows, crs), [allRows, crs]);
 
   // ---------- Mappetre ----------
@@ -219,7 +221,7 @@ export default function SurveyRegister({ project, onUpload, onShowOnMap, onToast
             ))}
           </div>
           <label className="rg-crs">Koordinatsystem
-            <select aria-label="Koordinatsystem" value={crs} onChange={(e) => setPref({ crs: e.target.value })}>
+            <select aria-label="Koordinatsystem" value={crs} onChange={(e) => setPref(e.target.value === baseCrs ? { crs: '', crsBase: undefined } : { crs: e.target.value, crsBase: projectCrs })}>
               {CRS_LIST.filter((c) => c.code !== 'EPSG:4326').map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
             </select>
           </label>

@@ -24,6 +24,8 @@ export interface FieldSettings {
   btName: string;
   /** Koordinatsystem for visning og eksport av punkter. Tom = prosjektets system. */
   exportCrs: string;
+  /** Prosjektets koordinatsystem da valget over ble gjort. Valget gjelder bare så lenge prosjektet har det samme systemet. */
+  exportCrsBase: string;
   exportFormat: 'kof' | 'sosi' | 'landxml' | 'csv';
   /** Høydesystem / geoidemodell som mottakeren leverer høyde i. Vises bare som informasjon i statusfeltet. */
   vdatum: 'NN2000' | 'NN54' | 'Annen';
@@ -38,7 +40,7 @@ export interface FieldSettings {
 export const DEFAULT_FIELD: FieldSettings = {
   poleHeight: 2, avgSeconds: 3, requireFix: true, maxAccH: 0.05, heightMode: 'device', prefix: 'P', next: 1,
   codes: 'TERRENG\nKANT\nKUM\nSLUK\nROR\nMAST', code: '', source: 'android', btAddress: '', btName: '',
-  exportCrs: '', exportFormat: 'kof', vdatum: 'NN2000', sound: true, stakeTol: 0.05, user: '',
+  exportCrs: '', exportCrsBase: '', exportFormat: 'kof', vdatum: 'NN2000', sound: true, stakeTol: 0.05, user: '',
 };
 
 const SKEY = 'feltkart.field.settings';
@@ -121,6 +123,15 @@ export function canMeasure(g: Pick<GnssState, 'lat' | 'lng' | 'quality' | 'accH'
 }
 
 const dop = (v: number | null): number | null => (v === null ? null : Math.round(v * 100) / 100);
+
+/**
+ * Koordinatsystemet Felt bruker (status, innmåling, utsetting, eksport).
+ * Prosjektets system, med mindre du har valgt et annet under Punkter. Det valget gjelder bare for det prosjektsystemet
+ * du valgte det i: endres prosjektets system (eller et gammelt valg uten kjent utgangspunkt), brukes prosjektets system igjen.
+ */
+export function effectiveCrs(fs: Pick<FieldSettings, 'exportCrs' | 'exportCrsBase'>, projectCrs: string, baseCrs: string, known: (code: string) => boolean): string {
+  return fs.exportCrs && fs.exportCrsBase === (projectCrs || '') && known(fs.exportCrs) ? fs.exportCrs : baseCrs;
+}
 
 export function makePoint(avg: Averaged, s: FieldSettings, crs: string, name: string, code: string, id: string): FieldPoint {
   const [e, n] = fromLatLng(crs, avg.lat, avg.lng);

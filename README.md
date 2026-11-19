@@ -496,3 +496,14 @@ Endret: `App.tsx`, `FieldPanel.tsx`, `styles.css`, `readme.ts`.
 ## Demoposisjon ved elva (v 7.4)
 
 Android-demoen (`?demo=android` og siden Android-app) har simulert posisjon ved 62,591845, 9,685207, der demodataene ligger. Sløyfen er nå ca. 3 m nord/sør og 4 m øst/vest (før 5 og 7 m), og høyden er ca. 543 m over geoiden (før 581 m). Endret: `src/lib/field/demoBridge.ts`, `readme.ts`.
+
+## Koordinatsystem følger prosjektet (v 7.5)
+
+**Feil som er rettet:** Valget under Felt → Punkter → Koordinatsystem ble lagret globalt på telefonen og overstyrte prosjektets system for alltid. Endret du koordinatsystem i prosjektinnstillinger, viste statuskortet og Innmåling fortsatt det gamle valget (f.eks. NTM sone 10).
+
+- Valget lagres nå sammen med prosjektets system (`exportCrsBase`) og gjelder bare så lenge prosjektet har samme system. Endres prosjektets system, brukes det nye.
+- Gamle lagrede valg uten kjent utgangspunkt ignoreres, slik at alle får prosjektets system etter oppdateringen. Velg avvikende system på nytt om du trenger det.
+- Å velge prosjektets eget system i listen fjerner overstyringen. Det står «(prosjektets)» etter det, og statuskortet viser «(valgt i Punkter)» når du bruker et annet.
+- Samme rettelse i Innmåling-registeret (`SurveyRegister.tsx`, `crsBase`).
+
+Endret: `survey.ts` (`effectiveCrs`), `FieldPanel.tsx`, `SurveyRegister.tsx`, `readme.ts`.
