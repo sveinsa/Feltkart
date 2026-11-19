@@ -492,3 +492,7 @@ Endret: `gnss.ts` (GSA, DOP-snitt), `survey.ts` (FieldPoint, CSV, `user`), `expo
 - Faneraden (Innmåling, Utsett, Punkter, Bilde, Oppsett) er gjort litt tettere slik at alle fem er lesbare.
 
 Endret: `App.tsx`, `FieldPanel.tsx`, `styles.css`, `readme.ts`.
+
+## Demoposisjon ved elva (v 7.4)
+
+Android-demoen (`?demo=android` og siden Android-app) har simulert posisjon ved 62,591845, 9,685207, der demodataene ligger. Sløyfen er nå ca. 3 m nord/sør og 4 m øst/vest (før 5 og 7 m), og høyden er ca. 543 m over geoiden (før 581 m). Endret: `src/lib/field/demoBridge.ts`, `readme.ts`.

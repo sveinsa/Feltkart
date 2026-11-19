@@ -3,7 +3,7 @@
 // slik at Felt-visningen kan prøves uten telefon og mottaker. Ingenting her brukes i den ekte appen, der broen finnes fra før.
 import { nb } from './fmt';
 
-const CENTER = { lat: 62.5945, lng: 9.6985 }; // ved Oppdal
+const CENTER = { lat: 62.591845, lng: 9.685207 }; // ved Oppdal, på demodataene (marka med rødt kryss ved elva)
 const GEOID = 38.9; // geoidehøyde i meter (for NMEA-linjene)
 
 let t0 = Date.now();
@@ -12,13 +12,13 @@ let t0 = Date.now();
 export function samplePosition(now = Date.now()) {
   const e = (now - t0) / 1000;
   const a = now / 25000;
-  const north = 5 * Math.sin(a * 1.3);
-  const east = 7 * Math.cos(a);
+  const north = 3 * Math.sin(a * 1.3);
+  const east = 4 * Math.cos(a);
   const q = e > 6 ? 4 : e > 3 ? 5 : 2; // GGA-kvalitet: 4 Fix, 5 Float, 2 DGPS
   const acc = q === 4 ? 0.012 + 0.005 * (0.5 + 0.5 * Math.sin(now / 2500)) : q === 5 ? 0.32 : 1.4;
   const lat = CENTER.lat + north / 111320;
   const lng = CENTER.lng + east / (111320 * Math.cos((CENTER.lat * Math.PI) / 180));
-  const alt = 581.5 + 0.02 * Math.sin(now / 4000); // over geoiden (som mottakeren oppgir den)
+  const alt = 543.4 + 0.02 * Math.sin(now / 4000); // over geoiden (som mottakeren oppgir den)
   return { lat, lng, alt, ellipsoid: alt + GEOID, acc, accV: Math.round(acc * 1.6 * 1000) / 1000, q };
 }
 
