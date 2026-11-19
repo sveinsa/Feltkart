@@ -21,6 +21,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 const Terrain3D = lazy(() => import('./components/Terrain3D'));
 import Gallery from './components/Gallery';
 import SettingsView from './components/SettingsView';
+import FieldStatusBar from './components/FieldStatusBar';
 import FieldPanel from './components/FieldPanel';
 import SurveyRegister from './components/SurveyRegister';
 import ReadmeDialog from './components/ReadmeDialog';
@@ -292,6 +293,7 @@ export default function App() {
 
   return (
     <div className={`app${native ? ' native' : ''}`}>
+      {native && <FieldStatusBar />}
       <header className="topbar">
         <div className="brand">
           <span className="logo" aria-hidden="true">

@@ -1,10 +1,14 @@
 // Readme-siden: oversikt over Feltkart og versjonshistorikk. Bygges som én selvstendig HTML-side,
 // slik at den kan åpnes i eget vindu (nettleseren) eller vises i en dialog (Android-appen).
 
+import { ZENO_SECTION } from './readmeZeno';
+
 export interface Release { v: string; title: string; text: string }
 
 /** Versjonshistorikk, nyeste først. Legg til en linje øverst for hver ny versjon. */
 export const CHANGELOG: Release[] = [
+  { v: '6.7', title: 'Readme: korreksjon via Zeno Connect', text: 'Readme har fått en ny del om hvordan RTK-korreksjon går fra satellitt og referansenett via FLX100 og Zeno Connect til Feltkart, med flytskjema og figurer: kjeden, kvalitetstrappen, høyde og stanghøyde, oppsett steg for steg og feilsøking.' },
+  { v: '6.6', title: 'GNSS-status og stang øverst, rund målknapp, pling', text: 'I Android-appen ligger GNSS-status øverst i grønt (klar til å måle) eller rødt (ikke klar), med «Nøyaktighet» i stedet for «anslått», og stanghøyden i samme felt (uten hurtigvalg). Kartet ligger rett under. Statusfeltet viser også geoidemodell (NN2000 som standard). Målknappen er rund og ligger på høyre side, ca. 1/4 opp fra bunnen. En liten lyd (pling) spilles når et punkt er registrert, og kan slås av under Oppsett.' },
   { v: '6.5', title: 'Enklere Android-app: Felt og Kart', text: 'Appen har nå bare «Felt» og «Kart» på øvre linje. Felt viser et lite kart samtidig (over på stående skjerm, til venstre på liggende), med posisjon og innmålte punkter. Stanghøyde er flyttet til Innmåling-fanen med hurtigvalg, felt og − / +, og en linje som viser antennehøyde − stang = bakkehøyde. Google Disk, Readme og Sjekk ny versjon ligger under Felt → Oppsett → Mer.' },
   { v: '6.4', title: 'Android-bygget rettet', text: 'Rettet feil metodenavn i Android-koden (posisjonstillatelse i WebView) som stoppet bygging av APK-en.' },
   { v: '6.3', title: 'Readme-knapp', text: 'Ny knapp «Readme» i menyen til venstre åpner denne siden i eget vindu, med oversikt og versjonshistorikk.' },
@@ -76,7 +80,7 @@ const TABS: [string, string][] = [
 
 /** Hele Readme-siden som HTML */
 export function buildReadmeHtml(version: string, versionLabel = `v ${version} beta`): string {
-  const toc: [string, string][] = [['om', 'Om Feltkart'], ['kom-i-gang', 'Kom i gang'], ['faner', 'Fanene'], ['filformater', 'Filformater'], ['maling', 'Måling og tverrsnitt'], ['android', 'Android-appen'], ['tips', 'Tips'], ['historikk', 'Versjonshistorikk']];
+  const toc: [string, string][] = [['om', 'Om Feltkart'], ['kom-i-gang', 'Kom i gang'], ['faner', 'Fanene'], ['filformater', 'Filformater'], ['maling', 'Måling og tverrsnitt'], ['android', 'Android-appen'], ['zeno', 'Korreksjon via Zeno Connect'], ['tips', 'Tips'], ['historikk', 'Versjonshistorikk']];
   const g = groups();
   const hist = g.map((grp, i) => `
     <details class="grp"${i < 2 ? ' open' : ''}>
@@ -118,6 +122,16 @@ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);verti
 th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 td:first-child{font-weight:600;white-space:nowrap}td:nth-child(2){white-space:nowrap;color:var(--brand)}
 kbd{background:#eef2ef;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 6px;font:12.5px ui-monospace,Consolas,monospace}
+.fig{margin:14px 0;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}
+.fig .sc{overflow-x:auto}.fig svg{display:block;width:100%;min-width:460px;height:auto}
+.fig figcaption{font-size:13px;color:var(--muted);margin-top:6px}
+.fig .bx{fill:var(--soft);stroke:var(--brand);stroke-width:1.5}.fig .bl{fill:#eef7dc;stroke:var(--lime);stroke-width:1.5}
+.fig .bk{fill:var(--brand)}.fig .bad{fill:#fbe3e1;stroke:#c0392b;stroke-width:1.5}.fig .wn{fill:#fff6dc;stroke:#d9a400;stroke-width:1.5}
+.fig .t{font-size:14px;fill:#14261d}.fig .tb{font-size:14px;font-weight:700;fill:#14261d}.fig .ts{font-size:12px;fill:var(--muted)}.fig .ts2{font-size:12.5px;fill:#14261d}
+.fig .tw{font-size:14px;font-weight:700;fill:#fff}.fig .tws{font-size:12px;fill:#d7eadf}
+.fig .ln{stroke:var(--brand);stroke-width:2;fill:none}.fig .dn{stroke-dasharray:6 4}.fig .dt{stroke-dasharray:2 4;stroke-linecap:round}
+.fig .r{stroke:#c0392b}.fig .r2{stroke:#d9a400}.fig .pole{stroke:#33413a;stroke-width:4}.fig .gr{stroke:#33413a;stroke-width:2}.fig .hat{stroke:#9aa59f;stroke-width:1.5}
+.fig .geo{stroke:var(--lime);stroke-width:3;fill:none}.fig .q0{fill:#f4c9c5}.fig .q1{fill:#f7e3a3}.fig .q2{fill:var(--lime)}
 .note{background:var(--soft);border-radius:10px;padding:10px 14px;margin:12px 0;font-size:14px}
 .grp{border:1px solid var(--line);border-radius:12px;margin:10px 0;background:#fff;overflow:hidden}
 .grp summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--soft)}
@@ -183,6 +197,7 @@ footer{text-align:center;color:var(--muted);font-size:13px;padding:0 0 30px}
 <p class="muted">Nye versjoner installeres oppå den gamle. Data og innstillinger beholdes.</p>
 </section>
 
+${ZENO_SECTION}
 <section id="tips"><h2>Tips</h2>
 <ul>
 <li><strong>Måling:</strong> <kbd>Enter</kbd> eller dobbeltklikk fullfører, <kbd>Backspace</kbd> angrer siste punkt og <kbd>Esc</kbd> avslutter. Neste klikk etter en ferdig måling starter en ny.</li>

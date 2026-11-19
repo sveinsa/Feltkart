@@ -5,11 +5,14 @@ import type { Project } from '../state';
 import { CRS_LIST, crsName, formatProjected, measureCrs } from '../lib/crs';
 import { gnssState, startGnss, stopGnss, averageFix } from '../lib/field/gnss';
 import { useGnss } from '../lib/field/useGnss';
+import { useFieldSettings } from '../lib/field/useFieldSettings';
+import { cm, nb } from '../lib/field/fmt';
+import { primeSound, pling } from '../lib/field/sound';
 import { QUALITY_LABEL } from '../lib/field/nmea';
 import { isNative, listBtDevices, pickPhotoWeb, saveFile, takePhoto, native, type BtDevice } from '../lib/field/native';
 import {
-  canMeasure, cleanPole, codeStats, filterPoints, fmtTime, groundHeight, loadFieldSettings, loadPoints, makePoint, nextName, pointEN, POLE_MAX, POLE_PRESETS, saveFieldSettings, savePoints, sortPoints, stamp, toKof,
-  type FieldPoint, type FieldSettings, type SortDir, type SortKey,
+  canMeasure, codeStats, filterPoints, fmtTime, loadPoints, makePoint, nextName, pointEN, savePoints, sortPoints, stamp, toKof,
+  type FieldPoint, type SortDir, type SortKey,
 } from '../lib/field/survey';
 import { buildExport, EXPORT_FORMATS, sosiSupported } from '../lib/field/export';
 import { androidClientId, setAndroidClientId } from '../lib/google';
@@ -23,56 +26,12 @@ interface Props {
   more?: { onUpload: () => void; onSync: () => void; onReadme: () => void; onRefresh: () => void; onSettings: () => void };
 }
 
-const nb = (v: number, d: number) => v.toFixed(d).replace('.', ',');
-const cm = (m: number | null) => (m === null ? '–' : m < 0.1 ? `±${nb(m * 100, 1)} cm` : `±${nb(m * 100, 0)} cm`);
-
-/** Stanghøyde: store hurtigvalg, eget felt og − / +, og en linje som viser regnestykket mottakerhøyde − stang = bakkehøyde. */
-function PoleHeight({ value, onChange, alt, sep, mode }: { value: number; onChange: (v: number) => void; alt: number | null; sep: number | null; mode: FieldSettings['heightMode'] }) {
-  const parse = (t: string) => Number(t.trim().replace(',', '.'));
-  const [draft, setDraft] = useState(nb(value, 3));
-  // Følg verdien når den endres utenfra (hurtigvalg, − / +), men ikke mens du skriver samme tall
-  useEffect(() => { setDraft((d) => (parse(d) === value ? d : nb(value, 3))); }, [value]);
-  const type = (t: string) => {
-    setDraft(t);
-    const v = parse(t);
-    if (t.trim() !== '' && Number.isFinite(v) && v >= 0 && v <= POLE_MAX) onChange(cleanPole(v));
-  };
-  const step = (d: number) => onChange(cleanPole(value + d));
-  const h = groundHeight(alt, sep, { poleHeight: value, heightMode: mode });
-  return (
-    <div className="fld-pole" data-testid="pole">
-      <div className="fld-pole-head">
-        <strong>Stanghøyde</strong>
-        <span className="muted small">fra bakken opp til antennen</span>
-      </div>
-      <div className="fld-pole-presets" role="group" aria-label="Velg stanghøyde">
-        {POLE_PRESETS.map((v) => (
-          <button key={v} type="button" className={`pole-chip${value === v ? ' on' : ''}`} aria-pressed={value === v} onClick={() => onChange(v)}>{nb(v, 3)}</button>
-        ))}
-      </div>
-      <div className="fld-pole-edit">
-        <button type="button" className="pole-step" aria-label="Minus 1 cm" onClick={() => step(-0.01)}>−</button>
-        <label className="pole-input">
-          <input inputMode="decimal" aria-label="Stanghøyde (m)" value={draft} onChange={(e) => type(e.target.value)} onBlur={() => setDraft(nb(value, 3))} onFocus={(e) => e.target.select()} />
-          <span>m</span>
-        </label>
-        <button type="button" className="pole-step" aria-label="Pluss 1 cm" onClick={() => step(0.01)}>+</button>
-      </div>
-      <div className={`fld-calc${h.ground === null ? ' none' : ''}`} data-testid="pole-calc">
-        {h.ground === null
-          ? <span>Mottakeren oppgir ingen høyde ennå.</span>
-          : <><span><i>Antenne</i>{nb(h.antenna!, 3)}</span><b>−</b><span><i>Stang</i>{nb(value, 3)}</span><b>=</b><span className="res"><i>Bakke</i>{nb(h.ground, 3)} m</span></>}
-      </div>
-      {value === 0 && <div className="fld-warn">Stanghøyde 0 m: punktene får antennens høyde, ikke høyden på bakken.</div>}
-    </div>
-  );
-}
 
 export default function FieldPanel({ project, onToast, onShowOnMap, more }: Props) {
   const projectCrs = project.settings!.projectCrs;
   const g = useGnss();
   const [tab, setTab] = useState<'mal' | 'punkter' | 'bilde' | 'oppsett'>('mal');
-  const [fs, setFs] = useState<FieldSettings>(() => loadFieldSettings());
+  const [fs, setF] = useFieldSettings();
   const [points, setPoints] = useState<FieldPoint[]>(() => loadPoints());
   const [name, setName] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -94,7 +53,6 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
   const source = native_ ? fs.source : 'android';
 
   const goTab = (t: typeof tab) => { setErr(null); setTab(t); };
-  const setF = (patch: Partial<FieldSettings>) => setFs((p) => { const n = { ...p, ...patch }; saveFieldSettings(n); return n; });
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { savePoints(points); }, [points]);
   const suggested = useMemo(() => nextName(fs, points), [fs.prefix, fs.next, points]);
@@ -131,6 +89,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
   const measure = async (force = false) => {
     setErr(null);
     if (!force && !verdict.ok) { setErr(verdict.reason); return; }
+    primeSound(); // lyd tillates bare etter et trykk, så lydmotoren startes her
     setBusy('Måler …'); setPct(0);
     try {
       const avg = await averageFix(
@@ -142,6 +101,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
       setPoints((p) => [...p, pt]);
       setF({ next: suggested.next });
       navigator.vibrate?.(60);
+      if (fs.sound) pling();
     } catch (e: any) { setErr(String(e?.message ?? e)); }
     setBusy(null);
   };
@@ -200,11 +160,6 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
   return (
     <div className="fld" data-testid="field">
       <div className={`fld-card ${connected ? qCls : 'q-none'}`}>
-        <div className="fld-q">
-          <strong className="fld-qtxt">{connected ? QUALITY_LABEL[g.quality] : 'Ikke tilkoblet'}</strong>
-          {connected && g.estimated && <span className="fld-est" title="Android-posisjon gir ikke RTK-status. Statusen er anslått ut fra oppgitt nøyaktighet.">anslått</span>}
-          <span className="fld-acc">{connected ? cm(g.accH) : ''}</span>
-        </div>
         <div className="fld-msg">{g.message}{age !== null && connected ? ` · oppdatert for ${age} s siden` : ''}</div>
         {connected && en && (
           <div className="fld-coords">
@@ -213,9 +168,9 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
             {g.sats !== null && <span><i>Satellitter</i>{g.sats}</span>}
             {g.hdop !== null && <span><i>HDOP</i>{nb(g.hdop, 1)}</span>}
             {g.age !== null && <span><i>Korreksjonsalder</i>{nb(g.age, 0)} s</span>}
-            <span className="fld-crs">{crsName(crs)}</span>
           </div>
         )}
+        <div className="fld-crs" data-testid="crsinfo">{crsName(crs)} · {fs.heightMode === 'ellipsoid' ? 'Ellipsoidehøyde (ingen geoide)' : `Geoidemodell ${fs.vdatum}`}</div>
         <div className="fld-conn">
           <select value={source} onChange={(e) => setF({ source: e.target.value as 'android' | 'bt' })} disabled={connected || !native_} aria-label="Posisjonskilde">
             <option value="android">{native_ ? 'Android-posisjon (Leica Zeno Connect)' : 'Enhetens posisjon (nettleseren)'}</option>
@@ -248,14 +203,15 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
       {busy && <div className="fld-busy" role="status">{busy}{busy === 'Måler …' && <div className="fld-bar"><i style={{ width: `${pct}%` }} /></div>}</div>}
 
       {tab === 'mal' && (
-        <div className="fld-sec">
+        <div className="fld-sec mal">
           <div className="fld-row">
             <label>Punkt<input value={name} onChange={(e) => setName(e.target.value)} aria-label="Punktnavn" /></label>
             <label>Kode<input value={fs.code} onChange={(e) => setF({ code: e.target.value })} aria-label="Kode" /></label>
           </div>
           {!!codes.length && <div className="fld-codes">{codes.map((c) => <button key={c} className={`chip${fs.code === c ? ' on' : ''}`} onClick={() => setF({ code: fs.code === c ? '' : c })}>{c}</button>)}</div>}
-          <PoleHeight value={fs.poleHeight} onChange={(v) => setF({ poleHeight: v })} alt={g.alt} sep={g.sep} mode={fs.heightMode} />
-          <button className="btn primary fld-big fld-measure" disabled={!!busy || !connected} onClick={() => void measure(false)}>Mål punkt · stang {nb(fs.poleHeight, 3)} m{fs.avgSeconds > 0 ? ` · ${fs.avgSeconds} s` : ''}</button>
+          <button className="fld-measure" aria-label="Mål punkt" title="Mål punkt" disabled={!!busy || !connected} onClick={() => void measure(false)}>
+            <b>{busy === 'Måler …' ? '…' : 'Mål'}</b>{fs.avgSeconds > 0 && busy !== 'Måler …' && <small>{fs.avgSeconds} s</small>}
+          </button>
           {connected && !verdict.ok && <div className="fld-warn">{verdict.reason} <button className="link" onClick={() => void measure(true)} disabled={!!busy}>Mål likevel</button></div>}
 
           {!!points.length && (() => {
@@ -387,6 +343,14 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
               <option value="ellipsoid">Ellipsoidehøyde (bare direkte Bluetooth)</option>
             </select></label>
           </div>
+          <label>Geoidemodell / høydesystem (vises i statusfeltet)
+            <select aria-label="Geoidemodell" value={fs.vdatum} onChange={(e) => setF({ vdatum: e.target.value as 'NN2000' | 'NN54' | 'Annen' })}>
+              <option value="NN2000">NN2000 (vanlig)</option>
+              <option value="NN54">NN54</option>
+              <option value="Annen">Annen</option>
+            </select>
+          </label>
+          <label className="fld-check"><input type="checkbox" aria-label="Lyd ved registrering" checked={fs.sound} onChange={(e) => { setF({ sound: e.target.checked }); if (e.target.checked) { primeSound(); pling(); } }} /> Lyd (pling) når et punkt er registrert</label>
           <label className="fld-check"><input type="checkbox" checked={fs.requireFix} onChange={(e) => setF({ requireFix: e.target.checked })} /> Krev RTK Fix for å lagre punkt</label>
           <div className="fld-row">
             <label>Punkt-prefiks<input value={fs.prefix} onChange={(e) => setF({ prefix: e.target.value })} /></label>

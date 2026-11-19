@@ -864,12 +864,12 @@ th .rg-pop { top: 100%; left: 0; }
 .rail button.rail-readme { color: var(--brand); }
 
 /* ---------- v6.5: forenklet Android-app (bare Felt og Kart) ---------- */
-.app.native .topbar { height: 52px; flex-wrap: nowrap; gap: 10px; padding: 0 8px 0 12px; }
+.app.native .topbar { height: 48px; flex-wrap: nowrap; gap: 10px; padding: 0 8px 0 12px; }
 .app.native .topbar .brand-name, .app.native .topbar .brand-version { display: block !important; }
 .app.native .brand-name { font-size: 14px; }
 .app.native .brand-version { font-size: 9.5px; }
-.app.native .topnav { order: 0; flex: 1 1 auto; height: 100%; gap: 6px; padding: 6px 0; min-width: 0; }
-.app.native .topnav button { flex: 1; height: 100%; padding: 0 10px; font-size: 17px; font-weight: 700; border-radius: 10px; border-bottom: 0; color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.1); }
+.app.native .topnav { order: 0; flex: 1 1 auto; height: 100%; gap: 6px; padding: 2px 0; min-width: 0; }
+.app.native .topnav button { flex: 1; height: 100%; padding: 0 10px; font-size: 16px; font-weight: 700; border-radius: 10px; border-bottom: 0; color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.1); }
 .app.native .topnav button.on { background: #fff; color: var(--brand); }
 @media (max-width: 380px) { .app.native .topbar .brand-text { display: none; } }
 /* Kartlag i appen: arket ligger nederst, så «Lag»-knappen i verktøylinjen er synlig og kan trykkes igjen for å lukke */
@@ -882,12 +882,10 @@ th .rg-pop { top: 100%; left: 0; }
 /* Kompakt GNSS-kort når kartet vises ved siden av, og «Mål punkt» ligger alltid synlig nederst */
 .main.split .fld { padding: 8px; gap: 8px; }
 .main.split .fld-card { padding: 8px 10px; gap: 4px; }
-.main.split .fld-qtxt { font-size: 18px; } .main.split .fld-acc { font-size: 16px; }
 .main.split .fld-coords { grid-template-columns: repeat(3, 1fr); font-size: 13px; gap: 2px 8px; }
 .main.split .fld-coords i { font-size: 10px; }
 .main.split .fld-showmap { display: none; }
 .main.split .fld-conn select { min-height: 36px; }
-.fld-measure { position: sticky; bottom: 6px; z-index: 5; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3); }
 .main.split .map-toolbar, .main.split .coord-bar, .main.split .map-empty, .main.split .info-panel, .main.split .mp { display: none !important; }
 .main.split .gnss-follow { right: 8px; bottom: 8px; width: 40px; height: 40px; font-size: 22px; }
 @media (orientation: landscape) and (min-width: 640px) {
@@ -897,25 +895,41 @@ th .rg-pop { top: 100%; left: 0; }
 .field-mark-tip { background: rgba(255, 255, 255, 0.92); border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); font-weight: 600; font-size: 11px; padding: 1px 5px; color: #7a2e05; }
 .field-mark-tip::before { display: none; }
 
-/* Stanghøyde */
-.fld-pole { border: 2px solid var(--brand); border-radius: 12px; background: var(--brand-soft); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-.fld-pole-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.fld-pole-head strong { font-size: 16px; }
-.fld-pole-presets { display: flex; gap: 8px; }
-.pole-chip { flex: 1; min-height: 46px; border: 2px solid var(--line-2); background: #fff; border-radius: 10px; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
-.pole-chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
-.fld-pole-edit { display: flex; gap: 8px; align-items: stretch; }
-.pole-step { width: 56px; min-height: 48px; border: 2px solid var(--line-2); background: #fff; border-radius: 10px; font-size: 26px; font-weight: 700; line-height: 1; color: var(--ink); }
-.pole-step:active { background: var(--line); }
-.fld-sec .pole-input { flex: 1; flex-direction: row; align-items: center; gap: 6px; border: 2px solid var(--line-2); border-radius: 10px; background: #fff; padding: 0 12px; }
-.fld-sec .pole-input input { border: 0; min-height: 44px; font-size: 24px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; background: transparent; padding: 0; }
-.pole-input span { font-size: 18px; font-weight: 600; color: var(--muted); }
-.fld-calc { display: flex; align-items: flex-end; justify-content: center; gap: 10px; flex-wrap: wrap; font-variant-numeric: tabular-nums; font-size: 16px; background: #fff; border-radius: 10px; padding: 8px 10px; }
-.fld-calc span { display: flex; flex-direction: column; }
-.fld-calc i { font-style: normal; font-size: 11px; color: var(--muted); }
-.fld-calc b { font-size: 20px; color: var(--muted); padding-bottom: 1px; }
-.fld-calc .res { font-weight: 800; color: var(--brand); font-size: 18px; }
-.fld-calc.none { color: var(--muted); font-size: 13px; justify-content: flex-start; }
+/* Status øverst (GNSS + stanghøyde) */
+.gbar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; color: #fff; background: #1b8a3a; border-bottom: 3px solid rgba(0, 0, 0, 0.25); transition: background-color 0.2s; }
+.gbar.bad { background: #c4281c; }
+.gbar-l { flex: 1 1 40%; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gbar-q { display: flex; align-items: center; gap: 8px; }
+.gbar-q strong { font-size: 21px; line-height: 1.1; }
+.gbar-dot { width: 16px; height: 16px; border-radius: 50%; background: #fff; flex: none; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35); }
+.gbar.bad .gbar-dot { animation: gbar-blink 1.2s ease-in-out infinite; }
+@keyframes gbar-blink { 50% { opacity: 0.35; } }
+.gbar-acc { font-size: 13px; opacity: 0.95; }
+.gbar-acc b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.pole { flex: 1 1 60%; min-width: 0; display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
+.pole-row { display: flex; align-items: center; gap: 6px; }
+.pole-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.9; width: 34px; flex: none; }
+.pole-step { width: 38px; height: 34px; flex: none; border: 1px solid rgba(255, 255, 255, 0.7); background: rgba(255, 255, 255, 0.2); border-radius: 8px; font-size: 22px; font-weight: 700; line-height: 1; color: #fff; padding: 0; }
+.pole-step:active { background: rgba(255, 255, 255, 0.4); }
+.pole-input { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; background: #fff; color: var(--ink); border-radius: 8px; padding: 0 8px; height: 34px; }
+.pole-input input { border: 0; outline: 0; width: 100%; min-width: 0; height: 32px; font-size: 18px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; background: transparent; padding: 0; color: inherit; }
+.pole-input span { font-size: 14px; font-weight: 600; color: var(--muted); }
+.pole-calc { display: flex; align-items: flex-end; justify-content: flex-end; gap: 6px; font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+.pole-calc span { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+.pole-calc i { font-style: normal; font-size: 9px; opacity: 0.85; }
+.pole-calc b { font-size: 14px; opacity: 0.85; padding-bottom: 1px; }
+.pole-calc .res { font-weight: 800; font-size: 13px; }
+.pole-calc.none { opacity: 0.9; font-size: 11px; }
+.pole-warn { font-size: 11px; background: #fff3cd; color: #5c4400; border-radius: 6px; padding: 2px 6px; }
+
+/* Målknappen: rund, i tommelhøyde på høyre side (midt på knappen ca. 1/4 opp fra bunnen av skjermen) */
+/* Plass til målknappen i tommelsonen: faner og skjemafelt går ikke under den runde knappen */
+.main.split .fld-tabs, .main.split .fld-err, .main.split .fld-busy, .main.split .fld-sec.mal > .fld-row, .main.split .fld-sec.mal > .fld-codes, .main.split .fld-sec.mal > .fld-warn { margin-right: 96px; }
+.fld-measure { position: fixed; right: 16px; bottom: calc(25% - 44px); width: 88px; height: 88px; border-radius: 50%; border: 4px solid #fff; background: var(--brand); color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; line-height: 1.05; padding: 0; z-index: 30; }
+.fld-measure b { font-size: 24px; }
+.fld-measure small { font-size: 12px; opacity: 0.9; }
+.fld-measure:active:not(:disabled) { transform: scale(0.94); }
+.fld-measure:disabled { background: #8a9a90; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
 .fld-more { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .fld-more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .fld-more-grid .btn { min-height: 44px; justify-content: center; }

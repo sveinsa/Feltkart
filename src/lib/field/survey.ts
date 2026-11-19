@@ -25,12 +25,16 @@ export interface FieldSettings {
   /** Koordinatsystem for visning og eksport av punkter. Tom = prosjektets system. */
   exportCrs: string;
   exportFormat: 'kof' | 'sosi' | 'landxml' | 'csv';
+  /** Høydesystem / geoidemodell som mottakeren leverer høyde i. Vises bare som informasjon i statusfeltet. */
+  vdatum: 'NN2000' | 'NN54' | 'Annen';
+  /** Spill en liten lyd (pling) når et punkt er registrert */
+  sound: boolean;
 }
 
 export const DEFAULT_FIELD: FieldSettings = {
   poleHeight: 2, avgSeconds: 3, requireFix: true, maxAccH: 0.05, heightMode: 'device', prefix: 'P', next: 1,
   codes: 'TERRENG\nKANT\nKUM\nSLUK\nROR\nMAST', code: '', source: 'android', btAddress: '', btName: '',
-  exportCrs: '', exportFormat: 'kof',
+  exportCrs: '', exportFormat: 'kof', vdatum: 'NN2000', sound: true,
 };
 
 const SKEY = 'feltkart.field.settings';
@@ -81,8 +85,6 @@ export function savePoints(p: FieldPoint[]) {
   try { window.dispatchEvent(new Event(POINTS_EVENT)); } catch { /* ignorer */ }
 }
 
-/** Vanlige stanghøyder (m) som hurtigvalg */
-export const POLE_PRESETS = [1.5, 1.8, 2.0];
 export const POLE_MAX = 10;
 /** Runder til mm og holder verdien mellom 0 og 10 m */
 export const cleanPole = (v: number) => Math.min(POLE_MAX, Math.max(0, Math.round(v * 1000) / 1000));
