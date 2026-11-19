@@ -1,6 +1,7 @@
 // «Felt»: RTK-posisjon fra GNSS-mottaker (Leica FLX100 m.fl.), bilder og innmåling med punkter, sortering og eksport (KOF, SOSI, LandXML, CSV).
 // Fungerer både i Android-appen (Bluetooth, kamera) og i nettleseren (enhetens posisjon).
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project } from '../state';
 import { CRS_LIST, crsName, formatProjected, measureCrs } from '../lib/crs';
 import { gnssState, startGnss, stopGnss, averageFix } from '../lib/field/gnss';
@@ -27,6 +28,8 @@ interface Props {
   /** Snarveier til det som ikke lenger ligger i menyene i Android-appen (vises under Oppsett) */
   /** «Vis i kart» fra Utsett */
   onShowStake?: () => void;
+  /** Stående Android-skjerm: GNSS-kortet tegnes her (rett under statuslinjen, over kartet). Uten verdi ligger det først i Felt. */
+  connectSlot?: HTMLElement | null;
   more?: { onUpload: () => void; onSync: () => void; onReadme: () => void; onRefresh: () => void; onSettings: () => void };
 }
 
@@ -40,9 +43,10 @@ const SRC_HELP: Record<'android' | 'intern' | 'bt', string> = {
   bt: 'Feltkart snakker rett med FLX100 over Bluetooth og får full status: Fix eller Float, satellitter og korreksjonsalder. Det gir den sikreste statusen. Mottakeren må få RTK-korreksjoner, for eksempel satt opp i Zeno Connect. Feltkart henter ikke korreksjoner selv.',
 };
 
-export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake, more }: Props) {
+export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake, connectSlot, more }: Props) {
   const projectCrs = project.settings!.projectCrs;
   const g = useGnss();
+  const [help, setHelp] = useState(false);
   const [tab, setTab] = useState<'mal' | 'utsett' | 'punkter' | 'bilde' | 'oppsett'>('mal');
   const stake = useStake();
   const [fs, setF] = useFieldSettings();
@@ -176,10 +180,12 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
 
   const qCls = g.quality === 'fix' ? 'q-fix' : g.quality === 'float' ? 'q-float' : g.quality === 'none' ? 'q-none' : 'q-bad';
 
-  return (
-    <div className="fld" data-testid="field">
-      <div className={`fld-card ${connected ? qCls : 'q-none'}`}>
-        <div className="fld-msg">{g.message}{age !== null && connected ? ` · oppdatert for ${age} s siden` : ''}</div>
+  const card = (
+      <div className={`fld-card slim ${connected ? qCls : 'q-none'}`}>
+        <div className="fld-msg">
+          <span className="fld-msgtxt">{g.message}{age !== null && connected ? ` · oppdatert for ${age} s siden` : ''}</span>
+          <button className={`fld-help${help ? ' on' : ''}`} aria-label="Forklaring og rådata" aria-expanded={help} onClick={() => setHelp((h) => !h)}>?</button>
+        </div>
         {connected && en && (
           <div className="fld-coords">
             <span><i>Øst</i>{en.e}</span><span><i>Nord</i>{en.n}</span>
@@ -203,8 +209,8 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
             : <button className="btn primary" onClick={() => void connect()}>Koble til</button>}
           {connected && <button className="btn fld-showmap" onClick={onShowOnMap}>Vis i kart</button>}
         </div>
-        {connected && g.raw && <div className="fld-raw muted small" data-testid="rawinfo">Rå data: {g.raw}</div>}
-        {native_ && <div className="fld-srcdesc muted small" data-testid="srcdesc">{SRC_HELP[source]}</div>}
+        {help && connected && g.raw && <div className="fld-raw muted small" data-testid="rawinfo">Rå data: {g.raw}</div>}
+        {help && native_ && <div className="fld-srcdesc muted small" data-testid="srcdesc">{SRC_HELP[source]}</div>}
         {source === 'bt' && !connected && (
           <div className="fld-bt">
             <button className="btn" onClick={() => void findDevices()}>Finn enheter</button>
@@ -215,6 +221,11 @@ export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake,
           </div>
         )}
       </div>
+  );
+
+  return (
+    <div className="fld" data-testid="field">
+      {connectSlot ? createPortal(card, connectSlot) : card}
 
       <div className="fld-tabs" role="tablist">
         <button role="tab" className={tab === 'mal' ? 'on' : ''} onClick={() => goTab('mal')}>Innmåling</button>

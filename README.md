@@ -482,3 +482,13 @@ Hvert innmålt punkt (Felt → Innmåling) lagrer nå mer enn posisjonen:
 - **Lagre i prosjektet** skriver nå SOSI (`.sos`) når koordinatsystemet er EUREF89 UTM 31–36, ellers KOF som før. Det er for at verdiene skal følge punktene inn i registeret. Punktene havner fortsatt i mappen Innmålinger og vises i kartet.
 
 Endret: `gnss.ts` (GSA, DOP-snitt), `survey.ts` (FieldPoint, CSV, `user`), `export.ts`, `vector/landxml.ts`, `register.ts`, `SurveyRegister.tsx`, `FieldPanel.tsx`, `readme.ts`.
+
+## Smalere GNSS-kort og lavere kart (v 7.3)
+
+- **Stående telefon:** GNSS-kortet (status, koordinater, kilde, Koble til/fra) ligger rett under statuslinjen, over det lille kartet. Det tegnes fra `FieldPanel` inn i en plass i `App` (`createPortal`, `connectSlot`).
+- **Smalere kort:** én linje status, kompakte koordinater og kilde med knapp på samme rad. Forklaringen av kilden og rådata (nyttig for feilsøking) vises med «?». «Vis i kart» er skjult siden kartet allerede er synlig.
+- **Lavere kart:** ca. 24 % av høyden (min. 120 px), mot 30 % (min. 170 px) før.
+- **Liggende telefon:** uendret, kartet til venstre og kortet øverst i høyre kolonne.
+- Faneraden (Innmåling, Utsett, Punkter, Bilde, Oppsett) er gjort litt tettere slik at alle fem er lesbare.
+
+Endret: `App.tsx`, `FieldPanel.tsx`, `styles.css`, `readme.ts`.

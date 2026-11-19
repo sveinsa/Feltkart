@@ -279,6 +279,17 @@ export default function App() {
     };
   }, []);
 
+  // Liggende telefon: kartet ligger til venstre og GNSS-kortet i Felt-kolonnen. Stående: kortet rett under statuslinjen.
+  const [landscape, setLandscape] = useState(() => typeof matchMedia === 'function' && matchMedia('(orientation: landscape) and (min-width: 640px)').matches);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const mq = matchMedia('(orientation: landscape) and (min-width: 640px)');
+    const f = () => setLandscape(mq.matches);
+    f(); mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, []);
+  const [connSlot, setConnSlot] = useState<HTMLElement | null>(null);
+
   if (!ready || !settings) return <div className="loading">Laster prosjekt …</div>;
 
   const native = appMode;
@@ -338,6 +349,8 @@ export default function App() {
       {native && view !== 'field' && view !== 'map' && (
         <button className="native-back" data-testid="native-back" onClick={() => setView('field')}><span aria-hidden="true">←</span> Tilbake til Felt</button>
       )}
+
+      {split && !landscape && <div className="fld-conn-slot" data-testid="conn-slot" ref={setConnSlot} />}
 
       <div className="body">
         {!native && <nav className="rail">
@@ -523,7 +536,7 @@ export default function App() {
           )}
           {native && (
             <div className="field-host" style={{ display: view === 'field' ? 'block' : 'none' }}>
-              <FieldPanel project={project} onToast={showToast} onShowOnMap={() => { setView('map'); setFollowGnss(true); }}
+              <FieldPanel project={project} onToast={showToast} connectSlot={split && !landscape ? connSlot : null} onShowOnMap={() => { setView('map'); setFollowGnss(true); }}
                 onShowStake={() => {
                   if (!stakeTarget) return;
                   setView('map'); setFollowGnss(false);

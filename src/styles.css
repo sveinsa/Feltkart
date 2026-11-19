@@ -880,8 +880,8 @@ th .rg-pop { top: 100%; left: 0; }
 .app.native .map-toolbar { max-width: calc(100% - 20px); }
 
 /* Felt med lite kart samtidig: kartet øverst på stående skjerm, til venstre på liggende */
-.main.split .map-host { inset: 0 0 auto 0; height: 30%; min-height: 170px; border-bottom: 2px solid var(--line-2); }
-.main.split .field-host { inset: max(30%, 170px) 0 0 0; }
+.main.split .map-host { inset: 0 0 auto 0; height: 24%; min-height: 120px; border-bottom: 2px solid var(--line-2); }
+.main.split .field-host { inset: max(24%, 120px) 0 0 0; }
 /* Kompakt GNSS-kort når kartet vises ved siden av, og «Mål punkt» ligger alltid synlig nederst */
 .main.split .fld { padding: 8px; gap: 8px; }
 .main.split .fld-card { padding: 8px 10px; gap: 4px; }
@@ -975,3 +975,19 @@ th .rg-pop { top: 100%; left: 0; }
 .stk-rd { font-size: 13px; font-variant-numeric: tabular-nums; flex: none; }
 .measure-label.stake-label span { background: #7b1fa2; color: #fff; transform: translate(14px, -26px); }
 .main.split .fld-sec.stake > .stk-card, .main.split .fld-sec.stake > .stk-list { margin-right: 0; }
+
+/* GNSS-kortet: smalt og rett under statuslinjen (over det lille kartet) */
+.fld-conn-slot { background: var(--bg); padding: 4px 8px 0; flex: none; }
+.fld-card.slim { padding: 6px 8px; gap: 4px; border-left-width: 6px; }
+.fld-card.slim .fld-msg { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.fld-msgtxt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fld-help { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-2); background: #fff; color: var(--brand); font-weight: 700; font-size: 13px; line-height: 1; padding: 0; }
+.fld-help.on { background: var(--brand); color: #fff; }
+.fld-card.slim .fld-coords { grid-template-columns: repeat(3, 1fr); font-size: 12.5px; gap: 1px 8px; }
+.fld-card.slim .fld-coords i { font-size: 9.5px; }
+.fld-card.slim .fld-crs { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fld-card.slim .fld-conn { gap: 6px; flex-wrap: nowrap; }
+.fld-card.slim .fld-conn select { flex: 1 1 auto; min-width: 0; min-height: 34px; font-size: 14px; }
+.fld-card.slim .fld-conn .btn { padding: 6px 12px; min-height: 34px; white-space: nowrap; }
+.main.split .fld-card.slim { padding: 6px 8px; gap: 4px; }
+.fld-conn-slot .fld-showmap { display: none; }
