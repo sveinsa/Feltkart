@@ -44,6 +44,8 @@ interface Props {
   gnssFollow?: boolean;
   /** Innmålte punkter i Felt som ennå ikke er lagt inn i prosjektet. Vises med navn. */
   marks?: { id: string; name: string; lat: number; lng: number }[];
+  /** Utsetting: punktene du går til (gjeldende er markert) */
+  stake?: { targets: { lat: number; lng: number; name: string }[]; index: number } | null;
 }
 
 type DxfLayers = { key: string; groups: Map<string, L.LayerGroup>; added: Set<string> };
@@ -735,6 +737,27 @@ export default function MapView(props: Props) {
         .addTo(lg);
     }
   }, [props.marks]);
+  // ---------- Utsetting: mål, resten av køen og stiplet linje fra deg til målet ----------
+  const stakeLayer = useRef<L.LayerGroup | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!stakeLayer.current) stakeLayer.current = L.layerGroup().addTo(map);
+    const lg = stakeLayer.current;
+    lg.clearLayers();
+    const s = props.stake;
+    if (!s || !s.targets.length) return;
+    s.targets.forEach((t, i) => {
+      if (i === s.index) return;
+      L.circleMarker([t.lat, t.lng], { pane: 'measurePane', radius: 5, color: '#ffffff', weight: 2, fillColor: '#7b1fa2', fillOpacity: 0.85, interactive: false, className: 'stake-queue' }).addTo(lg);
+    });
+    const cur = s.targets[Math.min(s.index, s.targets.length - 1)];
+    const at = L.latLng(cur.lat, cur.lng);
+    if (props.gnss) L.polyline([[props.gnss.lat, props.gnss.lng], at], { pane: 'measurePane', interactive: false, color: '#7b1fa2', weight: 3, dashArray: '8 6', className: 'stake-line' }).addTo(lg);
+    L.circleMarker(at, { pane: 'measurePane', radius: 14, color: '#7b1fa2', weight: 3, fillColor: '#ffffff', fillOpacity: 0.9, interactive: false, className: 'stake-target' }).addTo(lg);
+    L.circleMarker(at, { pane: 'measurePane', radius: 4, stroke: false, fillColor: '#7b1fa2', fillOpacity: 1, interactive: false }).addTo(lg);
+    L.marker(at, { pane: 'measurePane', interactive: false, keyboard: false, zIndexOffset: 900, icon: labelIcon(cur.name.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string)), 'stake-label', '#7b1fa2') }).addTo(lg);
+  }, [props.stake, props.gnss?.lat, props.gnss?.lng]);
   /** Markør i kartet for pekeren i tverrsnittsvinduet */
   const cursorLayer = useRef<L.LayerGroup | null>(null);
   const showSectionCursor = (ll: { lng: number; lat: number } | null) => {

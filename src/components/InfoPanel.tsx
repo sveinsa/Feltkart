@@ -6,6 +6,7 @@ import { IconChevron, IconClose, IconExpand, IconPano, IconPin, IconTrash } from
 import { FORMAT_LABEL } from '../lib/vector';
 import { useMemo } from 'react';
 import PanoViewer from './PanoViewer';
+import { vertexTargets, type StakeTarget } from '../lib/field/stake';
 
 interface Props {
   project: Project;
@@ -19,6 +20,31 @@ interface Props {
   onSelectItem: (id: string) => void;
   /** Fullskjermvisning er åpen: da hviler 360-visningen i dialogen (sparer grafikkminne) */
   viewerOpen?: boolean;
+  /** Android-appen: send punkter til utsetting («Gå til»). Utelatt på nett. */
+  onStake?: (targets: StakeTarget[], index?: number) => void;
+}
+
+/** «Gå til»-knapper for utsetting (Android-appen) */
+function StakeButtons({ item, f, index, onStake }: { item: Pick<DxfItem, 'id' | 'name'>; f: Parameters<typeof vertexTargets>[1]; index: number; onStake: (t: StakeTarget[], i?: number) => void }) {
+  const all = vertexTargets(item, f, index);
+  const [k, setK] = useState(0);
+  if (!all.length) return null;
+  if (all.length === 1) return <div className="btn-row"><button className="btn primary" onClick={() => onStake(all)}>Gå til punktet</button></div>;
+  const many = all.length > 300;
+  const list = many ? all.slice(0, 300) : all;
+  return (
+    <>
+      <div className="btn-row"><button className="btn primary" onClick={() => onStake(list)}>Gå til alle hjørner ({list.length})</button></div>
+      {many && <p className="muted small">Objektet har {all.length} punkter. De første 300 tas med.</p>}
+      <div className="field">
+        <label>Eller bare ett punkt</label>
+        <select aria-label="Velg hjørne" value={k} onChange={(e) => setK(Number(e.target.value))}>
+          {list.map((t, i) => <option key={t.id} value={i}>Punkt {i + 1}{t.z !== null ? ` (høyde ${t.z.toFixed(2).replace('.', ',')} m)` : ''}</option>)}
+        </select>
+      </div>
+      <div className="btn-row"><button className="btn" onClick={() => onStake([list[k]])}>Gå til valgt punkt</button></div>
+    </>
+  );
 }
 
 function Section({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
@@ -79,7 +105,7 @@ function PhotoPreview({ p, index, total, onPrev, onNext, onOpen, paused }: {
   );
 }
 
-export default function InfoPanel({ project, selection, onClose, onOpenViewer, onStartPlace, onZoomTo, photos, onSelectItem, viewerOpen }: Props) {
+export default function InfoPanel({ project, selection, onClose, onOpenViewer, onStartPlace, onZoomTo, photos, onSelectItem, viewerOpen, onStake }: Props) {
   const [confirmDel, setConfirmDel] = useState(false);
   useEffect(() => setConfirmDel(false), [selection]);
   // Endringer samles i et utkast til du trykker Lagre
@@ -144,6 +170,10 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
     subtitle = 'Punkt på kartet';
     body = <Section title="Koordinater">{coords(selection.lat, selection.lng)}
       <Row k="WGS84" v={`${selection.lat.toFixed(6)}, ${selection.lng.toFixed(6)}`} /></Section>;
+    if (onStake) {
+      const at = { lat: selection.lat, lng: selection.lng };
+      body = <>{body}<Section title="Utsetting"><div className="btn-row"><button className="btn primary" onClick={() => onStake([{ id: `k:${at.lat.toFixed(7)}:${at.lng.toFixed(7)}`, name: 'Valgt punkt i kart', lat: at.lat, lng: at.lng, z: null, source: 'kart' }])}>Gå til dette punktet</button></div></Section></>;
+    }
   }
 
   if (selection.type === 'dxf-feature') {
@@ -172,6 +202,7 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
                 {f.geom === 'line' && f.length > 0 && <Row k="Snittfall" v={`${fmt.num(((zs[zs.length - 1] - zs[0]) / f.length) * 100, 2)} %`} />}</>
           ) : <span className="muted">Ingen høydeinformasjon (2D)</span>}
         </Section>
+        {onStake && <Section title="Utsetting"><StakeButtons key={`${item.id}:${selection.index}`} item={item} f={f} index={selection.index} onStake={onStake} /></Section>}
         <Section title="Fil">
           <Row k="Fil" v={item.name} />
           <Row k="System" v={crsName(item.crs)} />
@@ -223,6 +254,9 @@ export default function InfoPanel({ project, selection, onClose, onOpenViewer, o
             <div className="btn-row">
               <button className="btn" onClick={() => onStartPlace(p.id)}><IconPin size={15} /> {p.lat !== null ? 'Flytt' : 'Plasser på kart'}</button>
               {p.lat !== null && <button className="btn" onClick={() => onZoomTo(p.id)}>Zoom til</button>}
+              {p.lat !== null && p.lng !== null && onStake && (
+                <button className="btn primary" onClick={() => onStake([{ id: `p:${p.id}`, name: p.name, lat: p.lat as number, lng: p.lng as number, z: null, source: 'bilde', note: p.kind === 'pano' ? '360-bilde' : 'Bilde' }])}>Gå til bildet</button>
+              )}
             </div>
           </Section>
         </>

@@ -29,6 +29,7 @@ import ReadmeDialog from './components/ReadmeDialog';
 import { openReadmeWindow } from './lib/readme';
 import { useGnss } from './lib/field/useGnss';
 import { loadPoints, POINTS_EVENT } from './lib/field/survey';
+import { currentTarget, setStake, useStake } from './lib/field/stake';
 import { installDownloadShim, isNative } from './lib/field/native';
 import DriveDialog, { googleConfig } from './components/DriveDialog';
 import SyncDialog from './components/SyncDialog';
@@ -80,6 +81,8 @@ export default function App() {
   const didInitialFit = useRef(false);
 
   const gnss = useGnss();
+  const stakeState = useStake();
+  const stakeTarget = currentTarget(stakeState);
   const [followGnss, setFollowGnss] = useState(appMode);
   // Innmålte punkter som ikke er lagt inn i prosjektet ennå, vises i kartet (også det lille kartet i Felt)
   const [fieldMarks, setFieldMarks] = useState(() => loadPoints().filter((p) => !p.saved));
@@ -400,6 +403,7 @@ export default function App() {
               gnss={gnss.connected && gnss.lat !== null && gnss.lng !== null ? { lat: gnss.lat, lng: gnss.lng, acc: gnss.accH, fix: gnss.quality === 'fix' } : null}
               gnssFollow={followGnss}
               marks={fieldMarks}
+              stake={native && stakeState.targets.length ? { targets: stakeState.targets.map((t) => ({ lat: t.lat, lng: t.lng, name: t.name })), index: stakeState.index } : null}
             />
             {gnss.connected && gnss.lat !== null && (
               <button className={`gnss-follow${followGnss ? ' on' : ''}`} title={followGnss ? 'Slutt å følge posisjonen' : 'Følg min posisjon'} aria-pressed={followGnss} onClick={() => setFollowGnss((f) => !f)}>◎</button>
@@ -475,6 +479,7 @@ export default function App() {
               photos={photos}
               onSelectItem={(id) => setSelection({ type: 'item', id })}
               viewerOpen={!!viewerId}
+              onStake={native ? (t) => { setStake(t); setView('field'); } : undefined}
             />
 
             <div className="coord-bar">
@@ -519,6 +524,14 @@ export default function App() {
           {native && (
             <div className="field-host" style={{ display: view === 'field' ? 'block' : 'none' }}>
               <FieldPanel project={project} onToast={showToast} onShowOnMap={() => { setView('map'); setFollowGnss(true); }}
+                onShowStake={() => {
+                  if (!stakeTarget) return;
+                  setView('map'); setFollowGnss(false);
+                  const la = [stakeTarget.lat, ...(gnss.connected && gnss.lat !== null ? [gnss.lat] : [])];
+                  const lo = [stakeTarget.lng, ...(gnss.connected && gnss.lng !== null ? [gnss.lng] : [])];
+                  const dy = 0.00004, dx = 0.00008;
+                  fitTo([[Math.min(...la) - dy, Math.min(...lo) - dx], [Math.max(...la) + dy, Math.max(...lo) + dx]], 21);
+                }}
                 more={{
                   onUpload: () => setUpload({ files: [] }),
                   onSync: () => setSyncOpen(true),

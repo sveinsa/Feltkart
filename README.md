@@ -452,3 +452,20 @@ Teksten ligger i `src/lib/readmeZeno.ts` (figurene er inline SVG, ingen bildefil
 - Kildene i Felt har forklaring under valget. **Direkte Bluetooth til FLX100** gir full status (Fix/Float, satellitter, korreksjonsalder) når mottakeren får korreksjoner, for eksempel satt opp i Zeno Connect. Feltkart henter ikke korreksjoner selv. Teksten «uten korreksjon» fra 6.8 var misvisende og er fjernet.
 - **Tilbake:** i innstillinger vises «Tilbake til Felt». Androids tilbake-knapp går fra Kart og innstillinger til Felt (ellers legges appen i bakgrunnen som før). Opplasting kaster deg ikke lenger over i Kart.
 - Kotlin: tilbake-knappen i `MainActivity.kt` er endret (ikke kompilert her).
+
+## Readme tilpasser seg bredden (v 7.0)
+
+Readme-siden ble feilaktig ca. 2000 px bred på alle skjermer fordi tabellene i Zeno Connect-delen (v 6.7) hadde `white-space: nowrap` i annen kolonne. Nå bryter tabellene tekst (bare filformat-tabellen holder filendelsene samlet på bred skjerm), kolonnen med innholdet kan krympe (`minmax(0, 1fr)`), figurene skalerer opp til 820 px og ruller sidelengs under 460 px, og siden er laget for 320 px til 1920 px. På skjermer under 560 px er polstring og skrift justert. Ny test sjekker at det ikke finnes sideveis rulling ved 320, 390, 600, 820, 1280 og 1920 px.
+
+## Utsetting: gå til punkter (v 7.1)
+
+Ny fane **Utsett** i Felt i Android-appen. Velg punkter fra prosjektet og la appen lede deg fram:
+
+- **Hvor punktene kommer fra:** punkter og hjørner i objekter (KOF, SOSI, LandXML, DXF), bilder med posisjon, tidligere innmålte punkter og et punkt du trykker på i kartet. Under *Utsett* kan du søke og huke av flere. I kartet finner du *Gå til* under *Utsetting* i infopanelet.
+- **Veiledning:** avstand, pil, nord/sør og øst/vest, og *Skjær*/*Fyll* når punktet har høyde. Pilen bruker gangretningen din og faller tilbake til nord opp når du står stille. Retningen gjelder rutenettets nord i prosjektets koordinatsystem.
+- **Fremme:** pling og grønt kort når du er nærmere enn grensen (Oppsett → *Fremme ved utsetting*, 2 cm til 1 m, standard 5 cm).
+- **Kart:** lilla markør med navn, resten av køen som små prikker og stiplet linje fra deg til punktet. *Vis i kart* zoomer til deg og punktet.
+- **Mål her:** åpner Innmåling med navnet fra utsettingen.
+- Valget lagres på telefonen. *Avslutt* tømmer køen.
+
+Nye filer: `src/lib/field/stake.ts` (lager, regning, innsamling av punkter), `src/components/StakePanel.tsx`. Endret: `FieldPanel.tsx`, `InfoPanel.tsx`, `MapView.tsx`, `App.tsx`, `survey.ts`, `styles.css`, `readme.ts`.

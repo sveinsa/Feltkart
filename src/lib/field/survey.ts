@@ -29,12 +29,14 @@ export interface FieldSettings {
   vdatum: 'NN2000' | 'NN54' | 'Annen';
   /** Spill en liten lyd (pling) når et punkt er registrert */
   sound: boolean;
+  /** Utsetting: fremme når du er nærmere enn dette (m) */
+  stakeTol: number;
 }
 
 export const DEFAULT_FIELD: FieldSettings = {
   poleHeight: 2, avgSeconds: 3, requireFix: true, maxAccH: 0.05, heightMode: 'device', prefix: 'P', next: 1,
   codes: 'TERRENG\nKANT\nKUM\nSLUK\nROR\nMAST', code: '', source: 'android', btAddress: '', btName: '',
-  exportCrs: '', exportFormat: 'kof', vdatum: 'NN2000', sound: true,
+  exportCrs: '', exportFormat: 'kof', vdatum: 'NN2000', sound: true, stakeTol: 0.05,
 };
 
 const SKEY = 'feltkart.field.settings';

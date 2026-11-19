@@ -17,15 +17,21 @@ import {
 import { buildExport, EXPORT_FORMATS, sosiSupported } from '../lib/field/export';
 import { androidClientId, setAndroidClientId } from '../lib/google';
 import { VERSION } from '../version';
+import StakePanel from './StakePanel';
+import { useStake } from '../lib/field/stake';
 
 interface Props {
   project: Project;
   onToast: (msg: string) => void;
   onShowOnMap: () => void;
   /** Snarveier til det som ikke lenger ligger i menyene i Android-appen (vises under Oppsett) */
+  /** «Vis i kart» fra Utsett */
+  onShowStake?: () => void;
   more?: { onUpload: () => void; onSync: () => void; onReadme: () => void; onRefresh: () => void; onSettings: () => void };
 }
 
+
+let seenStakeFocus = 0;
 
 /** Kort forklaring av hver posisjonskilde (vises under valget) */
 const SRC_HELP: Record<'android' | 'intern' | 'bt', string> = {
@@ -34,10 +40,11 @@ const SRC_HELP: Record<'android' | 'intern' | 'bt', string> = {
   bt: 'Feltkart snakker rett med FLX100 over Bluetooth og får full status: Fix eller Float, satellitter og korreksjonsalder. Det gir den sikreste statusen. Mottakeren må få RTK-korreksjoner, for eksempel satt opp i Zeno Connect. Feltkart henter ikke korreksjoner selv.',
 };
 
-export default function FieldPanel({ project, onToast, onShowOnMap, more }: Props) {
+export default function FieldPanel({ project, onToast, onShowOnMap, onShowStake, more }: Props) {
   const projectCrs = project.settings!.projectCrs;
   const g = useGnss();
-  const [tab, setTab] = useState<'mal' | 'punkter' | 'bilde' | 'oppsett'>('mal');
+  const [tab, setTab] = useState<'mal' | 'utsett' | 'punkter' | 'bilde' | 'oppsett'>('mal');
+  const stake = useStake();
   const [fs, setF] = useFieldSettings();
   const [points, setPoints] = useState<FieldPoint[]>(() => loadPoints());
   const [name, setName] = useState('');
@@ -60,6 +67,8 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
   const source = native_ ? fs.source : 'android';
 
   const goTab = (t: typeof tab) => { setErr(null); setTab(t); };
+  // Når noe sendes til utsetting (fra kartet eller en liste), åpnes Utsett-fanen
+  useEffect(() => { if (stake.focus !== seenStakeFocus) { seenStakeFocus = stake.focus; setErr(null); setTab('utsett'); } }, [stake.focus]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { savePoints(points); }, [points]);
   const suggested = useMemo(() => nextName(fs, points), [fs.prefix, fs.next, points]);
@@ -205,6 +214,7 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
 
       <div className="fld-tabs" role="tablist">
         <button role="tab" className={tab === 'mal' ? 'on' : ''} onClick={() => goTab('mal')}>Innmåling</button>
+        <button role="tab" className={tab === 'utsett' ? 'on' : ''} onClick={() => goTab('utsett')}>Utsett{stake.targets.length ? ` (${stake.targets.length})` : ''}</button>
         <button role="tab" className={tab === 'punkter' ? 'on' : ''} onClick={() => goTab('punkter')}>Punkter{points.length ? ` (${points.length})` : ''}</button>
         <button role="tab" className={tab === 'bilde' ? 'on' : ''} onClick={() => goTab('bilde')}>Bilde</button>
         <button role="tab" className={tab === 'oppsett' ? 'on' : ''} onClick={() => goTab('oppsett')}>Oppsett</button>
@@ -237,6 +247,10 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
             );
           })()}
         </div>
+      )}
+
+      {tab === 'utsett' && (
+        <StakePanel project={project} crs={crs} onMeasureHere={(n) => { setName(n); goTab('mal'); }} onShowTarget={() => onShowStake?.()} />
       )}
 
       {tab === 'punkter' && (
@@ -349,6 +363,11 @@ export default function FieldPanel({ project, onToast, onShowOnMap, more }: Prop
           </div>
           <div className="fld-row">
             <label>Maks usikkerhet (cm)<input type="number" min="1" value={Math.round(fs.maxAccH * 100)} onChange={(e) => setF({ maxAccH: Math.max(0.01, (Number(e.target.value) || 5) / 100) })} /></label>
+            <label>Fremme ved utsetting<select aria-label="Fremme ved utsetting" value={String(fs.stakeTol)} onChange={(e) => setF({ stakeTol: Number(e.target.value) })}>
+              {[0.02, 0.05, 0.1, 0.25, 0.5, 1].map((v) => <option key={v} value={String(v)}>{v < 1 ? `${v * 100} cm` : '1 m'}</option>)}
+            </select></label>
+          </div>
+          <div className="fld-row">
             <label>Høyde<select value={fs.heightMode} onChange={(e) => setF({ heightMode: e.target.value as 'device' | 'ellipsoid' })}>
               <option value="device">Slik mottakeren oppgir den</option>
               <option value="ellipsoid">Ellipsoidehøyde (bare direkte Bluetooth)</option>

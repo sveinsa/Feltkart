@@ -7,6 +7,8 @@ export interface Release { v: string; title: string; text: string }
 
 /** Versjonshistorikk, nyeste først. Legg til en linje øverst for hver ny versjon. */
 export const CHANGELOG: Release[] = [
+  { v: '7.1', title: 'Utsetting: gå til punkter', text: 'Ny fane «Utsett» i Felt i Android-appen. Velg ett eller flere punkter fra prosjektet (objekter, prosjektpunkter, bilder med posisjon, innmålte punkter eller et punkt du trykker på i kartet) og gå til dem. Du ser avstand, en pil som peker mot punktet, nord- og østforskjell og skjær/fyll når punktet har høyde. Lilla markør og stiplet linje vises i kartet. Pling og «Fremme» når du er nærmere enn grensen du setter under Oppsett.' },
+  { v: '7.0', title: 'Readme tilpasser seg bredden', text: 'Readme-siden ble feilaktig rundt 2000 piksler bred på grunn av tabellene i Zeno Connect-delen. Nå tilpasser den seg vinduet: tabeller bryter tekst, figurene skalerer, innholdslisten blir rader på smal skjerm, og på stor skjerm brukes mer av bredden.' },
   { v: '6.9', title: 'Android-demo på nettsiden, tydeligere kilder, enklere tilbake', text: 'Ny knapp «Android-app» med mobilikon øverst på nettsiden åpner en demoside der appen kjører i en Android-mobil i nettleseren, med simulert RTK-posisjon. Posisjonskildene i appen har fått forklaring, og «Direkte Bluetooth til FLX100» heter ikke lenger «uten korreksjon». I appen finnes «Tilbake til Felt» i innstillinger, Androids tilbake-knapp går mot Felt, og opplasting kaster deg ikke lenger over i Kart.' },
   { v: '6.8', title: 'Statuslinje under menyen, Intern GPS, Bluetooth-rettelse', text: 'GNSS-statuslinjen ligger nå rett under menylinjen (Felt og Kart). Ny posisjonskilde «Intern GPS» leser Androids posisjonstjeneste direkte, også mock-posisjon fra Zeno Connect, og viser rådata (leverandør, mock, nøyaktighet) til feilsøking. Direkte Bluetooth feilet på Android 12 og nyere på grunn av manglende tillatelse; det er rettet.' },
   { v: '6.7', title: 'Readme: korreksjon via Zeno Connect', text: 'Readme har fått en ny del om hvordan RTK-korreksjon går fra satellitt og referansenett via FLX100 og Zeno Connect til Feltkart, med flytskjema og figurer: kjeden, kvalitetstrappen, høyde og stanghøyde, oppsett steg for steg og feilsøking.' },
@@ -82,7 +84,7 @@ const TABS: [string, string][] = [
 
 /** Hele Readme-siden som HTML */
 export function buildReadmeHtml(version: string, versionLabel = `v ${version} beta`): string {
-  const toc: [string, string][] = [['om', 'Om Feltkart'], ['kom-i-gang', 'Kom i gang'], ['faner', 'Fanene'], ['filformater', 'Filformater'], ['maling', 'Måling og tverrsnitt'], ['android', 'Android-appen'], ['zeno', 'Korreksjon via Zeno Connect'], ['tips', 'Tips'], ['historikk', 'Versjonshistorikk']];
+  const toc: [string, string][] = [['om', 'Om Feltkart'], ['kom-i-gang', 'Kom i gang'], ['faner', 'Fanene'], ['filformater', 'Filformater'], ['maling', 'Måling og tverrsnitt'], ['android', 'Android-appen'], ['utsetting', 'Utsetting'], ['zeno', 'Korreksjon via Zeno Connect'], ['tips', 'Tips'], ['historikk', 'Versjonshistorikk']];
   const g = groups();
   const hist = g.map((grp, i) => `
     <details class="grp"${i < 2 ? ' open' : ''}>
@@ -97,12 +99,12 @@ export function buildReadmeHtml(version: string, versionLabel = `v ${version} be
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
 .hero{background:var(--brand);color:#fff}
-.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+.wrap{max-width:1280px;margin:0 auto;padding:0 24px}
 .hero-in{display:flex;align-items:center;gap:18px;padding:28px 24px}
 .hero h1{margin:0;font-size:32px;line-height:1.1;letter-spacing:-.01em}
 .hero p{margin:4px 0 0;color:#cfe6d7;font-size:16px}
 .ver{margin-left:auto;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:4px 14px;font-size:13px;white-space:nowrap}
-.layout{display:grid;grid-template-columns:200px 1fr;gap:36px;padding-top:26px;padding-bottom:50px}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:36px;padding-top:26px;padding-bottom:50px}
 .toc{position:sticky;top:18px;align-self:start;display:flex;flex-direction:column;gap:2px;font-size:14px}
 .toc a{color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:8px;border-left:3px solid transparent}
 .toc a:hover{background:var(--soft);color:var(--brand)}
@@ -122,10 +124,10 @@ p{margin:8px 0}ul,ol{margin:8px 0;padding-left:22px}li{margin:4px 0}
 table{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-td:first-child{font-weight:600;white-space:nowrap}td:nth-child(2){white-space:nowrap;color:var(--brand)}
+td:first-child{font-weight:600}#filformater td:first-child,#filformater td:nth-child(2){white-space:nowrap}#filformater td:nth-child(2){color:var(--brand)}td{overflow-wrap:anywhere}table{max-width:100%}main{min-width:0}.steps li>div{min-width:0}
 kbd{background:#eef2ef;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 6px;font:12.5px ui-monospace,Consolas,monospace}
 .fig{margin:14px 0;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff}
-.fig .sc{overflow-x:auto}.fig svg{display:block;width:100%;min-width:460px;height:auto}
+.fig .sc{overflow-x:auto}.fig svg{display:block;width:100%;max-width:820px;margin:0 auto;min-width:460px;height:auto}
 .fig figcaption{font-size:13px;color:var(--muted);margin-top:6px}
 .fig .bx{fill:var(--soft);stroke:var(--brand);stroke-width:1.5}.fig .bl{fill:#eef7dc;stroke:var(--lime);stroke-width:1.5}
 .fig .bk{fill:var(--brand)}.fig .bad{fill:#fbe3e1;stroke:#c0392b;stroke-width:1.5}.fig .wn{fill:#fff6dc;stroke:#d9a400;stroke-width:1.5}
@@ -147,7 +149,8 @@ kbd{background:#eef2ef;border:1px solid var(--line);border-bottom-width:2px;bord
 .rel p{margin:2px 0 0;color:#33413a;font-size:14px}
 .badge{flex:none;min-width:62px;height:24px;padding:0 8px;border-radius:999px;background:var(--brand);color:#fff;font-size:12px;font-weight:600;display:inline-grid;place-items:center;margin-top:2px;white-space:nowrap}
 footer{text-align:center;color:var(--muted);font-size:13px;padding:0 0 30px}
-@media(max-width:820px){.layout{grid-template-columns:1fr;gap:12px}.toc{position:static;flex-direction:row;flex-wrap:wrap}.hero h1{font-size:26px}.ver{display:none}main section{padding:18px}}
+@media(max-width:560px){.wrap{padding:0 12px}.hero-in{padding:20px 12px;gap:12px}.hero h1{font-size:23px}.hero p{font-size:14px}main section{padding:14px 12px;border-radius:12px}h2{font-size:18px}table{font-size:13px}th,td{padding:6px 6px}#filformater td:first-child,#filformater td:nth-child(2){white-space:normal}.fig{padding:6px}.grp summary{padding:10px 12px}}
+@media(max-width:820px){.layout{grid-template-columns:minmax(0,1fr);gap:12px}.toc{position:static;flex-direction:row;flex-wrap:wrap}.hero h1{font-size:26px}.ver{display:none}main section{padding:18px}}
 @media print{.toc{display:none}.layout{display:block}main section{break-inside:avoid;border:0;padding:0}.hero{background:#fff;color:#000}.hero p{color:#444}.grp:not([open]) ol{display:block}}
 </style></head><body>
 <header class="hero"><div class="wrap hero-in">${LOGO}<div><h1>Feltkart</h1><p>Kart, bilder og innmåling for anleggsprosjekter</p></div><span class="ver">${esc(versionLabel)}</span></div></header>
@@ -198,6 +201,18 @@ footer{text-align:center;color:var(--muted);font-size:13px;padding:0 0 30px}
 </ol>
 <p>Vil du se hvordan appen ser ut først? Knappen <strong>Android-app</strong> øverst på nettsiden åpner en demo i en Android-mobil, med simulert posisjon.</p>
 <p class="muted">Nye versjoner installeres oppå den gamle. Data og innstillinger beholdes.</p>
+</section>
+
+<section id="utsetting"><h2>Utsetting: gå til punkter</h2>
+<p>Med utsetting kan du la appen lede deg fram til et punkt fra prosjektet. Det gjelder bare i Android-appen, der posisjonen kommer fra mottakeren.</p>
+<ol class="steps">
+<li><div>Åpne <strong>Felt</strong> og velg fanen <strong>Utsett</strong>. Der ligger alle punkter i prosjektet, nærmeste først. Søk på navn eller kode, og trykk <em>Gå til</em>. Vil du ha flere punkter i en rekkefølge, huk av og trykk <em>Utsett valgte</em>.</div></li>
+<li><div>Eller trykk på et objekt, et punkt eller et bilde i <strong>Kart</strong> og velg <em>Gå til</em> under <em>Utsetting</em>. For en linje eller flate kan du gå til alle hjørnene eller bare ett.</div></li>
+<li><div>Gå mot punktet. Pilen viser retningen ut fra hvordan du går, så den dreier seg etter deg. Står du stille, er nord opp. Under pilen står avstanden, og hvor mange meter nord/sør og øst/vest punktet ligger.</div></li>
+<li><div>Når du er nærmere enn grensen, står det <strong>Fremme</strong>, og du hører et pling. Trykk <em>Mål her</em> for å måle inn punktet med samme navn, eller <em>Neste</em> for å gå videre.</div></li>
+</ol>
+<p><strong>Høyde:</strong> Har punktet høyde, vises <em>Skjær</em> (terrenget er for høyt) eller <em>Fyll</em> (for lavt) i meter. Det forutsetter at mottakeren oppgir høyde i samme system som prosjektdataene, og at stanghøyden under Oppsett stemmer.</p>
+<p class="muted">Retningen er mot rutenettets nord i prosjektets koordinatsystem, ikke mot sann nord. Avstand og retning regnes fra posisjonen mottakeren oppgir. Vises ikke «Klar», kan posisjonen være unøyaktig. Da står det en advarsel i kortet.</p>
 </section>
 
 ${ZENO_SECTION}
