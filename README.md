@@ -415,3 +415,25 @@ På telefon vises hovedmenyen i egen rad øverst.
 - **Snarveier** til Last opp filer, Google Disk, Prosjektinnstillinger, Readme og Sjekk ny versjon ligger under Felt → Oppsett → Mer.
 - **Kart** i appen har en «Lag»-knapp i verktøylinjen som åpner kartlagene som et ark nederst.
 - Stanghøyden regnes som før: høyde fra mottakeren (evt. ellipsoidehøyde) minus stanghøyde. Hvis Leica Zeno Connect selv er satt opp med antennehøyde, skal stanghøyden her være 0, ellers trekkes den fra to ganger.
+
+## Status øverst, rund målknapp og pling (v 6.6)
+- **GNSS-status helt øverst** i Android-appen, over Felt/Kart og kartet: **grønn** når posisjonen er klar til å måle (RTK Fix, og nøyaktigheten er innenfor grensen), **rød** ellers (også uten tilkobling, da blinker prikken). Den vises i både Felt og Kart.
+- **«Nøyaktighet»** står i stedet for «anslått». Ved Android-posisjon er nøyaktigheten oppgitt av telefonen, og RTK-statusen er regnet ut fra den. Det står som tips (hold på tallet).
+- **Stanghøyden** sitter i samme felt som statusen, med − / + og eget felt, uten hurtigvalg, og med regnestykket antenne − stang = bakke. Den følger med til Kart-visningen.
+- **Kartet ligger rett under** statuslinjen og Felt/Kart.
+- **Koordinatsystem og geoidemodell** vises sammen i infolinjen, f.eks. «EUREF89 UTM sone 32 · Geoidemodell NN2000». Velg NN2000, NN54 eller Annen under Felt → Oppsett. Valget er bare informasjon, og endrer ikke hvordan høyden regnes. Ved «Ellipsoidehøyde» står det i stedet «Ellipsoidehøyde (ingen geoide)».
+- **Målknappen** er rund (88 px), på høyre side, med midten ca. 1/4 opp fra bunnen av skjermen. Faner og skjemafelt går ikke under den. Den vises bare på Innmåling-fanen i Felt.
+- **Pling** (to korte toner) når et punkt er registrert. Slås av og på under Felt → Oppsett («Lyd ved registrering»). Lyden lages i appen, uten lydfil, og startes når du trykker på målknappen siden Android bare tillater lyd etter et trykk.
+
+## Readme: korreksjon via Zeno Connect (v 6.7)
+
+Readme-siden (knappen «Readme», også i Android-appen) har fått en ny del, **Korreksjon via Zeno Connect**, med seks figurer og flytskjema:
+
+- hvorfor korreksjon trengs, og hvem som gjør hva (FLX100, Zeno Connect, Android, Feltkart)
+- hele kjeden fra satellitt og referansenett til innmålt punkt, i seks nummererte trinn
+- kvalitetstrappen GPS, DGPS, Float og Fix, med grensene Feltkart bruker
+- koordinater og høyde (ellipsoide, geoide, H = h − N) og stanghøyde, med advarsel mot dobbelt fratrekk
+- oppsett i Zeno Connect steg for steg
+- feilsøking som flytskjema
+
+Teksten ligger i `src/lib/readmeZeno.ts` (figurene er inline SVG, ingen bildefiler). Beskrivelsen er ikke prøvd mot en ekte FLX100.
